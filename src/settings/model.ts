@@ -1,5 +1,16 @@
 export type DefaultCoverStrategy = 'article' | 'first-image' | 'global-default';
 
+export interface MediaCacheRecord {
+  key: string;
+  accountHash: string;
+  kind: 'body' | 'cover';
+  contentHash: string;
+  mediaId: string | null;
+  url: string | null;
+  createdAt: number;
+  lastUsedAt: number;
+}
+
 export interface PluginSettings {
   schemaVersion: 1;
   appId: string;
@@ -12,6 +23,7 @@ export interface PluginSettings {
   imageApiModel: string;
   accessTokenExpiresAt: number | null;
   accountHash: string | null;
+  mediaCache: readonly Readonly<MediaCacheRecord>[];
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
@@ -26,4 +38,5 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   imageApiModel: '',
   accessTokenExpiresAt: null,
   accountHash: null,
+  mediaCache: Object.freeze([]),
 });

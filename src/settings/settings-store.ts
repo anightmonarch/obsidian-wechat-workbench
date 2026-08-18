@@ -1,4 +1,9 @@
-import { DEFAULT_SETTINGS, type DefaultCoverStrategy, type PluginSettings } from './model';
+import {
+  DEFAULT_SETTINGS,
+  type DefaultCoverStrategy,
+  type MediaCacheRecord,
+  type PluginSettings,
+} from './model';
 
 export interface PluginDataPort {
   loadData(): Promise<unknown>;
@@ -35,6 +40,32 @@ function coverStrategy(value: unknown): DefaultCoverStrategy {
     : DEFAULT_SETTINGS.defaultCoverStrategy;
 }
 
+function mediaCache(value: unknown): readonly Readonly<MediaCacheRecord>[] {
+  if (!Array.isArray(value)) return DEFAULT_SETTINGS.mediaCache;
+  const entries: Readonly<MediaCacheRecord>[] = [];
+  for (const item of value.slice(-500)) {
+    if (!isRecord(item)) continue;
+    if (typeof item.key !== 'string' || typeof item.accountHash !== 'string'
+      || (item.kind !== 'body' && item.kind !== 'cover')
+      || typeof item.contentHash !== 'string'
+      || !(typeof item.mediaId === 'string' || item.mediaId === null)
+      || !(typeof item.url === 'string' || item.url === null)
+      || typeof item.createdAt !== 'number' || !Number.isFinite(item.createdAt)
+      || typeof item.lastUsedAt !== 'number' || !Number.isFinite(item.lastUsedAt)) continue;
+    entries.push(Object.freeze({
+      key: item.key,
+      accountHash: item.accountHash,
+      kind: item.kind,
+      contentHash: item.contentHash,
+      mediaId: item.mediaId,
+      url: item.url,
+      createdAt: item.createdAt,
+      lastUsedAt: item.lastUsedAt,
+    }));
+  }
+  return Object.freeze(entries);
+}
+
 function sanitizeSettings(value: unknown): PluginSettings {
   const stored = isRecord(value) && value.schemaVersion === 1 ? value : {};
 
@@ -56,6 +87,7 @@ function sanitizeSettings(value: unknown): PluginSettings {
       DEFAULT_SETTINGS.accessTokenExpiresAt,
     ),
     accountHash: nullableString(stored.accountHash, DEFAULT_SETTINGS.accountHash),
+    mediaCache: mediaCache(stored.mediaCache),
   };
 }
 
