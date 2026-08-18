@@ -13,7 +13,9 @@ export interface MediaCacheRecord {
 
 export interface RecoveryReceiptRecord {
   taskId: string;
+  vaultPath: string;
   accountHash: string;
+  fingerprint: string;
   mediaId: string;
   operation: 'CREATE' | 'UPDATE';
   contentHash: string;

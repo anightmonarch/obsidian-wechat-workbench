@@ -4,7 +4,7 @@ import type { DraftReceipt, RemoteDraft, WeChatDraftArticle } from '../wechat/we
 import type { AssetUploadService, PublishAccount, ResolvedArtifact, UploadImage } from './asset-upload-service';
 import { decidePublish, type PublishDecision, type PublishHashes } from './publish-decision';
 import type { PublishCommand, PublishOutcome } from './publish-types';
-import { normalizedFinalHtmlHash } from './publish-content';
+import { normalizedFinalHtmlHash, transactionFingerprint } from './publish-content';
 import type { RecoveryReceipt } from './recovery-receipt-store';
 import type { SyncedDraftState } from './publish-state-store';
 
@@ -12,7 +12,7 @@ export interface PublishCoordinatorPorts {
   preflight: {
     run(artifact: PublishCommand['artifact'], context: Readonly<PreflightContext>): Readonly<PreflightReport>;
   };
-  tokens: { getValidToken(): Promise<string> };
+  tokens: { getValidToken(expectedAccountHash: string): Promise<string> };
   assets: Pick<AssetUploadService, 'resolveBodyAssets' | 'uploadCover'>;
   drafts: {
     addDraft(article: Readonly<WeChatDraftArticle>, token: string): Promise<Readonly<DraftReceipt>>;
@@ -29,6 +29,7 @@ export interface PublishCoordinatorPorts {
   };
   currentSourceHash(file: PublishCommand['file']): Promise<string>;
   currentCover(command: Readonly<PublishCommand>): Promise<Readonly<{ path: string; hash: string }>>;
+  currentPayloadHash(command: Readonly<PublishCommand>): Promise<string>;
 }
 
 type Clock = () => number;
@@ -83,6 +84,7 @@ function frozenCommand(command: Readonly<PublishCommand>): Readonly<PublishComma
     cover: Object.freeze(cover),
     coverPath: command.coverPath,
     coverHash: command.coverHash,
+    payloadHash: command.payloadHash,
   });
 }
 
@@ -100,7 +102,10 @@ function committedLocalError(code: string, message: string, nextAction: string):
 }
 
 export class PublishCoordinator {
-  private readonly flights = new Map<string, Promise<Readonly<PublishOutcome>>>();
+  private readonly flights = new Map<string, Readonly<{
+    fingerprint: string;
+    task: Promise<Readonly<PublishOutcome>>;
+  }>>();
 
   constructor(
     private readonly ports: PublishCoordinatorPorts,
@@ -110,12 +115,20 @@ export class PublishCoordinator {
 
   publish(command: Readonly<PublishCommand>): Promise<Readonly<PublishOutcome>> {
     const key = `${command.accountHash}:${command.file.path}`;
+    const fingerprint = transactionFingerprint(command);
     const existing = this.flights.get(key);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      if (existing.fingerprint === fingerprint) return existing.task;
+      return Promise.resolve(outcome(this.taskId(), 'FAILED', null, null, publishError(
+        'PUBLISH_CONFLICT_IN_PROGRESS',
+        'A different frozen version of this note is already publishing.',
+        'Wait for the active publish to finish, then prepare this version again.',
+      )));
+    }
     const task = this.execute(frozenCommand(command)).finally(() => {
-      if (this.flights.get(key) === task) this.flights.delete(key);
+      if (this.flights.get(key)?.task === task) this.flights.delete(key);
     });
-    this.flights.set(key, task);
+    this.flights.set(key, Object.freeze({ fingerprint, task }));
     return task;
   }
 
@@ -140,6 +153,22 @@ export class PublishCoordinator {
         ));
       }
 
+      let currentPayloadHash: string;
+      try { currentPayloadHash = await this.ports.currentPayloadHash(command); } catch {
+        return outcome(taskId, 'FAILED', null, null, publishError(
+          'ARTICLE_RECHECK_FAILED',
+          'The confirmed article could not be rendered again before publishing.',
+          'Reopen the publish confirmation and retry.',
+        ));
+      }
+      if (currentPayloadHash !== command.payloadHash) {
+        return outcome(taskId, 'FAILED', null, null, publishError(
+          'ARTICLE_CHANGED_AFTER_CONFIRMATION',
+          'Article metadata, content, or theme changed after confirmation.',
+          'Review the current preview and confirm publishing again.',
+        ));
+      }
+
       let currentCover: Readonly<{ path: string; hash: string }>;
       try {
         currentCover = await this.ports.currentCover(command);
@@ -160,7 +189,7 @@ export class PublishCoordinator {
 
       const local = await this.ports.state.read(command.file);
       const hashes: PublishHashes = {
-        contentHash: command.artifact.contentHash,
+        contentHash: command.payloadHash,
         themeId: command.artifact.theme.id,
         themeVersion: command.artifact.theme.version,
         coverHash: command.coverHash,
@@ -169,7 +198,7 @@ export class PublishCoordinator {
       if (decision.kind === 'BLOCK_ACCOUNT_MISMATCH') return this.blockedDecision(taskId, decision);
 
       failureStage = 'TOKEN';
-      const token = await this.ports.tokens.getValidToken();
+      const token = await this.ports.tokens.getValidToken(command.accountHash);
       if (local !== null) {
         failureStage = 'DRAFT_READ';
         const remote = await this.ports.drafts.getDraft(local.draftId, token);
@@ -226,7 +255,7 @@ export class PublishCoordinator {
       const localState: SyncedDraftState = {
         draftId: mediaId,
         accountId: command.accountHash,
-        contentHash: command.artifact.contentHash,
+        contentHash: command.payloadHash,
         themeId: command.artifact.theme.id,
         themeVersion: command.artifact.theme.version,
         coverHash: command.coverHash,
@@ -297,7 +326,9 @@ export class PublishCoordinator {
   ): Promise<void> {
     await this.ports.receipts.record(Object.freeze({
       taskId,
+      vaultPath: command.file.path,
       accountHash: command.accountHash,
+      fingerprint: transactionFingerprint(command),
       mediaId,
       operation,
       contentHash: normalizedFinalHtmlHash(resolved.html),

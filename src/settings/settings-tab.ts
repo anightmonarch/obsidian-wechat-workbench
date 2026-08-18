@@ -129,8 +129,20 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
               return;
             }
             this.secrets.set(row.kind, pendingValue);
+            if (row.kind === 'appSecret') this.secrets.clear('accessToken');
             pendingValue = '';
             new Notice(`${row.label} 已保存到 SecretStorage`);
+            this.display();
+          }))
+        .addButton(button => button
+          .setButtonText('清除')
+          .onClick(async () => {
+            this.secrets.clear(row.kind);
+            if (row.kind === 'appSecret') {
+              this.secrets.clear('accessToken');
+              await this.settings.update({ accessTokenExpiresAt: null });
+            }
+            new Notice(`${row.label} 已从 SecretStorage 清除`);
             this.display();
           }));
     }

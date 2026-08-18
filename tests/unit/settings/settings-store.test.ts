@@ -77,4 +77,13 @@ describe('SettingsStore', () => {
     expect(settings.recoveryReceipts[0]).not.toHaveProperty('accessToken');
     expect(settings.recoveryReceipts[0]).not.toHaveProperty('html');
   });
+
+  it('does not persist credentials, query parameters, or fragments in provider URLs', async () => {
+    const store = new SettingsStore(new MemoryPluginData({
+      schemaVersion: 1,
+      imageApiBaseUrl: 'https://user:password@images.example.test/v1?api_key=value#fragment',
+    }));
+
+    expect((await store.load()).imageApiBaseUrl).toBe('');
+  });
 });

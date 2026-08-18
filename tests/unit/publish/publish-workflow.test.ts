@@ -7,9 +7,12 @@ import { PreflightEngine } from '../../../src/preflight/preflight-engine';
 import { buildPublishDialogModel } from '../../../src/ui/publish-dialog';
 import {
   PublishWorkflow,
+  type PublishRecoveryPorts,
   type PublishWorkflowSettings,
 } from '../../../src/publish/publish-workflow';
 import type { SyncedDraftState } from '../../../src/publish/publish-state-store';
+import { transactionFingerprint } from '../../../src/publish/publish-content';
+import type { RecoveryReceipt } from '../../../src/publish/recovery-receipt-store';
 
 const png = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
@@ -34,6 +37,7 @@ function harness(
     appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH', defaultCoverStrategy: 'first-image',
   },
   local: Readonly<SyncedDraftState> | null = null,
+  recovery?: PublishRecoveryPorts,
 ) {
   const publish = vi.fn(async () => ({
     taskId: 'TASK_1', state: 'LOCAL_COMMITTED' as const, action: 'CREATE' as const,
@@ -53,6 +57,7 @@ function harness(
     },
     new PreflightEngine(),
     { publish },
+    recovery,
   );
   return { workflow, publish, state };
 }
@@ -107,11 +112,7 @@ describe('PublishWorkflow', () => {
     const commit = vi.fn(async () => undefined);
     const record = vi.fn(async () => undefined);
     const resolve = vi.fn(async () => undefined);
-    const receipt = Object.freeze({
-      taskId: 'TASK_RECOVERY', accountHash: 'ACCOUNT_HASH', mediaId: '', operation: 'CREATE' as const,
-      contentHash: 'CONTENT_HASH', themeHash: 'THEME_HASH', coverHash: 'COVER_HASH',
-      remoteTimestamp: 1_700_000_000_000, status: 'UNRESOLVED' as const,
-    });
+    let receipt: Readonly<RecoveryReceipt> | null = null;
     const workflow = new PublishWorkflow(
       { get: () => ({ appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH', defaultCoverStrategy: 'first-image' }) },
       { read: vi.fn(async () => null), commit, unlink: vi.fn(async () => undefined) },
@@ -119,13 +120,19 @@ describe('PublishWorkflow', () => {
       new PreflightEngine(),
       { publish: vi.fn() },
       {
-        receipts: { get: vi.fn(() => receipt), record, resolve },
+        receipts: { get: vi.fn(() => receipt), record, resolve, listUnresolved: vi.fn(() => []) },
         tokens: { getValidToken: vi.fn(async () => 'SYNTHETIC_TOKEN') },
         reconciler: { reconcile: vi.fn(async () => ({ kind: 'MATCHED' as const, mediaId: 'RECOVERED_MEDIA_ID' })) },
         now: () => 1_700_000_100_000,
       },
     );
     const command = (await workflow.prepare(file, artifact)).command;
+    receipt = Object.freeze({
+      taskId: 'TASK_RECOVERY', vaultPath: file.path, accountHash: 'ACCOUNT_HASH',
+      fingerprint: transactionFingerprint(command), mediaId: '', operation: 'CREATE' as const,
+      contentHash: 'CONTENT_HASH', themeHash: 'THEME_HASH', coverHash: 'COVER_HASH',
+      remoteTimestamp: 1_700_000_000_000, status: 'UNRESOLVED' as const,
+    });
 
     const outcome = await workflow.reconcile(command, receipt.taskId);
 
@@ -133,5 +140,49 @@ describe('PublishWorkflow', () => {
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ mediaId: 'RECOVERED_MEDIA_ID' }));
     expect(commit).toHaveBeenCalledWith(file, expect.objectContaining({ draftId: 'RECOVERED_MEDIA_ID' }));
     expect(resolve).toHaveBeenCalledWith(receipt.taskId);
+  });
+
+  it('blocks another CREATE while the same note has an unresolved CREATE receipt', async () => {
+    const base = harness();
+    const command = (await base.workflow.prepare(file, artifact)).command;
+    const receipt: Readonly<RecoveryReceipt> = Object.freeze({
+      taskId: 'TASK_PENDING', vaultPath: file.path, accountHash: command.accountHash,
+      fingerprint: transactionFingerprint(command), mediaId: '', operation: 'CREATE',
+      contentHash: 'CONTENT_HASH', themeHash: 'THEME_HASH', coverHash: command.coverHash,
+      remoteTimestamp: 1, status: 'UNRESOLVED',
+    });
+    const blocked = harness(undefined, null, {
+      receipts: {
+        get: vi.fn(() => receipt), record: vi.fn(), resolve: vi.fn(),
+        listUnresolved: vi.fn(() => [receipt]),
+      },
+      tokens: { getValidToken: vi.fn(async () => 'SYNTHETIC_TOKEN') },
+      reconciler: { reconcile: vi.fn() },
+    });
+
+    await expect(blocked.workflow.prepare(file, artifact))
+      .rejects.toMatchObject({ code: 'PUBLISH_PREPARE_BLOCKED' });
+    expect(blocked.publish).not.toHaveBeenCalled();
+  });
+
+  it('repairs local state from the known remote result when receipt persistence failed', async () => {
+    const resolve = vi.fn(async () => undefined);
+    const current = harness(undefined, null, {
+      receipts: {
+        get: vi.fn(() => null), record: vi.fn(), resolve, listUnresolved: vi.fn(() => []),
+      },
+      tokens: { getValidToken: vi.fn(async () => 'SYNTHETIC_TOKEN') },
+      reconciler: { reconcile: vi.fn() },
+    });
+    const command = (await current.workflow.prepare(file, artifact)).command;
+
+    const outcome = await current.workflow.repairLocal(command, 'TASK_NO_RECEIPT', {
+      mediaId: 'KNOWN_REMOTE_MEDIA_ID', operation: 'CREATE',
+    });
+
+    expect(outcome).toMatchObject({ state: 'LOCAL_COMMITTED', mediaId: 'KNOWN_REMOTE_MEDIA_ID' });
+    expect(current.state.commit).toHaveBeenCalledWith(file, expect.objectContaining({
+      draftId: 'KNOWN_REMOTE_MEDIA_ID',
+    }));
   });
 });

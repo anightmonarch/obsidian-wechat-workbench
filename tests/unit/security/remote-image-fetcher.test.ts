@@ -42,7 +42,7 @@ describe('RemoteImageFetcher', () => {
     expect(image.finalUrl).toBe('https://public.example/image.png');
     expect(request).toHaveBeenCalledWith(expect.objectContaining({
       hostname: 'public.example', address: '93.184.216.34', tlsServername: 'public.example',
-    }));
+    }), expect.any(Number));
   });
 
   it('revalidates and blocks every redirect target', async () => {

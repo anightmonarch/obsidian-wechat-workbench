@@ -80,13 +80,17 @@ export class PublishConfirmationModal extends Modal {
 }
 
 export class UnlinkAssociationModal extends Modal {
-  constructor(app: App, private readonly confirm: () => void) { super(app); }
+  constructor(
+    app: App,
+    private readonly notePath: string,
+    private readonly confirm: () => void,
+  ) { super(app); }
 
   onOpen(): void {
     this.contentEl.replaceChildren();
     this.titleEl.textContent = '解除本地草稿关联';
     this.contentEl.append(createEl('p', {
-      text: '只删除当前笔记中由插件维护的草稿关联字段，不会删除公众号后台草稿。',
+      text: `只删除 ${this.notePath} 中由插件维护的草稿关联字段，不会删除公众号后台草稿。`,
     }));
     const actions = createDiv('modal-button-container');
     const cancel = createEl('button', { text: '取消' });

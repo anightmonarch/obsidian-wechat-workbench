@@ -34,12 +34,14 @@ function failure(code: string, message: string): CoverGenerationError {
 function providerUrl(rawBaseUrl: string): string {
   let url: URL;
   try { url = new URL(rawBaseUrl.trim()); } catch { throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL is invalid.'); }
-  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
-    throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider must use HTTPS, except for a loopback provider.');
+  if (url.protocol !== 'https:') {
+    throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider must use HTTPS.');
   }
   if (url.username.length > 0 || url.password.length > 0) {
     throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL must not contain credentials.');
+  }
+  if (url.search.length > 0 || url.hash.length > 0) {
+    throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL must not contain query parameters or fragments.');
   }
   const path = url.pathname.replace(/\/+$/u, '');
   url.pathname = path.endsWith('/v1') ? `${path}/images/generations` : `${path}/v1/images/generations`;

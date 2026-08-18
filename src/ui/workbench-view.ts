@@ -1,6 +1,7 @@
 import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
+import type { VaultFileRef } from '../domain/ports';
 import type { CoverPickerModel, CoverPickerOption, PreparedCover } from '../cover/cover-workflow';
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
@@ -26,8 +27,13 @@ interface WorkbenchControllerBinding {
   preparePublish(): Promise<Readonly<PreparedPublish>>;
   executePublish(command: Readonly<PublishCommand>): Promise<Readonly<PublishOutcome>>;
   reconcilePublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
-  repairLocalPublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
-  unlinkPublishAssociation(): Promise<void>;
+  repairLocalPublish(
+    command: Readonly<PublishCommand>,
+    taskId: string,
+    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
+  ): Promise<Readonly<PublishOutcome>>;
+  prepareUnlinkAssociation(): VaultFileRef;
+  unlinkPublishAssociation(file: VaultFileRef): Promise<void>;
   coverPickerModel(): Readonly<CoverPickerModel>;
   aiCoverDisclosure(): Readonly<AiCoverDisclosure>;
   prepareCover(input: Readonly<CoverPickerOption> | string): Promise<Readonly<PreparedCover>>;
@@ -315,21 +321,27 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   ): void {
     new PublishReportModal(this.app, outcome, {
       RETRY: () => void this.executePublish(command),
-      RECONCILE: () => void this.runRecovery('reconcile', command, outcome.taskId),
-      REPAIR_LOCAL: () => void this.runRecovery('repair', command, outcome.taskId),
+      RECONCILE: () => void this.runRecovery('reconcile', command, outcome),
+      REPAIR_LOCAL: () => void this.runRecovery('repair', command, outcome),
     }).open();
   }
 
   private async runRecovery(
     mode: 'reconcile' | 'repair',
     command: Readonly<PublishCommand>,
-    taskId: string,
+    outcome: Readonly<PublishOutcome>,
   ): Promise<void> {
     if (this.controller === null) return;
     try {
       const result = mode === 'reconcile'
-        ? await this.controller.reconcilePublish(command, taskId)
-        : await this.controller.repairLocalPublish(command, taskId);
+        ? await this.controller.reconcilePublish(command, outcome.taskId)
+        : await this.controller.repairLocalPublish(
+          command,
+          outcome.taskId,
+          outcome.mediaId === null || outcome.action === null || outcome.action === 'SKIP'
+            ? undefined
+            : { mediaId: outcome.mediaId, operation: outcome.action },
+        );
       this.openPublishReport(command, result);
     } catch (error) {
       new Notice(error instanceof Error ? error.message : '恢复草稿关联失败');
@@ -338,12 +350,17 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   private confirmUnlink(): void {
     if (this.controller === null) return;
-    new UnlinkAssociationModal(this.app, () => void this.unlinkAssociation()).open();
+    try {
+      const file = this.controller.prepareUnlinkAssociation();
+      new UnlinkAssociationModal(this.app, file.path, () => void this.unlinkAssociation(file)).open();
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '无法准备解除草稿关联');
+    }
   }
 
-  private async unlinkAssociation(): Promise<void> {
+  private async unlinkAssociation(file: VaultFileRef): Promise<void> {
     try {
-      await this.controller?.unlinkPublishAssociation();
+      await this.controller?.unlinkPublishAssociation(file);
       new Notice('已解除本地草稿关联，未删除公众号后台草稿');
     } catch (error) {
       new Notice(error instanceof Error ? error.message : '解除草稿关联失败');

@@ -15,6 +15,7 @@ import { AssetUploadService } from './publish/asset-upload-service';
 import { PublishCoordinator } from './publish/publish-coordinator';
 import { PublishStateStore } from './publish/publish-state-store';
 import { PublishWorkflow } from './publish/publish-workflow';
+import { publishPayloadHash } from './publish/publish-content';
 import { AmbiguousReconciler } from './publish/reconcile-ambiguous';
 import { RecoveryReceiptStore, type RecoveryDataPort } from './publish/recovery-receipt-store';
 import { RenderArtifactBuilder } from './render/artifact-builder';
@@ -37,8 +38,9 @@ import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
-import { ObsidianHttpTransport } from './wechat/obsidian-http-transport';
+import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
+import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
 import { WeChatClient } from './wechat/wechat-client';
 
 export default class WeChatWorkbenchPlugin extends Plugin {
@@ -98,7 +100,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       ),
       new ElectronClipboardPort(),
     );
-    const http = new ObsidianHttpTransport();
+    const http = new TimeoutHttpTransport(new PinnedNodeHttpTransport(), 35_000);
     const tokens = new TokenService(secretStore, {
       get appId() { return currentSettings().appId; },
       get accessTokenExpiresAt() { return currentSettings().accessTokenExpiresAt; },
@@ -133,6 +135,12 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       state,
       receipts,
       currentSourceHash: async file => (await snapshots.snapshot(file)).sourceHash,
+      currentPayloadHash: async command => {
+        const current = await snapshots.snapshot(command.file);
+        const theme = themes.get(command.artifact.theme.id);
+        if (theme === undefined) throw new Error('Confirmed theme is no longer available.');
+        return publishPayloadHash(await builder.build(current, theme));
+      },
       currentCover: async command => {
         const current = await snapshots.snapshot(command.file);
         const configured = current.metadata.cover;

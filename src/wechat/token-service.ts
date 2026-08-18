@@ -1,5 +1,6 @@
 import type { HttpTransport } from './http-transport';
 import { PublicError, toPublicError, weChatApiError } from './errors';
+import { accountHashForAppId } from '../settings/account';
 
 const TOKEN_URL = 'https://api.weixin.qq.com/cgi-bin/stable_token';
 const REFRESH_MARGIN_MS = 60_000;
@@ -38,7 +39,11 @@ export class TokenService {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async getValidToken(options: Readonly<{ forceRefresh?: boolean }> = {}): Promise<string> {
+  async getValidToken(
+    expectedAccountHash: string | null = null,
+    options: Readonly<{ forceRefresh?: boolean }> = {},
+  ): Promise<string> {
+    this.assertExpectedAccount(expectedAccountHash);
     const forceRefresh = options.forceRefresh ?? false;
     const cached = this.secrets.get('accessToken');
     const expiresAt = this.settings.accessTokenExpiresAt;
@@ -49,7 +54,7 @@ export class TokenService {
     if (account.length === 0) throw this.configurationError('微信公众号 AppID 未配置。');
     const existing = this.refreshes.get(account);
     if (existing !== undefined) return existing;
-    const refresh = this.refresh(account, forceRefresh).finally(() => {
+    const refresh = this.refresh(account, expectedAccountHash, forceRefresh).finally(() => {
       if (this.refreshes.get(account) === refresh) this.refreshes.delete(account);
     });
     this.refreshes.set(account, refresh);
@@ -61,7 +66,11 @@ export class TokenService {
     await this.settings.saveAccessTokenMetadata(null);
   }
 
-  private async refresh(appId: string, forceRefresh: boolean): Promise<string> {
+  private async refresh(
+    appId: string,
+    expectedAccountHash: string | null,
+    forceRefresh: boolean,
+  ): Promise<string> {
     const appSecret = this.secrets.get('appSecret');
     if (appSecret === null) throw this.configurationError('微信公众号 AppSecret 未配置。');
 
@@ -92,6 +101,7 @@ export class TokenService {
         || typeof body.expires_in !== 'number' || body.expires_in <= 0) {
         throw new Error('WeChat token response is malformed.');
       }
+      this.assertExpectedAccount(expectedAccountHash);
       this.secrets.set('accessToken', body.access_token);
       try {
         await this.settings.saveAccessTokenMetadata(this.now() + body.expires_in * 1000);
@@ -115,6 +125,21 @@ export class TokenService {
       remoteEffect: 'NONE',
       retryable: false,
       nextAction: '在插件设置中配置本地公众号账号。',
+    });
+  }
+
+  private assertExpectedAccount(expectedAccountHash: string | null): void {
+    if (expectedAccountHash === null) return;
+    if (accountHashForAppId(this.settings.appId) === expectedAccountHash) return;
+    throw new PublicError({
+      code: 'WECHAT_ACCOUNT_CHANGED',
+      stage: 'TOKEN',
+      errcode: null,
+      errmsg: 'The configured WeChat account changed after confirmation.',
+      rid: null,
+      remoteEffect: 'NONE',
+      retryable: false,
+      nextAction: 'Close the old confirmation dialog and prepare the draft again.',
     });
   }
 }

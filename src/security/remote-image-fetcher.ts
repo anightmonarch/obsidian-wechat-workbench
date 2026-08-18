@@ -20,7 +20,7 @@ export interface PinnedHttpResponse {
 }
 
 export interface PinnedHttpTransport {
-  request(target: Readonly<ValidatedTarget>): Promise<Readonly<PinnedHttpResponse>>;
+  request(target: Readonly<ValidatedTarget>, timeoutMs?: number): Promise<Readonly<PinnedHttpResponse>>;
 }
 
 export interface ValidatedImage {
@@ -79,7 +79,10 @@ function readResponse(response: IncomingMessage): Promise<Readonly<PinnedHttpRes
 }
 
 export class NodePinnedHttpTransport implements PinnedHttpTransport {
-  async request(target: Readonly<ValidatedTarget>): Promise<Readonly<PinnedHttpResponse>> {
+  async request(
+    target: Readonly<ValidatedTarget>,
+    timeoutMs = TOTAL_TIMEOUT_MS,
+  ): Promise<Readonly<PinnedHttpResponse>> {
     return new Promise((resolve, reject) => {
       const original = new URL(target.url);
       const hostHeader = original.port.length > 0 ? original.host : original.hostname;
@@ -99,7 +102,7 @@ export class NodePinnedHttpTransport implements PinnedHttpTransport {
       });
       const totalTimer = scheduleTimer(() => {
         req.destroy(new Error('Remote image request timed out.'));
-      }, TOTAL_TIMEOUT_MS);
+      }, timeoutMs);
       req.once('close', () => cancelTimer(totalTimer));
       req.once('socket', socket => {
         const connectTimer = scheduleTimer(() => {
@@ -133,18 +136,32 @@ export class RemoteImageFetcher {
   ) {}
 
   async fetch(sourceUrl: string): Promise<Readonly<ValidatedImage>> {
+    const deadline = Date.now() + TOTAL_TIMEOUT_MS;
     let current = sourceUrl;
     for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+      let protocol: string;
+      try { protocol = new URL(current).protocol; } catch {
+        return failure('REMOTE_IMAGE_URL_INVALID', 'Remote image URL is invalid.', current);
+      }
+      if (protocol !== 'https:') {
+        return failure(
+          redirects > 0 ? 'REMOTE_REDIRECT_BLOCKED' : 'REMOTE_IMAGE_INSECURE',
+          'Remote images and redirects must use HTTPS.',
+          current,
+        );
+      }
       let target: Readonly<ValidatedTarget>;
       try {
-        target = await this.policy.resolveAndValidate(current);
+        target = await this.beforeDeadline(this.policy.resolveAndValidate(current), deadline);
       } catch (error) {
         if (redirects > 0 && error instanceof NetworkPolicyError) {
           return failure('REMOTE_REDIRECT_BLOCKED', 'Remote image redirect target is blocked.', current);
         }
         throw error;
       }
-      const response = await this.transport.request(target);
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return failure('REMOTE_IMAGE_TIMEOUT', 'Remote image request timed out.', current);
+      const response = await this.beforeDeadline(this.transport.request(target, remaining), deadline);
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.location;
         if (location === undefined) return failure('REMOTE_REDIRECT_INVALID', 'Remote redirect has no location.', current);
@@ -176,5 +193,22 @@ export class RemoteImageFetcher {
       });
     }
     return failure('REMOTE_REDIRECT_LIMIT', 'Remote image exceeded three redirects.', current);
+  }
+
+  private async beforeDeadline<T>(operation: Promise<T>, deadline: number): Promise<T> {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return failure('REMOTE_IMAGE_TIMEOUT', 'Remote image request timed out.', null);
+    return new Promise<T>((resolve, reject) => {
+      const timer = scheduleTimer(() => reject(new RemoteImageError(
+        'REMOTE_IMAGE_TIMEOUT', 'Remote image request timed out.', null,
+      )), remaining);
+      void operation.then(value => {
+        cancelTimer(timer);
+        resolve(value);
+      }, error => {
+        cancelTimer(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      });
+    });
   }
 }

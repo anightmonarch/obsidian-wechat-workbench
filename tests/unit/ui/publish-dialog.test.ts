@@ -70,10 +70,10 @@ describe('publish confirmation and report models', () => {
   });
 
   it('explains that unlink only changes local metadata', () => {
-    const modal = new UnlinkAssociationModal({} as never, () => undefined);
+    const modal = new UnlinkAssociationModal({} as never, 'article.md', () => undefined);
     modal.open();
 
-    expect(modal.contentEl.textContent).toContain('只删除当前笔记中由插件维护的草稿关联字段');
+    expect(modal.contentEl.textContent).toContain('只删除 article.md 中由插件维护的草稿关联字段');
     expect(modal.contentEl.textContent).toContain('不会删除公众号后台草稿');
   });
 });

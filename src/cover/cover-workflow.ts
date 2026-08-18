@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
 
 import type { NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort, VaultFileRef } from '../domain/ports';
 import { imageDataUrl } from '../media/image-format';
 import type { FrontmatterMutationPort } from '../publish/publish-state-store';
+import { publishPayloadHash } from '../publish/publish-content';
 import type { CoverGenerator } from './cover-generator';
 import { CoverService } from './cover-service';
 import type { CoverCandidateSource } from './cover-types';
@@ -13,6 +15,8 @@ export type PreparedCoverSource = CoverCandidateSource | 'local-file' | 'ai-gene
 
 export interface PreparedCover {
   source: PreparedCoverSource;
+  notePath: string;
+  contextHash: string;
   vaultPath: string;
   mimeType: 'image/png';
   contentHash: string;
@@ -53,6 +57,30 @@ export interface CoverWorkflowSettingsPort {
 export interface CoverSecretPort {
   get(): string | null;
   has(): boolean;
+}
+
+export class CoverPathError extends Error {
+  readonly code = 'COVER_PATH_UNSAFE';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'CoverPathError';
+  }
+}
+
+function safeVaultPath(value: string): string {
+  let decoded = value.trim().replaceAll('\\', '/');
+  try { decoded = decodeURI(decoded); } catch { throw new CoverPathError('Cover path encoding is invalid.'); }
+  if (decoded.length === 0 || decoded.includes('\0') || decoded.startsWith('/')
+    || /^[a-z][a-z0-9+.-]*:/iu.test(decoded)
+    || decoded.split('/').includes('..')) {
+    throw new CoverPathError('Cover path must stay inside the current Vault.');
+  }
+  const normalized = posix.normalize(decoded).replace(/^\.\//u, '');
+  if (normalized === '.' || normalized.startsWith('../')) {
+    throw new CoverPathError('Cover path must stay inside the current Vault.');
+  }
+  return normalized;
 }
 
 function option(
@@ -113,18 +141,25 @@ export class CoverWorkflow {
       { strategy },
       { snapshot, artifact, globalDefaultPath: this.settings.get().globalDefaultCoverPath.trim() || null },
     );
-    return this.prepareLocal(file, selected.vaultPath, selected.source);
+    return this.prepareLocal(
+      file,
+      selected.vaultPath,
+      publishPayloadHash(artifact),
+      selected.source,
+    );
   }
 
   async prepareLocal(
     file: VaultFileRef,
     sourcePath: string,
+    contextHash = '',
     source: Exclude<PreparedCoverSource, 'ai-generated'> = 'local-file',
   ): Promise<Readonly<PreparedCover>> {
-    const linked = await this.files.resolveLink(sourcePath, file.path);
-    const resolved = linked ?? sourcePath;
+    const requested = safeVaultPath(sourcePath);
+    const linked = await this.files.resolveLink(requested, file.path);
+    const resolved = safeVaultPath(linked ?? requested);
     const bytes = await this.files.readBinary(resolved);
-    return this.processAndStore(file, bytes, source);
+    return this.processAndStore(file, bytes, source, contextHash);
   }
 
   async prepareAi(
@@ -144,10 +179,13 @@ export class CoverWorkflow {
       bodyExcerpt: artifact.plainText,
       ...(signal === undefined ? {} : { signal }),
     });
-    return this.processAndStore(file, generated.bytes, 'ai-generated');
+    return this.processAndStore(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));
   }
 
   async confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void> {
+    if (prepared.notePath !== file.path) {
+      throw new CoverPathError('Prepared cover belongs to a different note.');
+    }
     await this.frontmatter.processFrontmatter(file, value => {
       value.cover = prepared.vaultPath;
     });
@@ -157,12 +195,15 @@ export class CoverWorkflow {
     file: VaultFileRef,
     bytes: Uint8Array,
     source: PreparedCoverSource,
+    contextHash: string,
   ): Promise<Readonly<PreparedCover>> {
     const processed = this.images.process(bytes);
     const contentHash = createHash('sha256').update(processed).digest('hex');
     const vaultPath = await this.storage.save(file.path, processed);
     return Object.freeze({
       source,
+      notePath: file.path,
+      contextHash,
       vaultPath,
       mimeType: 'image/png' as const,
       contentHash,

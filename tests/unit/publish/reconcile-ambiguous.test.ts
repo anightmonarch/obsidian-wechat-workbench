@@ -9,7 +9,7 @@ const contentHash = normalizedFinalHtmlHash(html);
 
 function receipt(operation: 'CREATE' | 'UPDATE'): Readonly<RecoveryReceipt> {
   return Object.freeze({
-    taskId: 'TASK_1', accountHash: 'ACCOUNT_A',
+    taskId: 'TASK_1', vaultPath: 'article.md', accountHash: 'ACCOUNT_A', fingerprint: 'FINGERPRINT',
     mediaId: operation === 'UPDATE' ? 'TEST_MEDIA_ID' : '', operation,
     contentHash, themeHash: 'THEME_HASH', coverHash: 'COVER_HASH',
     remoteTimestamp: 10_000, status: 'UNRESOLVED',

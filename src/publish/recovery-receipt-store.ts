@@ -12,7 +12,9 @@ export interface RecoveryDataPort {
 function clean(receipt: Readonly<RecoveryReceipt>): Readonly<RecoveryReceipt> {
   return Object.freeze({
     taskId: receipt.taskId,
+    vaultPath: receipt.vaultPath,
     accountHash: receipt.accountHash,
+    fingerprint: receipt.fingerprint,
     mediaId: receipt.mediaId,
     operation: receipt.operation,
     contentHash: receipt.contentHash,

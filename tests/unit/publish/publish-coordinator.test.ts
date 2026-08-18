@@ -54,6 +54,7 @@ function harness(local: Readonly<SyncedDraftState> | null = null) {
   });
   const currentSourceHash = vi.fn(async () => 'SOURCE_HASH');
   const currentCover = vi.fn(async () => ({ path: 'assets/cover.png', hash: 'COVER_HASH' }));
+  const currentPayloadHash = vi.fn(async () => 'PAYLOAD_HASH');
   const ports: PublishCoordinatorPorts = {
     preflight: { run: () => Object.freeze({ ok: true, blocking: [], warnings: [], info: [] }) },
     tokens: { getValidToken },
@@ -70,12 +71,13 @@ function harness(local: Readonly<SyncedDraftState> | null = null) {
     },
     currentSourceHash,
     currentCover,
+    currentPayloadHash,
   };
   const coordinator = new PublishCoordinator(ports, () => 1000, () => 'TASK_1');
   return {
     coordinator, ports, events, receipts, addDraft, updateDraft, getDraft, commit,
     getValidToken, resolveBodyAssets, uploadCover, record, resolve, currentSourceHash,
-    currentCover,
+    currentCover, currentPayloadHash,
   };
 }
 
@@ -86,6 +88,7 @@ const command = Object.freeze({
   cover,
   coverPath: 'assets/cover.png',
   coverHash: 'COVER_HASH',
+  payloadHash: 'PAYLOAD_HASH',
 });
 
 describe('PublishCoordinator', () => {
@@ -154,7 +157,7 @@ describe('PublishCoordinator', () => {
     expect(changed.addDraft).not.toHaveBeenCalled();
 
     const unchanged = harness(Object.freeze({
-      draftId: 'TEST_MEDIA_ID', accountId: 'ACCOUNT_A', contentHash: artifact.contentHash,
+      draftId: 'TEST_MEDIA_ID', accountId: 'ACCOUNT_A', contentHash: command.payloadHash,
       themeId: artifact.theme.id, themeVersion: artifact.theme.version,
       coverHash: command.coverHash, syncedAt: 'old',
     }));

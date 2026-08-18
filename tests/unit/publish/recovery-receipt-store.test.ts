@@ -16,7 +16,9 @@ class MemoryData implements RecoveryDataPort {
 function receipt(index = 1): Readonly<RecoveryReceipt> {
   return Object.freeze({
     taskId: `TASK_${index}`,
+    vaultPath: 'article.md',
     accountHash: 'ACCOUNT_HASH',
+    fingerprint: `FINGERPRINT_${index}`,
     mediaId: `TEST_MEDIA_ID_${index}`,
     operation: 'CREATE',
     contentHash: `CONTENT_HASH_${index}`,
@@ -35,7 +37,7 @@ describe('RecoveryReceiptStore', () => {
     await store.record(receipt());
 
     expect(store.listUnresolved()).toEqual([receipt()]);
-    expect(JSON.stringify(data.receipts)).not.toMatch(/article|title|token|secret|html/iu);
+    expect(JSON.stringify(data.receipts)).not.toMatch(/title|token|secret|html/iu);
   });
 
   it('marks a task resolved and caps resolved summaries at twenty', async () => {

@@ -35,6 +35,7 @@ export interface PublishCommand {
   cover: Readonly<UploadImage>;
   coverPath: string;
   coverHash: string;
+  payloadHash: string;
 }
 
 export interface PublishOutcome {

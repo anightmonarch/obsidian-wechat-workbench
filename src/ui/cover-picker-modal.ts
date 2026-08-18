@@ -26,6 +26,7 @@ export class CoverPickerSession {
   selected: Readonly<PreparedCover> | null = null;
   errorCode: string | null = null;
   errorMessage: string | null = null;
+  busy = false;
 
   constructor(
     readonly model: Readonly<CoverPickerModel>,
@@ -48,6 +49,8 @@ export class CoverPickerSession {
   }
 
   async generateAi(): Promise<void> {
+    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', 'A cover operation is already in progress.');
+    this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
     try {
@@ -56,20 +59,28 @@ export class CoverPickerSession {
       this.selected = null;
       this.errorCode = 'AI_COVER_GENERATION_FAILED';
       this.errorMessage = error instanceof Error ? error.message : 'AI cover generation failed.';
+    } finally {
+      this.busy = false;
     }
   }
 
   async confirm(): Promise<void> {
-    if (this.selected === null) {
+    if (this.busy || this.selected === null) {
       throw new CoverPickerError('COVER_CONFIRMATION_REQUIRED', 'Select and preview a cover before confirming.');
     }
     await this.ports.confirm(this.selected);
   }
 
   private async prepare(input: Readonly<CoverPickerOption> | string): Promise<void> {
+    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', 'A cover operation is already in progress.');
+    this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
-    this.selected = await this.ports.prepareLocal(input);
+    try {
+      this.selected = await this.ports.prepareLocal(input);
+    } finally {
+      this.busy = false;
+    }
   }
 }
 
@@ -84,7 +95,7 @@ export class CoverPickerModal extends Modal {
     const sources = createDiv('wechat-workbench__cover-options');
     for (const option of this.session.options) {
       const button = createEl('button', { text: option.label });
-      button.disabled = !option.enabled;
+      button.disabled = !option.enabled || this.session.busy;
       button.addEventListener('click', () => void this.run(async () => {
         await this.session.selectLocal(option.kind);
       }));
@@ -96,13 +107,14 @@ export class CoverPickerModal extends Modal {
     input.type = 'text';
     input.placeholder = 'Vault 内图片路径，例如 assets/cover.png';
     const choose = createEl('button', { text: '使用本地图片' });
+    choose.disabled = this.session.busy;
     choose.addEventListener('click', () => void this.run(async () => {
       await this.session.selectVaultPath(input.value);
     }));
     local.append(input, choose);
 
     const ai = createEl('button', { text: '生成智能封面' });
-    ai.disabled = !this.session.model.aiEnabled;
+    ai.disabled = !this.session.model.aiEnabled || this.session.busy;
     ai.title = this.session.model.aiDisabledReason ?? '';
     ai.addEventListener('click', () => void this.run(async () => {
       await this.session.generateAi();
@@ -124,7 +136,7 @@ export class CoverPickerModal extends Modal {
     const cancel = createEl('button', { text: '取消' });
     cancel.addEventListener('click', () => this.close());
     const confirm = createEl('button', { cls: 'mod-cta', text: '确认使用此封面' });
-    confirm.disabled = this.session.selected === null;
+    confirm.disabled = this.session.selected === null || this.session.busy;
     confirm.addEventListener('click', () => void this.run(async () => {
       await this.session.confirm();
       this.close();

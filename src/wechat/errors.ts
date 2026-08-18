@@ -47,8 +47,8 @@ export class PublicError extends Error implements PublicErrorFields {
 
 export function redactSensitiveText(value: string): string {
   return value
-    .replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+/giu, '$1[REDACTED_SECRET]')
-    .replace(/((?:access_token|appsecret|secret)["']?\s*[:=]\s*["']?)[^&\s,"'}]+/giu, '$1[REDACTED_SECRET]');
+    .replace(/((?:["']?authorization["']?)\s*[:=]\s*["']?bearer\s+)[^\s,;"'}]+/giu, '$1[REDACTED_SECRET]')
+    .replace(/((?:access[_-]?token|accessToken|appsecret|api[_-]?key|apiKey|secret)["']?\s*[:=]\s*["']?)[^&\s,"'}]+/gu, '$1[REDACTED_SECRET]');
 }
 
 export function toPublicError(error: unknown, stage: WeChatStage): PublicError {

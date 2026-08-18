@@ -25,6 +25,18 @@ function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+function providerBaseUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) return '';
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || url.username.length > 0 || url.password.length > 0
+      || url.search.length > 0 || url.hash.length > 0) return '';
+    return url.toString().replace(/\/$/u, '');
+  } catch {
+    return '';
+  }
+}
+
 function nullableString(value: unknown, fallback: string | null): string | null {
   return typeof value === 'string' || value === null ? value : fallback;
 }
@@ -84,7 +96,9 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
       || (item.status !== 'UNRESOLVED' && item.status !== 'RESOLVED')) continue;
     const receipt = Object.freeze({
       taskId: item.taskId,
+      vaultPath: typeof item.vaultPath === 'string' ? item.vaultPath : '',
       accountHash: item.accountHash,
+      fingerprint: typeof item.fingerprint === 'string' ? item.fingerprint : '',
       mediaId: item.mediaId,
       operation: item.operation,
       contentHash: item.contentHash,
@@ -118,7 +132,7 @@ function sanitizeSettings(value: unknown): PluginSettings {
       stored.globalDefaultCoverPath,
       DEFAULT_SETTINGS.globalDefaultCoverPath,
     ),
-    imageApiBaseUrl: stringValue(stored.imageApiBaseUrl, DEFAULT_SETTINGS.imageApiBaseUrl),
+    imageApiBaseUrl: providerBaseUrl(stored.imageApiBaseUrl),
     imageApiModel: stringValue(stored.imageApiModel, DEFAULT_SETTINGS.imageApiModel),
     accessTokenExpiresAt: nullableNumber(
       stored.accessTokenExpiresAt,

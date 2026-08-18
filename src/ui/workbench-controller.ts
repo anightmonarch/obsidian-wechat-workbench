@@ -10,6 +10,7 @@ import type {
 import type { PreflightContext, PreflightReport } from '../preflight/preflight-engine';
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
+import { publishPayloadHash } from '../publish/publish-content';
 import type { AiCoverDisclosure } from './ai-cover-confirmation';
 
 export interface WorkbenchEventHandle {
@@ -70,7 +71,11 @@ export interface WorkbenchPublishPort {
   prepare(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedPublish>>;
   execute(command: Readonly<PublishCommand>): Promise<Readonly<PublishOutcome>>;
   reconcile(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
-  repairLocal(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
+  repairLocal(
+    command: Readonly<PublishCommand>,
+    taskId: string,
+    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
+  ): Promise<Readonly<PublishOutcome>>;
   unlink(file: VaultFileRef): Promise<void>;
 }
 
@@ -83,7 +88,7 @@ export interface WorkbenchCoverPort {
     artifact: Readonly<RenderArtifact>,
     kind: CoverPickerOption['kind'],
   ): Promise<Readonly<PreparedCover>>;
-  prepareLocal(file: VaultFileRef, path: string): Promise<Readonly<PreparedCover>>;
+  prepareLocal(file: VaultFileRef, path: string, contextHash: string): Promise<Readonly<PreparedCover>>;
   prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
 }
@@ -234,22 +239,30 @@ export class WorkbenchController {
   async repairLocalPublish(
     command: Readonly<PublishCommand>,
     taskId: string,
+    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
   ): Promise<Readonly<PublishOutcome>> {
     if (this.publisher === undefined) throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '草稿发布服务不可用。');
-    const result = await this.publisher.repairLocal(command, taskId);
+    const result = await this.publisher.repairLocal(command, taskId, fallback);
     this.rebuild('publish-repair');
     return result;
   }
 
-  async unlinkPublishAssociation(): Promise<void> {
+  prepareUnlinkAssociation(): VaultFileRef {
     if (this.publisher === undefined || this.snapshot === null) {
       throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '当前笔记或草稿服务不可用。');
     }
-    await this.publisher.unlink({
+    return {
       path: this.snapshot.vaultPath,
       basename: this.snapshot.basename,
       modifiedAt: this.snapshot.modifiedAt,
-    });
+    };
+  }
+
+  async unlinkPublishAssociation(file: VaultFileRef): Promise<void> {
+    if (this.publisher === undefined || this.snapshot?.vaultPath !== file.path) {
+      throw new WorkbenchActionError('ARTICLE_CONTEXT_CHANGED', '当前笔记已变化，请重新打开解除关联确认框。');
+    }
+    await this.publisher.unlink(file);
     this.rebuild('publish-unlink');
   }
 
@@ -272,7 +285,7 @@ export class WorkbenchController {
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
     const file = this.currentFile(current.snapshot);
     return typeof input === 'string'
-      ? this.covers.prepareLocal(file, input)
+      ? this.covers.prepareLocal(file, input, publishPayloadHash(current.artifact))
       : this.covers.prepareSelection(file, current.snapshot, current.artifact, input.kind);
   }
 
@@ -285,6 +298,10 @@ export class WorkbenchController {
   async confirmCover(prepared: Readonly<PreparedCover>): Promise<void> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    if (prepared.notePath !== current.snapshot.vaultPath
+      || prepared.contextHash !== publishPayloadHash(current.artifact)) {
+      throw new WorkbenchActionError('ARTICLE_CONTEXT_CHANGED', '当前笔记已变化，请重新选择并确认封面。');
+    }
     await this.covers.confirm(this.currentFile(current.snapshot), prepared);
     this.rebuild('cover-confirmed');
   }

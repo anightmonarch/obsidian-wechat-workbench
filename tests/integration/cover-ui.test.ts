@@ -16,6 +16,8 @@ const model: Readonly<CoverPickerModel> = Object.freeze({
 });
 const prepared = Object.freeze({
   source: 'first-local-image' as const,
+  notePath: 'article.md',
+  contextHash: 'CONTEXT_HASH',
   vaultPath: '.wechat-workbench/covers/article/cover-12345678.png',
   mimeType: 'image/png' as const,
   contentHash: 'COVER_HASH',
@@ -63,5 +65,21 @@ describe('cover picker session', () => {
     await session.confirm();
 
     expect(confirm).toHaveBeenCalledWith(prepared);
+  });
+
+  it('prevents a second generation request while one is still running', async () => {
+    let release: (value: typeof prepared) => void = () => undefined;
+    const generateAi = vi.fn(() => new Promise<typeof prepared>(resolve => { release = resolve; }));
+    const session = new CoverPickerSession(model, {
+      prepareLocal: vi.fn(async () => prepared), generateAi, confirm: vi.fn(),
+    });
+
+    const first = session.generateAi();
+    await expect(session.generateAi()).rejects.toMatchObject({ code: 'COVER_OPERATION_IN_PROGRESS' });
+    release(prepared);
+    await first;
+
+    expect(generateAi).toHaveBeenCalledOnce();
+    expect(session.selected).toBe(prepared);
   });
 });

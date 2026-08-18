@@ -149,4 +149,17 @@ describe('WeChatClient', () => {
     });
     expect(current.requests[0]?.body).toBeInstanceOf(Uint8Array);
   });
+
+  it('rejects upload URLs outside the approved WeChat image CDN boundary', async () => {
+    const image = {
+      bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+      mimeType: 'image/png' as const,
+      filename: 'image.png',
+    };
+
+    await expect(new WeChatClient(transport({
+      url: 'https://attacker.example.test/image.png?access_token=leak',
+    }).http).uploadBodyImage(image, 'TEST_ACCESS_TOKEN'))
+      .rejects.toMatchObject({ stage: 'UPLOAD_BODY_IMAGE', remoteEffect: 'NONE' });
+  });
 });

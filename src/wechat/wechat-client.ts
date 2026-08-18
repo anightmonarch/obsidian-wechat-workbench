@@ -110,6 +110,24 @@ function apiError(body: Record<string, unknown>, stage: WeChatStage): PublicErro
     : null;
 }
 
+function approvedWechatImageUrl(value: unknown, stage: WeChatStage): string {
+  if (typeof value !== 'string') {
+    throw toPublicError(new Error('WeChat image upload response is malformed.'), stage);
+  }
+  try {
+    const url = new URL(value);
+    const hostApproved = url.hostname === 'mmbiz.qpic.cn' || url.hostname.endsWith('.mmbiz.qpic.cn');
+    const sensitiveQuery = [...url.searchParams.keys()].some(key => /token|secret|key/iu.test(key));
+    if (url.protocol !== 'https:' || !hostApproved || sensitiveQuery
+      || url.username.length > 0 || url.password.length > 0) {
+      throw new Error('WeChat image URL is outside the approved CDN boundary.');
+    }
+    return url.toString();
+  } catch (error) {
+    throw toPublicError(error, stage);
+  }
+}
+
 export class WeChatClient implements MediaUploadPort {
   constructor(
     private readonly http: HttpTransport,
@@ -120,10 +138,7 @@ export class WeChatClient implements MediaUploadPort {
     const body = await this.multipartRequest(
       '/cgi-bin/media/uploadimg', image, accessToken, 'UPLOAD_BODY_IMAGE',
     );
-    if (typeof body.url !== 'string' || new URL(body.url).protocol !== 'https:') {
-      throw toPublicError(new Error('WeChat image upload response is malformed.'), 'UPLOAD_BODY_IMAGE');
-    }
-    return Object.freeze({ url: body.url });
+    return Object.freeze({ url: approvedWechatImageUrl(body.url, 'UPLOAD_BODY_IMAGE') });
   }
 
   async uploadCover(
@@ -138,7 +153,7 @@ export class WeChatClient implements MediaUploadPort {
     }
     return Object.freeze({
       mediaId: body.media_id,
-      ...(typeof body.url === 'string' ? { url: body.url } : {}),
+      ...(typeof body.url === 'string' ? { url: approvedWechatImageUrl(body.url, 'UPLOAD_COVER') } : {}),
     });
   }
 

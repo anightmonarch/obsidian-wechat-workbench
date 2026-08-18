@@ -52,7 +52,7 @@ describe('CoverWorkflow', () => {
   it('prepares an exact local cover without changing article metadata before confirmation', async () => {
     const current = harness();
 
-    const prepared = await current.workflow.prepareLocal(file, 'assets/first.png', 'first-local-image');
+    const prepared = await current.workflow.prepareLocal(file, 'assets/first.png', '', 'first-local-image');
 
     expect(prepared).toMatchObject({
       source: 'first-local-image', vaultPath: '.wechat-workbench/covers/article-test/cover-abcd1234.png',

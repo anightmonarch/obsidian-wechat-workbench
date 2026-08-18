@@ -67,6 +67,7 @@ describe('WeChatWorkbenchView', () => {
       executePublish: async () => { throw new Error('not used'); },
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
+      prepareUnlinkAssociation: () => ({ path: 'article.md', basename: 'article', modifiedAt: 1 }),
       unlinkPublishAssociation: async () => undefined,
       coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HttpResponse, HttpTransport } from '../../../src/wechat/http-transport';
+import { accountHashForAppId } from '../../../src/settings/account';
 import { TokenService, type TokenSettingsPort } from '../../../src/wechat/token-service';
 
 class MemorySecrets {
@@ -100,6 +101,27 @@ describe('TokenService', () => {
     await expect(service.getValidToken()).rejects.toMatchObject({
       stage: 'TOKEN', errcode: 40013, rid: 'SYNTHETIC_RID', remoteEffect: 'NONE',
     });
+    expect(secrets.get('accessToken')).toBeNull();
+  });
+
+  it('refuses to return or persist a token after the expected account changes', async () => {
+    const secrets = new MemorySecrets();
+    secrets.set('appSecret', 'SYNTHETIC_APP_SECRET');
+    const settings = new MemorySettings();
+    let finish: ((value: Readonly<HttpResponse<unknown>>) => void) | undefined;
+    const request = vi.fn(() => new Promise<Readonly<HttpResponse<unknown>>>(resolve => { finish = resolve; }));
+    const service = new TokenService(secrets, settings, { request }, () => 5_000_000);
+    const expected = accountHashForAppId(settings.appId);
+    if (expected === null) throw new Error('Synthetic account hash missing.');
+
+    const pending = service.getValidToken(expected);
+    settings.appId = 'SYNTHETIC_OTHER_APP_ID';
+    finish?.({
+      status: 200, headers: Object.freeze({}),
+      body: { access_token: 'SYNTHETIC_RACE_TOKEN', expires_in: 7200 }, // TEST_TOKEN_FIXTURE
+    });
+
+    await expect(pending).rejects.toMatchObject({ code: 'WECHAT_ACCOUNT_CHANGED' });
     expect(secrets.get('accessToken')).toBeNull();
   });
 });
