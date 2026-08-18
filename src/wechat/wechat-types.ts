@@ -1,3 +1,9 @@
+export const WECHAT_ARTICLE_LIMITS = Object.freeze({
+  title: 64,
+  author: 8,
+  digest: 120,
+});
+
 export interface WeChatDraftArticle {
   title: string;
   author: string;

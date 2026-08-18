@@ -62,6 +62,11 @@ export class RecoveryReceiptStore {
       .map(clean));
   }
 
+  get(taskId: string): Readonly<RecoveryReceipt> | null {
+    const found = this.data.receipts.find(receipt => receipt.taskId === taskId);
+    return found === undefined ? null : clean(found);
+  }
+
   private async enqueue(operation: () => Promise<void>): Promise<void> {
     const next = this.mutation.then(operation, operation);
     this.mutation = next.then(() => undefined, () => undefined);

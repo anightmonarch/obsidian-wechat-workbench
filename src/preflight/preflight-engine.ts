@@ -1,4 +1,5 @@
 import type { Diagnostic, RenderArtifact } from '../domain/artifact';
+import { WECHAT_ARTICLE_LIMITS } from '../wechat/wechat-types';
 import { PREFLIGHT_CODES } from './codes';
 
 export type PreflightPurpose = 'copy' | 'publish';
@@ -6,6 +7,9 @@ export type PreflightPurpose = 'copy' | 'publish';
 export interface PreflightContext {
   purpose: PreflightPurpose;
   themeValid: boolean;
+  accountConfigured?: boolean;
+  coverReady?: boolean;
+  associationAccountMatches?: boolean;
 }
 
 export interface PreflightReport {
@@ -41,6 +45,10 @@ function narrowContentRisk(artifact: Readonly<RenderArtifact>): boolean {
   return /<(?:pre|table)\b|data-asset-kind="generated-math"/iu.test(artifact.canonicalHtml);
 }
 
+function length(value: string): number {
+  return [...value].length;
+}
+
 function evaluateArtifact(
   artifact: Readonly<RenderArtifact>,
   context: Readonly<PreflightContext>,
@@ -64,6 +72,30 @@ function evaluateArtifact(
       'The selected theme has no valid active version.',
       artifact.theme.id,
     ));
+  }
+  if (context.purpose === 'publish') {
+    if (context.accountConfigured === false) {
+      items.push(diagnostic(PREFLIGHT_CODES.ACCOUNT_MISSING, 'BLOCKING', 'WeChat account is not configured.'));
+    }
+    if (context.coverReady === false) {
+      items.push(diagnostic(PREFLIGHT_CODES.COVER_MISSING, 'BLOCKING', 'Article cover is missing or unreadable.'));
+    }
+    if (context.associationAccountMatches === false) {
+      items.push(diagnostic(
+        PREFLIGHT_CODES.DRAFT_ACCOUNT_MISMATCH,
+        'BLOCKING',
+        'The existing draft association belongs to a different account.',
+      ));
+    }
+    if (length(artifact.metadata.title) > WECHAT_ARTICLE_LIMITS.title) {
+      items.push(diagnostic(PREFLIGHT_CODES.TITLE_TOO_LONG, 'BLOCKING', 'Article title exceeds 64 characters.'));
+    }
+    if (length(artifact.metadata.author) > WECHAT_ARTICLE_LIMITS.author) {
+      items.push(diagnostic(PREFLIGHT_CODES.AUTHOR_TOO_LONG, 'BLOCKING', 'Article author exceeds 8 characters.'));
+    }
+    if (length(artifact.metadata.digest) > WECHAT_ARTICLE_LIMITS.digest) {
+      items.push(diagnostic(PREFLIGHT_CODES.DIGEST_TOO_LONG, 'BLOCKING', 'Article digest exceeds 120 characters.'));
+    }
   }
 
   for (const asset of artifact.assets) {
@@ -103,7 +135,7 @@ function evaluateArtifact(
   if (sourceUrl.length > 0 && !isHttpsUrl(sourceUrl)) {
     items.push(diagnostic(
       PREFLIGHT_CODES.CONTENT_SOURCE_NOT_HTTPS,
-      'WARNING',
+      context.purpose === 'publish' ? 'BLOCKING' : 'WARNING',
       'Content source URL is not HTTPS.',
       sourceUrl,
     ));

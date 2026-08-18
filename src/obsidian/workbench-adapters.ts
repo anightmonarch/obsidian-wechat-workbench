@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 
 import type { BinaryFilePort, VaultFileRef, VaultPort } from '../domain/ports';
 import type { MetadataPort } from '../render/note-snapshot-service';
+import type { FrontmatterMutationPort } from '../publish/publish-state-store';
 import type { ThemeSourcePort } from '../themes/theme-registry';
 import type { WorkbenchEventHandle, WorkbenchSourcePort } from '../ui/workbench-controller';
 
@@ -35,7 +36,7 @@ export class ObsidianWorkbenchSource implements WorkbenchSourcePort {
   }
 }
 
-export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPort, ThemeSourcePort {
+export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPort, ThemeSourcePort, FrontmatterMutationPort {
   constructor(private readonly app: App) {}
 
   async readText(path: string): Promise<string> {
@@ -65,5 +66,14 @@ export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPo
 
   async exists(path: string): Promise<boolean> {
     return this.app.vault.adapter.exists(path);
+  }
+
+  async processFrontmatter(
+    file: VaultFileRef,
+    mutate: (frontmatter: Record<string, unknown>) => void,
+  ): Promise<void> {
+    const target = this.app.vault.getAbstractFileByPath(file.path);
+    if (!(target instanceof TFile)) throw new Error(`Markdown file not found: ${file.path}`);
+    await this.app.fileManager.processFrontMatter(target, mutate);
   }
 }

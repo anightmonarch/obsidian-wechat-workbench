@@ -5,15 +5,17 @@ import { parseArticleRoot } from '../render/canonicalize';
 import { PublicError, toPublicError, type WeChatStage, weChatApiError } from './errors';
 import type { HttpRequest, HttpTransport } from './http-transport';
 import { encodeMultipart } from './multipart';
-import type { DraftReceipt, RemoteDraft, RemoteDraftPage, WeChatDraftArticle } from './wechat-types';
+import {
+  WECHAT_ARTICLE_LIMITS,
+  type DraftReceipt,
+  type RemoteDraft,
+  type RemoteDraftPage,
+  type WeChatDraftArticle,
+} from './wechat-types';
 
 const API_ORIGIN = 'https://api.weixin.qq.com';
 
-export const WECHAT_ARTICLE_LIMITS = Object.freeze({
-  title: 64,
-  author: 8,
-  digest: 120,
-});
+export { WECHAT_ARTICLE_LIMITS } from './wechat-types';
 
 type BoundaryFactory = () => string;
 

@@ -1,7 +1,15 @@
 import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
+import type { PreparedPublish } from '../publish/publish-workflow';
+import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
 import { WORKBENCH_VIEW_TYPE } from './open-workbench';
+import {
+  buildPublishDialogModel,
+  PublishConfirmationModal,
+  UnlinkAssociationModal,
+} from './publish-dialog';
+import { PublishReportModal } from './publish-report-modal';
 import { renderPreflight } from './render-preflight';
 import { ArticlePreviewRenderer, type PreviewAssetResolver } from './render-preview';
 
@@ -12,6 +20,11 @@ interface WorkbenchControllerBinding {
   selectTheme(themeId: string): void;
   copyForWeChat(): Promise<void>;
   copyHtmlSource(): Promise<void>;
+  preparePublish(): Promise<Readonly<PreparedPublish>>;
+  executePublish(command: Readonly<PublishCommand>): Promise<Readonly<PublishOutcome>>;
+  reconcilePublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
+  repairLocalPublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
+  unlinkPublishAssociation(): Promise<void>;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -42,9 +55,16 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private themeSelect: HTMLSelectElement | null = null;
   private copyButton: HTMLButtonElement | null = null;
   private sourceButton: HTMLButtonElement | null = null;
+  private publishButton: HTMLButtonElement | null = null;
+  private unlinkButton: HTMLButtonElement | null = null;
+  private accountStatusEl: HTMLElement | null = null;
   private previewTabActive = true;
 
-  constructor(leaf: WorkspaceLeaf, previewAssets?: PreviewAssetResolver) {
+  constructor(
+    leaf: WorkspaceLeaf,
+    previewAssets?: PreviewAssetResolver,
+    private readonly accountStatus: () => string = () => '本地账号未配置',
+  ) {
     super(leaf);
     this.previewRenderer = new ArticlePreviewRenderer(previewAssets);
   }
@@ -69,7 +89,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     const header = element('header', 'wechat-workbench__header');
     const title = element('h2', 'wechat-workbench__title', 'WeChat Workbench');
     title.dataset.testid = 'workbench-title';
-    header.append(title, element('span', 'wechat-workbench__account-status', '本地账号未配置'));
+    this.accountStatusEl = element('span', 'wechat-workbench__account-status', this.accountStatus());
+    header.append(title, this.accountStatusEl);
 
     const tabs = element('div', 'wechat-workbench__tabs');
     tabs.setAttribute('role', 'tablist');
@@ -84,6 +105,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     tabs.append(previewTab, settingsTab);
 
     const toolbar = element('div', 'wechat-workbench__toolbar');
+    const publishButton = disabledAction('发布到草稿箱', true);
+    publishButton.dataset.testid = 'publish-draft';
+    publishButton.addEventListener('click', () => void this.preparePublish());
+    this.publishButton = publishButton;
     const copyButton = disabledAction('复制到公众号');
     copyButton.dataset.testid = 'copy-rich';
     copyButton.addEventListener('click', () => void this.runCopy('rich'));
@@ -99,8 +124,14 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     sourceButton.dataset.testid = 'copy-source';
     sourceButton.addEventListener('click', () => void this.runCopy('source'));
     this.sourceButton = sourceButton;
-    more.append(sourceButton);
-    toolbar.append(disabledAction('发布到草稿箱', true), copyButton, themeSelect, more);
+    const unlinkButton = disabledAction('解除草稿关联');
+    unlinkButton.dataset.testid = 'unlink-draft';
+    unlinkButton.addEventListener('click', () => this.confirmUnlink());
+    this.unlinkButton = unlinkButton;
+    const moreMenu = element('div', 'wechat-workbench__more-menu');
+    moreMenu.append(sourceButton, unlinkButton);
+    more.append(moreMenu);
+    toolbar.append(publishButton, copyButton, themeSelect, more);
     this.themeSelect = themeSelect;
 
     this.activeArticle = element('div', 'wechat-workbench__active-article', '未连接活动笔记');
@@ -141,6 +172,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.themeSelect !== null) this.themeSelect.disabled = true;
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
+    if (this.publishButton !== null) this.publishButton.disabled = true;
+    if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
     if (this.previewEl !== null) {
       const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
       empty.dataset.testid = 'workbench-empty';
@@ -152,6 +185,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.activeArticle !== null) this.activeArticle.textContent = `正在渲染 · ${path}`;
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
+    if (this.publishButton !== null) this.publishButton.disabled = true;
+    if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
   }
 
   showError(message: string): void {
@@ -159,12 +194,15 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.preflightEl !== null) this.preflightEl.hidden = true;
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
+    if (this.publishButton !== null) this.publishButton.disabled = true;
+    if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
     if (this.previewEl !== null) this.previewEl.replaceChildren(element(
       'div', 'wechat-workbench__error', `渲染失败：${message}`,
     ));
   }
 
   showArtifact(state: Readonly<WorkbenchRenderState>): void {
+    if (this.accountStatusEl !== null) this.accountStatusEl.textContent = this.accountStatus();
     if (this.activeArticle !== null) {
       this.activeArticle.textContent = `已连接 · ${state.snapshot.vaultPath}`;
     }
@@ -186,6 +224,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.previewEl !== null) this.previewRenderer.render(this.previewEl, state.artifact);
     if (this.copyButton !== null) this.copyButton.disabled = state.preflight.blocking.length > 0;
     if (this.sourceButton !== null) this.sourceButton.disabled = false;
+    if (this.publishButton !== null) this.publishButton.disabled = state.preflight.blocking.length > 0;
+    if (this.unlinkButton !== null) this.unlinkButton.disabled = false;
     if (this.settingsEl !== null) this.renderSettings(state);
   }
 
@@ -219,6 +259,77 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       new Notice(error instanceof Error ? error.message : '复制失败');
     } finally {
       button.disabled = false;
+    }
+  }
+
+  private async preparePublish(): Promise<void> {
+    if (this.publishButton === null || this.controller === null) return;
+    this.publishButton.disabled = true;
+    try {
+      const prepared = await this.controller.preparePublish();
+      new PublishConfirmationModal(
+        this.app,
+        buildPublishDialogModel(prepared.dialogInput),
+        () => void this.executePublish(prepared.command),
+      ).open();
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '无法准备草稿同步');
+    } finally {
+      this.publishButton.disabled = false;
+    }
+  }
+
+  private async executePublish(command: Readonly<PublishCommand>): Promise<void> {
+    if (this.publishButton !== null) this.publishButton.disabled = true;
+    new Notice('正在同步到公众号草稿箱…');
+    try {
+      const result = await this.controller?.executePublish(command);
+      if (result !== undefined) this.openPublishReport(command, result);
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '草稿同步失败');
+    } finally {
+      if (this.publishButton !== null) this.publishButton.disabled = false;
+    }
+  }
+
+  private openPublishReport(
+    command: Readonly<PublishCommand>,
+    outcome: Readonly<PublishOutcome>,
+  ): void {
+    new PublishReportModal(this.app, outcome, {
+      RETRY: () => void this.executePublish(command),
+      RECONCILE: () => void this.runRecovery('reconcile', command, outcome.taskId),
+      REPAIR_LOCAL: () => void this.runRecovery('repair', command, outcome.taskId),
+    }).open();
+  }
+
+  private async runRecovery(
+    mode: 'reconcile' | 'repair',
+    command: Readonly<PublishCommand>,
+    taskId: string,
+  ): Promise<void> {
+    if (this.controller === null) return;
+    try {
+      const result = mode === 'reconcile'
+        ? await this.controller.reconcilePublish(command, taskId)
+        : await this.controller.repairLocalPublish(command, taskId);
+      this.openPublishReport(command, result);
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '恢复草稿关联失败');
+    }
+  }
+
+  private confirmUnlink(): void {
+    if (this.controller === null) return;
+    new UnlinkAssociationModal(this.app, () => void this.unlinkAssociation()).open();
+  }
+
+  private async unlinkAssociation(): Promise<void> {
+    try {
+      await this.controller?.unlinkPublishAssociation();
+      new Notice('已解除本地草稿关联，未删除公众号后台草稿');
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '解除草稿关联失败');
     }
   }
 

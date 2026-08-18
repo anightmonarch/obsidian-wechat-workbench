@@ -14,6 +14,20 @@ export type PublishStage =
 
 export type PublishAction = 'CREATE' | 'UPDATE' | 'SKIP';
 
+export interface PublishDialogInput {
+  action: PublishAction;
+  appId: string;
+  title: string;
+  digest: string;
+  themeId: string;
+  themeVersion: string;
+  contentHash: string;
+  themeHash: string;
+  coverHash: string;
+  imageCount: number;
+  coverLabel: string;
+}
+
 export interface PublishCommand {
   file: VaultFileRef;
   artifact: Readonly<RenderArtifact>;

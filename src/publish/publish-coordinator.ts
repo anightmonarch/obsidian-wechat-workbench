@@ -1,4 +1,4 @@
-import type { PreflightReport } from '../preflight/preflight-engine';
+import type { PreflightContext, PreflightReport } from '../preflight/preflight-engine';
 import { PublicError, toPublicError, type WeChatStage } from '../wechat/errors';
 import type { DraftReceipt, RemoteDraft, WeChatDraftArticle } from '../wechat/wechat-types';
 import type { AssetUploadService, PublishAccount, ResolvedArtifact, UploadImage } from './asset-upload-service';
@@ -10,7 +10,7 @@ import type { SyncedDraftState } from './publish-state-store';
 
 export interface PublishCoordinatorPorts {
   preflight: {
-    run(artifact: PublishCommand['artifact'], context: { purpose: 'publish'; themeValid: boolean }): Readonly<PreflightReport>;
+    run(artifact: PublishCommand['artifact'], context: Readonly<PreflightContext>): Readonly<PreflightReport>;
   };
   tokens: { getValidToken(): Promise<string> };
   assets: Pick<AssetUploadService, 'resolveBodyAssets' | 'uploadCover'>;
@@ -123,7 +123,13 @@ export class PublishCoordinator {
     let mediaId: string | null = null;
     let failureStage: WeChatStage = 'LOCAL_STATE';
     try {
-      const report = this.ports.preflight.run(command.artifact, { purpose: 'publish', themeValid: true });
+      const report = this.ports.preflight.run(command.artifact, {
+        purpose: 'publish',
+        themeValid: true,
+        accountConfigured: command.accountHash.length > 0,
+        coverReady: command.cover.bytes.byteLength > 0,
+        associationAccountMatches: true,
+      });
       if (report.blocking.length > 0) {
         return outcome(taskId, 'FAILED', null, null, publishError(
           'PUBLISH_PREFLIGHT_BLOCKED',

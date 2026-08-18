@@ -110,4 +110,24 @@ describe('PreflightEngine', () => {
     expect(Object.isFrozen(report.warnings)).toBe(true);
     expect(Object.isFrozen(report.info)).toBe(true);
   });
+
+  it('adds publish-only account, cover, limits, and HTTPS blocking rules', () => {
+    const input = artifact({
+      metadata: Object.freeze({
+        title: '题'.repeat(65), author: '作者作者作者作者者', digest: '摘'.repeat(121),
+        cover: null, contentSourceUrl: 'http://example.test/source',
+      }),
+    });
+
+    const report = new PreflightEngine().run(input, {
+      purpose: 'publish', themeValid: true, accountConfigured: false, coverReady: false,
+      associationAccountMatches: false,
+    });
+    const codes = report.blocking.map(item => item.code);
+
+    expect(codes).toEqual(expect.arrayContaining([
+      'ACCOUNT_MISSING', 'COVER_MISSING', 'DRAFT_ACCOUNT_MISMATCH',
+      'TITLE_TOO_LONG', 'AUTHOR_TOO_LONG', 'DIGEST_TOO_LONG', 'CONTENT_SOURCE_NOT_HTTPS',
+    ]));
+  });
 });
