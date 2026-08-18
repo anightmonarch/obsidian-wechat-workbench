@@ -1,9 +1,10 @@
-import { type App, type EventRef, TFile } from 'obsidian';
+import { type App, type EventRef, normalizePath, TFile } from 'obsidian';
 import { posix } from 'node:path';
 
 import type { BinaryFilePort, VaultFileRef, VaultPort } from '../domain/ports';
 import type { MetadataPort } from '../render/note-snapshot-service';
 import type { FrontmatterMutationPort } from '../publish/publish-state-store';
+import type { CoverStoragePort } from '../cover/cover-storage';
 import type { ThemeSourcePort } from '../themes/theme-registry';
 import type { WorkbenchEventHandle, WorkbenchSourcePort } from '../ui/workbench-controller';
 
@@ -36,7 +37,7 @@ export class ObsidianWorkbenchSource implements WorkbenchSourcePort {
   }
 }
 
-export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPort, ThemeSourcePort, FrontmatterMutationPort {
+export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPort, ThemeSourcePort, FrontmatterMutationPort, CoverStoragePort {
   constructor(private readonly app: App) {}
 
   async readText(path: string): Promise<string> {
@@ -45,6 +46,24 @@ export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPo
 
   async readBinary(path: string): Promise<Uint8Array> {
     return new Uint8Array(await this.app.vault.adapter.readBinary(path));
+  }
+
+  async ensureDirectory(path: string): Promise<void> {
+    const segments = normalizePath(path).split('/').filter(Boolean);
+    let current = '';
+    for (const segment of segments) {
+      current = current.length === 0 ? segment : `${current}/${segment}`;
+      if (await this.app.vault.adapter.exists(current)) continue;
+      try {
+        await this.app.vault.adapter.mkdir(current);
+      } catch (error) {
+        if (!await this.app.vault.adapter.exists(current)) throw error;
+      }
+    }
+  }
+
+  async writeBinary(path: string, bytes: Uint8Array): Promise<void> {
+    await this.app.vault.adapter.writeBinary(normalizePath(path), Uint8Array.from(bytes).buffer);
   }
 
   async resolveLink(source: string, fromPath: string): Promise<string | null> {
