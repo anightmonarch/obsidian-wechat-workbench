@@ -49,6 +49,26 @@
   max-width: 100%;
 }
 
+.wechat-workbench__more {
+  position: relative;
+  margin-left: auto;
+}
+
+.wechat-workbench__more summary {
+  padding: var(--size-4-1) var(--size-4-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.wechat-workbench__more > button {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--size-4-1));
+  right: 0;
+  width: max-content;
+  box-shadow: var(--shadow-s);
+}
+
 .wechat-workbench__active-article,
 .wechat-workbench__preflight {
   padding: var(--size-4-3);

@@ -1,5 +1,8 @@
 import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
 
+import { ClipboardAssetResolver } from './clipboard/asset-resolver';
+import { ClipboardService } from './clipboard/clipboard-service';
+import { ElectronClipboardPort } from './clipboard/electron-clipboard-port';
 import { ObsidianVaultPorts, ObsidianWorkbenchSource } from './obsidian/workbench-adapters';
 import { PreflightEngine } from './preflight/preflight-engine';
 import { RenderArtifactBuilder } from './render/artifact-builder';
@@ -45,6 +48,13 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       vaultPorts,
       new DiagramRenderer(new BrowserMermaidEngine(), new ElectronSvgRasterizer()),
     );
+    const clipboard = new ClipboardService(
+      new ClipboardAssetResolver(
+        vaultPorts,
+        new DiagramRenderer(new BrowserMermaidEngine(), new ElectronSvgRasterizer()),
+      ),
+      new ElectronClipboardPort(),
+    );
 
     this.registerView(
       WORKBENCH_VIEW_TYPE,
@@ -59,6 +69,8 @@ export default class WeChatWorkbenchPlugin extends Plugin {
           view,
           event => this.registerEvent(event as EventRef),
           () => this.pluginSettings.defaultThemeId,
+          400,
+          clipboard,
         ));
         return view;
       },

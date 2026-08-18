@@ -1,4 +1,4 @@
-import { ItemView, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
 import { WORKBENCH_VIEW_TYPE } from './open-workbench';
@@ -10,6 +10,8 @@ interface WorkbenchControllerBinding {
   stop(): void;
   rebuild(reason: string): void;
   selectTheme(themeId: string): void;
+  copyForWeChat(): Promise<void>;
+  copyHtmlSource(): Promise<void>;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -38,6 +40,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private previewEl: HTMLElement | null = null;
   private settingsEl: HTMLElement | null = null;
   private themeSelect: HTMLSelectElement | null = null;
+  private copyButton: HTMLButtonElement | null = null;
+  private sourceButton: HTMLButtonElement | null = null;
   private previewTabActive = true;
 
   constructor(leaf: WorkspaceLeaf, previewAssets?: PreviewAssetResolver) {
@@ -80,12 +84,23 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     tabs.append(previewTab, settingsTab);
 
     const toolbar = element('div', 'wechat-workbench__toolbar');
+    const copyButton = disabledAction('复制到公众号');
+    copyButton.dataset.testid = 'copy-rich';
+    copyButton.addEventListener('click', () => void this.runCopy('rich'));
+    this.copyButton = copyButton;
     const themeSelect = element('select', 'wechat-workbench__theme-select');
     themeSelect.dataset.testid = 'theme-select';
     themeSelect.disabled = true;
     themeSelect.setAttribute('aria-label', '文章主题');
     themeSelect.addEventListener('change', () => this.controller?.selectTheme(themeSelect.value));
-    toolbar.append(disabledAction('发布到草稿箱', true), disabledAction('复制到公众号'), themeSelect);
+    const more = element('details', 'wechat-workbench__more');
+    more.append(element('summary', undefined, '···'));
+    const sourceButton = disabledAction('复制 HTML 源码');
+    sourceButton.dataset.testid = 'copy-source';
+    sourceButton.addEventListener('click', () => void this.runCopy('source'));
+    this.sourceButton = sourceButton;
+    more.append(sourceButton);
+    toolbar.append(disabledAction('发布到草稿箱', true), copyButton, themeSelect, more);
     this.themeSelect = themeSelect;
 
     this.activeArticle = element('div', 'wechat-workbench__active-article', '未连接活动笔记');
@@ -124,6 +139,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.activeArticle !== null) this.activeArticle.textContent = '未连接活动笔记';
     if (this.preflightEl !== null) this.preflightEl.hidden = true;
     if (this.themeSelect !== null) this.themeSelect.disabled = true;
+    if (this.copyButton !== null) this.copyButton.disabled = true;
+    if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.previewEl !== null) {
       const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
       empty.dataset.testid = 'workbench-empty';
@@ -133,11 +150,15 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showLoading(path: string): void {
     if (this.activeArticle !== null) this.activeArticle.textContent = `正在渲染 · ${path}`;
+    if (this.copyButton !== null) this.copyButton.disabled = true;
+    if (this.sourceButton !== null) this.sourceButton.disabled = true;
   }
 
   showError(message: string): void {
     this.previewRenderer.clear();
     if (this.preflightEl !== null) this.preflightEl.hidden = true;
+    if (this.copyButton !== null) this.copyButton.disabled = true;
+    if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.previewEl !== null) this.previewEl.replaceChildren(element(
       'div', 'wechat-workbench__error', `渲染失败：${message}`,
     ));
@@ -163,6 +184,8 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       this.themeSelect.disabled = state.themes.length === 0;
     }
     if (this.previewEl !== null) this.previewRenderer.render(this.previewEl, state.artifact);
+    if (this.copyButton !== null) this.copyButton.disabled = state.preflight.blocking.length > 0;
+    if (this.sourceButton !== null) this.sourceButton.disabled = false;
     if (this.settingsEl !== null) this.renderSettings(state);
   }
 
@@ -182,6 +205,21 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       this.settingsEl.append(row);
     }
     this.settingsEl.append(element('p', 'wechat-workbench__settings-hint', '修改笔记 Frontmatter 后，预览会自动更新。'));
+  }
+
+  private async runCopy(mode: 'rich' | 'source'): Promise<void> {
+    const button = mode === 'rich' ? this.copyButton : this.sourceButton;
+    if (button === null || this.controller === null) return;
+    button.disabled = true;
+    try {
+      if (mode === 'rich') await this.controller.copyForWeChat();
+      else await this.controller.copyHtmlSource();
+      new Notice(mode === 'rich' ? '已复制公众号富文本' : '已复制 HTML 源码');
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '复制失败');
+    } finally {
+      button.disabled = false;
+    }
   }
 
   private switchTab(

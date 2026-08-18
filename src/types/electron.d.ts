@@ -7,4 +7,8 @@ declare module 'electron' {
   export const nativeImage: {
     createFromDataURL(dataUrl: string): NativeImage;
   };
+
+  export const clipboard: {
+    write(content: { html?: string; text: string }): void;
+  };
 }

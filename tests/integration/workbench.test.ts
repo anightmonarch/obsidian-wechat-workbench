@@ -6,6 +6,7 @@ import type { VaultFileRef } from '../../src/domain/ports';
 import type { ThemeDefinition } from '../../src/domain/theme';
 import {
   WorkbenchController,
+  type WorkbenchClipboardPort,
   type WorkbenchEventHandle,
   type WorkbenchSourcePort,
   type WorkbenchViewPort,
@@ -86,7 +87,12 @@ class FakeView implements WorkbenchViewPort {
   }
 }
 
-function controller(source: FakeSource, view: FakeView, build: (snapshot: Readonly<NoteSnapshot>) => Promise<Readonly<RenderArtifact>>) {
+function controller(
+  source: FakeSource,
+  view: FakeView,
+  build: (snapshot: Readonly<NoteSnapshot>) => Promise<Readonly<RenderArtifact>>,
+  clipboard?: WorkbenchClipboardPort,
+) {
   const registered: unknown[] = [];
   return {
     registered,
@@ -100,6 +106,7 @@ function controller(source: FakeSource, view: FakeView, build: (snapshot: Readon
       event => registered.push(event),
       'native',
       400,
+      clipboard,
     ),
   };
 }
@@ -200,5 +207,28 @@ describe('WorkbenchController', () => {
 
     expect(view.errors).toEqual(['synthetic render failure']);
     expect(harness.instance.currentArtifact()).toBeNull();
+  });
+
+  it('copies only the current completed artifact', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const copyForWeChat = vi.fn(async (_artifact: Readonly<RenderArtifact>) => undefined);
+    const copyHtmlSource = vi.fn(async (_artifact: Readonly<RenderArtifact>) => undefined);
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      { copyForWeChat, copyHtmlSource },
+    );
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await harness.instance.copyForWeChat();
+    await harness.instance.copyHtmlSource();
+
+    expect(copyForWeChat).toHaveBeenCalledOnce();
+    expect(copyForWeChat.mock.calls[0]?.[0].source.vaultPath).toBe('active.md');
+    expect(copyHtmlSource).toHaveBeenCalledOnce();
   });
 });

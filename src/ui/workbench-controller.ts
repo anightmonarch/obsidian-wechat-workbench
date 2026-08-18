@@ -53,6 +53,18 @@ export interface WorkbenchViewPort {
   showArtifact(state: Readonly<WorkbenchRenderState>): void;
 }
 
+export interface WorkbenchClipboardPort {
+  copyForWeChat(artifact: Readonly<RenderArtifact>): Promise<unknown>;
+  copyHtmlSource(artifact: Readonly<RenderArtifact>): Promise<unknown>;
+}
+
+export class WorkbenchActionError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = 'WorkbenchActionError';
+  }
+}
+
 type HostEventRegistrar = (event: unknown) => void;
 type FallbackThemeSource = string | (() => string);
 
@@ -63,6 +75,7 @@ export class WorkbenchController {
   private generation = 0;
   private started = false;
   private artifact: Readonly<RenderArtifact> | null = null;
+  private report: Readonly<PreflightReport> | null = null;
 
   constructor(
     private readonly source: WorkbenchSourcePort,
@@ -74,6 +87,7 @@ export class WorkbenchController {
     private readonly registerHostEvent: HostEventRegistrar,
     private readonly fallbackThemeId: FallbackThemeSource,
     private readonly debounceMs = 400,
+    private readonly clipboard?: WorkbenchClipboardPort,
   ) {}
 
   start(): void {
@@ -95,6 +109,7 @@ export class WorkbenchController {
     this.started = false;
     this.generation += 1;
     this.artifact = null;
+    this.report = null;
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = null;
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
@@ -105,6 +120,10 @@ export class WorkbenchController {
     this.generation += 1;
     const requestedGeneration = this.generation;
     this.artifact = null;
+    this.report = null;
+    const pendingFile = this.source.currentMarkdown();
+    if (pendingFile === null) this.view.showEmpty();
+    else this.view.showLoading(pendingFile.path);
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       this.timer = null;
@@ -121,6 +140,29 @@ export class WorkbenchController {
 
   currentArtifact(): Readonly<RenderArtifact> | null {
     return this.artifact;
+  }
+
+  async copyForWeChat(): Promise<void> {
+    if (this.artifact === null || this.report === null) {
+      throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
+    }
+    if (this.report.blocking.length > 0) {
+      throw new WorkbenchActionError('COPY_PREFLIGHT_BLOCKED', '请先修复复制预检中的阻断项。');
+    }
+    if (this.clipboard === undefined) {
+      throw new WorkbenchActionError('CLIPBOARD_UNAVAILABLE', '剪贴板服务不可用。');
+    }
+    await this.clipboard.copyForWeChat(this.artifact);
+  }
+
+  async copyHtmlSource(): Promise<void> {
+    if (this.artifact === null) {
+      throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
+    }
+    if (this.clipboard === undefined) {
+      throw new WorkbenchActionError('CLIPBOARD_UNAVAILABLE', '剪贴板服务不可用。');
+    }
+    await this.clipboard.copyHtmlSource(this.artifact);
   }
 
   private addSubscription(subscription: WorkbenchEventHandle): void {
@@ -147,20 +189,23 @@ export class WorkbenchController {
       const artifact = await this.builder.build(snapshot, theme);
       if (!this.isCurrent(requestedGeneration)) return;
 
+      const report = this.preflight.run(artifact, {
+        purpose: 'copy',
+        themeValid: requestedTheme !== undefined,
+      });
       this.artifact = artifact;
+      this.report = report;
       this.view.showArtifact(Object.freeze({
         snapshot,
         artifact,
-        preflight: this.preflight.run(artifact, {
-          purpose: 'copy',
-          themeValid: requestedTheme !== undefined,
-        }),
+        preflight: report,
         themes: this.themes.list(),
         selectedThemeId: theme.manifest.id,
       }));
     } catch (error) {
       if (!this.isCurrent(requestedGeneration)) return;
       this.artifact = null;
+      this.report = null;
       this.view.showError(error instanceof Error ? error.message : 'Article rendering failed.');
     }
   }

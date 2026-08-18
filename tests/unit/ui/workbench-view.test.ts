@@ -49,17 +49,20 @@ describe('WeChatWorkbenchView', () => {
     expect(view.contentEl.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(view.contentEl.querySelector('[data-testid="workbench-empty"]')?.textContent)
       .toBe('打开一篇 Markdown 笔记开始预览');
-    expect(view.contentEl.querySelectorAll('button:disabled')).toHaveLength(2);
+    expect(view.contentEl.querySelectorAll('button:disabled')).toHaveLength(3);
   });
 
   it('renders artifact, preflight, theme selector, and inert remote placeholder', async () => {
     const selected: string[] = [];
+    const copied: string[] = [];
     const view = new WeChatWorkbenchView({} as never);
     view.setController({
       start: () => undefined,
       stop: () => undefined,
       rebuild: () => undefined,
       selectTheme: id => selected.push(id),
+      copyForWeChat: async () => { copied.push('rich'); },
+      copyHtmlSource: async () => { copied.push('source'); },
     });
     await view.onOpen();
 
@@ -77,5 +80,9 @@ describe('WeChatWorkbenchView', () => {
     theme.value = 'native';
     theme.dispatchEvent(new Event('change'));
     expect(selected).toEqual(['native']);
+
+    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="copy-rich"]')?.click();
+    await Promise.resolve();
+    expect(copied).toEqual(['rich']);
   });
 });
