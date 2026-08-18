@@ -45,6 +45,6 @@ export function canonicalizeHtml(html: string): string {
   return root.outerHTML;
 }
 
-export function hashContent(value: string): string {
+export function hashContent(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex');
 }

@@ -7,3 +7,8 @@ export interface VaultFileRef {
 export interface VaultPort {
   readText(path: string): Promise<string>;
 }
+
+export interface BinaryFilePort {
+  resolveLink(source: string, fromPath: string): Promise<string | null>;
+  readBinary(path: string): Promise<Uint8Array>;
+}

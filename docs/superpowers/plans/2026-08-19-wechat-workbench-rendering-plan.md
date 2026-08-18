@@ -6,7 +6,7 @@
 
 **Architecture:** `NoteSnapshot`、`ThemeDefinition` 和 `RenderArtifact` 是纯领域对象。渲染管线使用 unified/remark/rehype 生成受控 HAST，再经过清洗、主题内联和规范化；Obsidian UI 只消费产物，不参与 Markdown 转换。公式、Mermaid、图片均先形成稳定资源槽位，由预览或复制投影解析。
 
-**Tech Stack:** unified 11.0.5、remark-parse 11.0.0、remark-gfm 4.0.1、remark-rehype 11.1.2、rehype-sanitize 6.0.0、rehype-stringify 10.0.1、unist-util-visit 5.1.0、PostCSS 8.5.26、postcss-selector-parser 7.1.5、juice 12.1.2、highlight.js 11.12.0、KaTeX 0.18.4、Mermaid 11.16.1、Electron clipboard。
+**Tech Stack:** unified 11.0.5、remark-parse 11.0.0、remark-gfm 4.0.1、remark-math 6.0.0、remark-rehype 11.1.2、rehype-sanitize 6.0.0、rehype-stringify 10.0.1、unist-util-visit 5.1.0、PostCSS 8.5.26、postcss-selector-parser 7.1.5、juice 12.1.2、highlight.js 11.12.0、KaTeX 0.18.4、Mermaid 11.16.1、Electron clipboard。
 
 ## Global Constraints
 
@@ -259,7 +259,7 @@ git commit -m "feat: add deterministic article renderer"
 - [ ] **Step 1: Install exact rich-content dependencies and write slot tests**
 
 ```bash
-npm install --save-exact katex@0.18.4 mermaid@11.16.1
+npm install --save-exact katex@0.18.4 mermaid@11.16.1 remark-math@6.0.0
 ```
 
 ```ts

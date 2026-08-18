@@ -1,10 +1,14 @@
 import juice from 'juice';
 
 import type { NoteSnapshot } from '../domain/article';
-import type { Diagnostic, RenderArtifact } from '../domain/artifact';
+import type { AssetSlot, Diagnostic, RenderArtifact } from '../domain/artifact';
+import type { BinaryFilePort } from '../domain/ports';
 import type { ThemeDefinition } from '../domain/theme';
+import { extractImageAssets } from './assets';
 import { canonicalizeHtml, hashContent, parseArticleRoot } from './canonicalize';
 import { highlightCodeBlocks } from './extensions/code';
+import { renderMathExpressions } from './extensions/math';
+import { extractMermaidAssets } from './extensions/mermaid';
 import { markdownToSafeHtml } from './markdown-pipeline';
 
 const ARTIFACT_VERSION = '1';
@@ -31,25 +35,44 @@ function plainText(root: Element): string {
   return (root.textContent ?? '').replace(/\s+/gu, ' ').trim();
 }
 
-function diagnosticsFor(markdown: string): readonly Diagnostic[] {
-  if (!/<\/?[a-z][^>]*>/iu.test(markdown)) return Object.freeze([]);
-  return Object.freeze([Object.freeze({
+function diagnosticsFor(markdown: string): Diagnostic[] {
+  if (!/<\/?[a-z][^>]*>/iu.test(markdown)) return [];
+  return [{
     code: 'RAW_HTML_REMOVED',
     severity: 'WARNING' as const,
     message: 'Raw HTML was removed from the article.',
     source: null,
-  })]);
+  }];
 }
 
 function freezeArtifact(artifact: RenderArtifact): Readonly<RenderArtifact> {
   Object.freeze(artifact.source);
   Object.freeze(artifact.theme);
+  for (const asset of artifact.assets) Object.freeze(asset);
+  for (const diagnostic of artifact.diagnostics) Object.freeze(diagnostic);
   Object.freeze(artifact.assets);
   Object.freeze(artifact.diagnostics);
   return Object.freeze(artifact);
 }
 
+function assetsInDocumentOrder(root: Element, candidates: readonly AssetSlot[]): AssetSlot[] {
+  const byId = new Map(candidates.map(asset => [asset.id, asset]));
+  const emitted = new Set<string>();
+  const ordered: AssetSlot[] = [];
+  for (const element of root.querySelectorAll('[data-asset-id]')) {
+    const id = element.getAttribute('data-asset-id');
+    if (id === null || emitted.has(id)) continue;
+    const asset = byId.get(id);
+    if (asset === undefined) continue;
+    ordered.push(asset);
+    emitted.add(id);
+  }
+  return ordered;
+}
+
 export class RenderArtifactBuilder {
+  constructor(private readonly binaryFiles?: BinaryFilePort) {}
+
   async build(
     snapshot: Readonly<NoteSnapshot>,
     theme: Readonly<ThemeDefinition>,
@@ -57,9 +80,23 @@ export class RenderArtifactBuilder {
     const safeBody = await markdownToSafeHtml(snapshot.markdown);
     const structuralRoot = parseArticleRoot(`<section class="wechat-article">${safeBody}</section>`);
     transformCallouts(structuralRoot);
-    highlightCodeBlocks(structuralRoot);
     const text = plainText(structuralRoot);
+    const images = await extractImageAssets(structuralRoot, snapshot.vaultPath, this.binaryFiles);
+    const math = renderMathExpressions(structuralRoot);
+    const diagrams = extractMermaidAssets(structuralRoot);
+    highlightCodeBlocks(structuralRoot);
+    const assets = assetsInDocumentOrder(structuralRoot, [
+      ...images.assets,
+      ...math.assets,
+      ...diagrams,
+    ]);
+    const diagnostics = [
+      ...diagnosticsFor(snapshot.markdown),
+      ...images.diagnostics,
+      ...math.diagnostics,
+    ];
     const themed = juice.inlineContent(structuralRoot.outerHTML, theme.css, {
+      applyHeightAttributes: false,
       applyStyleTags: false,
       removeStyleTags: true,
       preserveMediaQueries: false,
@@ -83,8 +120,8 @@ export class RenderArtifactBuilder {
       metadata: snapshot.metadata,
       canonicalHtml,
       plainText: text,
-      assets: [],
-      diagnostics: diagnosticsFor(snapshot.markdown),
+      assets,
+      diagnostics,
       contentHash: hashContent(canonicalHtml),
     });
   }

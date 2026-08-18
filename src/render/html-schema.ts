@@ -17,7 +17,10 @@ export const ARTICLE_HTML_SCHEMA: Schema = {
     ...defaultSchema.attributes,
     '*': values(defaultSchema.attributes?.['*'], ['className']),
     a: values(defaultSchema.attributes?.a, ['target', 'rel']),
-    code: values(defaultSchema.attributes?.code, ['className']),
+    code: [
+      ['className', /^language-./u, 'math-inline', 'math-display'],
+    ],
+    img: values(defaultSchema.attributes?.img, ['dataAssetSource']),
     section: ['className'],
     table: values(defaultSchema.attributes?.table, ['className']),
   },
