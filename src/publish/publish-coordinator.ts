@@ -28,6 +28,7 @@ export interface PublishCoordinatorPorts {
     resolve(taskId: string): Promise<void>;
   };
   currentSourceHash(file: PublishCommand['file']): Promise<string>;
+  currentCover(command: Readonly<PublishCommand>): Promise<Readonly<{ path: string; hash: string }>>;
 }
 
 type Clock = () => number;
@@ -80,6 +81,7 @@ function frozenCommand(command: Readonly<PublishCommand>): Readonly<PublishComma
     artifact,
     accountHash: command.accountHash,
     cover: Object.freeze(cover),
+    coverPath: command.coverPath,
     coverHash: command.coverHash,
   });
 }
@@ -135,6 +137,24 @@ export class PublishCoordinator {
           'PUBLISH_PREFLIGHT_BLOCKED',
           'Publish preflight contains blocking issues.',
           'Fix all blocking issues before retrying.',
+        ));
+      }
+
+      let currentCover: Readonly<{ path: string; hash: string }>;
+      try {
+        currentCover = await this.ports.currentCover(command);
+      } catch {
+        return outcome(taskId, 'FAILED', null, null, publishError(
+          'COVER_RECHECK_FAILED',
+          'The confirmed cover could not be read again before publishing.',
+          'Reopen the cover picker, confirm the cover, and retry.',
+        ));
+      }
+      if (currentCover.path !== command.coverPath || currentCover.hash !== command.coverHash) {
+        return outcome(taskId, 'FAILED', null, null, publishError(
+          'COVER_CHANGED_AFTER_CONFIRMATION',
+          'The selected cover path or bytes changed after confirmation.',
+          'Review and confirm the current cover before publishing.',
         ));
       }
 

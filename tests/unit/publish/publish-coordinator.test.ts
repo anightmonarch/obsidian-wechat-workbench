@@ -53,6 +53,7 @@ function harness(local: Readonly<SyncedDraftState> | null = null) {
     if (found !== undefined) receipts[index] = { ...found, status: 'RESOLVED' };
   });
   const currentSourceHash = vi.fn(async () => 'SOURCE_HASH');
+  const currentCover = vi.fn(async () => ({ path: 'assets/cover.png', hash: 'COVER_HASH' }));
   const ports: PublishCoordinatorPorts = {
     preflight: { run: () => Object.freeze({ ok: true, blocking: [], warnings: [], info: [] }) },
     tokens: { getValidToken },
@@ -68,11 +69,13 @@ function harness(local: Readonly<SyncedDraftState> | null = null) {
       resolve,
     },
     currentSourceHash,
+    currentCover,
   };
   const coordinator = new PublishCoordinator(ports, () => 1000, () => 'TASK_1');
   return {
     coordinator, ports, events, receipts, addDraft, updateDraft, getDraft, commit,
     getValidToken, resolveBodyAssets, uploadCover, record, resolve, currentSourceHash,
+    currentCover,
   };
 }
 
@@ -81,6 +84,7 @@ const command = Object.freeze({
   artifact,
   accountHash: 'ACCOUNT_A',
   cover,
+  coverPath: 'assets/cover.png',
   coverHash: 'COVER_HASH',
 });
 
@@ -206,6 +210,18 @@ describe('PublishCoordinator', () => {
     await expect(current.coordinator.publish(command)).resolves.toMatchObject({
       state: 'LOCAL_COMMITTED', hasUnsyncedChanges: true,
     });
+  });
+
+  it('blocks before token or upload when the confirmed cover path or bytes changed', async () => {
+    const current = harness();
+    current.currentCover.mockResolvedValue({ path: 'assets/other.png', hash: 'OTHER_HASH' });
+
+    await expect(current.coordinator.publish(command)).resolves.toMatchObject({
+      state: 'FAILED', error: { code: 'COVER_CHANGED_AFTER_CONFIRMATION', remoteEffect: 'NONE' },
+    });
+    expect(current.getValidToken).not.toHaveBeenCalled();
+    expect(current.uploadCover).not.toHaveBeenCalled();
+    expect(current.addDraft).not.toHaveBeenCalled();
   });
 
   it('never reports a remote success as a safe failure when receipt persistence fails', async () => {

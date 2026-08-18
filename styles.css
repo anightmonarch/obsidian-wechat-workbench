@@ -81,6 +81,34 @@
   width: 100%;
 }
 
+.wechat-workbench__cover-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+}
+
+.wechat-workbench__cover-local {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+}
+
+.wechat-workbench__cover-local input {
+  flex: 1;
+  min-width: 0;
+}
+
+.wechat-workbench__cover-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2.35 / 1;
+  margin-top: var(--size-4-3);
+  object-fit: cover;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
 .wechat-workbench__active-article,
 .wechat-workbench__preflight {
   padding: var(--size-4-3);

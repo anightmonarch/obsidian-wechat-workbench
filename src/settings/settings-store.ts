@@ -114,6 +114,10 @@ function sanitizeSettings(value: unknown): PluginSettings {
     defaultAuthor: stringValue(stored.defaultAuthor, DEFAULT_SETTINGS.defaultAuthor),
     defaultSourceUrl: stringValue(stored.defaultSourceUrl, DEFAULT_SETTINGS.defaultSourceUrl),
     defaultCoverStrategy: coverStrategy(stored.defaultCoverStrategy),
+    globalDefaultCoverPath: stringValue(
+      stored.globalDefaultCoverPath,
+      DEFAULT_SETTINGS.globalDefaultCoverPath,
+    ),
     imageApiBaseUrl: stringValue(stored.imageApiBaseUrl, DEFAULT_SETTINGS.imageApiBaseUrl),
     imageApiModel: stringValue(stored.imageApiModel, DEFAULT_SETTINGS.imageApiModel),
     accessTokenExpiresAt: nullableNumber(

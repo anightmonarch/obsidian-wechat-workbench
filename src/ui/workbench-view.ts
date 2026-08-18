@@ -1,8 +1,11 @@
 import { ItemView, Notice, type WorkspaceLeaf } from 'obsidian';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
+import type { CoverPickerModel, CoverPickerOption, PreparedCover } from '../cover/cover-workflow';
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
+import { AiCoverConfirmationModal, type AiCoverDisclosure } from './ai-cover-confirmation';
+import { CoverPickerError, CoverPickerModal, CoverPickerSession } from './cover-picker-modal';
 import { WORKBENCH_VIEW_TYPE } from './open-workbench';
 import {
   buildPublishDialogModel,
@@ -25,6 +28,11 @@ interface WorkbenchControllerBinding {
   reconcilePublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
   repairLocalPublish(command: Readonly<PublishCommand>, taskId: string): Promise<Readonly<PublishOutcome>>;
   unlinkPublishAssociation(): Promise<void>;
+  coverPickerModel(): Readonly<CoverPickerModel>;
+  aiCoverDisclosure(): Readonly<AiCoverDisclosure>;
+  prepareCover(input: Readonly<CoverPickerOption> | string): Promise<Readonly<PreparedCover>>;
+  generateAiCover(): Promise<Readonly<PreparedCover>>;
+  confirmCover(prepared: Readonly<PreparedCover>): Promise<void>;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -57,6 +65,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private sourceButton: HTMLButtonElement | null = null;
   private publishButton: HTMLButtonElement | null = null;
   private unlinkButton: HTMLButtonElement | null = null;
+  private coverButton: HTMLButtonElement | null = null;
   private accountStatusEl: HTMLElement | null = null;
   private previewTabActive = true;
 
@@ -113,6 +122,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     copyButton.dataset.testid = 'copy-rich';
     copyButton.addEventListener('click', () => void this.runCopy('rich'));
     this.copyButton = copyButton;
+    const coverButton = disabledAction('文章封面');
+    coverButton.dataset.testid = 'choose-cover';
+    coverButton.addEventListener('click', () => this.openCoverPicker());
+    this.coverButton = coverButton;
     const themeSelect = element('select', 'wechat-workbench__theme-select');
     themeSelect.dataset.testid = 'theme-select';
     themeSelect.disabled = true;
@@ -131,7 +144,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     const moreMenu = element('div', 'wechat-workbench__more-menu');
     moreMenu.append(sourceButton, unlinkButton);
     more.append(moreMenu);
-    toolbar.append(publishButton, copyButton, themeSelect, more);
+    toolbar.append(publishButton, copyButton, coverButton, themeSelect, more);
     this.themeSelect = themeSelect;
 
     this.activeArticle = element('div', 'wechat-workbench__active-article', '未连接活动笔记');
@@ -174,6 +187,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
+    if (this.coverButton !== null) this.coverButton.disabled = true;
     if (this.previewEl !== null) {
       const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
       empty.dataset.testid = 'workbench-empty';
@@ -187,6 +201,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
+    if (this.coverButton !== null) this.coverButton.disabled = true;
   }
 
   showError(message: string): void {
@@ -196,6 +211,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
+    if (this.coverButton !== null) this.coverButton.disabled = true;
     if (this.previewEl !== null) this.previewEl.replaceChildren(element(
       'div', 'wechat-workbench__error', `渲染失败：${message}`,
     ));
@@ -226,6 +242,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.sourceButton !== null) this.sourceButton.disabled = false;
     if (this.publishButton !== null) this.publishButton.disabled = state.preflight.blocking.length > 0;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = false;
+    if (this.coverButton !== null) this.coverButton.disabled = false;
     if (this.settingsEl !== null) this.renderSettings(state);
   }
 
@@ -331,6 +348,41 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     } catch (error) {
       new Notice(error instanceof Error ? error.message : '解除草稿关联失败');
     }
+  }
+
+  private openCoverPicker(): void {
+    if (this.controller === null) return;
+    try {
+      const session = new CoverPickerSession(this.controller.coverPickerModel(), {
+        prepareLocal: input => this.controller?.prepareCover(input)
+          ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
+        generateAi: () => this.generateAiCoverWithConsent(),
+        confirm: async prepared => {
+          await this.controller?.confirmCover(prepared);
+          new Notice('文章封面已更新');
+        },
+      });
+      new CoverPickerModal(this.app, session).open();
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : '无法打开封面选择器');
+    }
+  }
+
+  private generateAiCoverWithConsent(): Promise<Readonly<PreparedCover>> {
+    if (this.controller === null) {
+      return Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。'));
+    }
+    const disclosure = this.controller.aiCoverDisclosure();
+    return new Promise((resolve, reject) => {
+      new AiCoverConfirmationModal(
+        this.app,
+        disclosure,
+        () => {
+          void this.controller?.generateAiCover().then(resolve, reject);
+        },
+        () => reject(new CoverPickerError('AI_COVER_CANCELLED', '已取消生成智能封面。')),
+      ).open();
+    });
   }
 
   private switchTab(

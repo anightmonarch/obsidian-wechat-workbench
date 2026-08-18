@@ -17,6 +17,9 @@ export interface SecretSettingRow {
 
 export interface SettingsPresentation {
   appIdValue: string;
+  globalDefaultCoverPath: string;
+  imageApiBaseUrl: string;
+  imageApiModel: string;
   secretRows: SecretSettingRow[];
 }
 
@@ -26,6 +29,9 @@ export function buildSettingsPresentation(
 ): SettingsPresentation {
   return {
     appIdValue: settings.appId,
+    globalDefaultCoverPath: settings.globalDefaultCoverPath,
+    imageApiBaseUrl: settings.imageApiBaseUrl,
+    imageApiModel: settings.imageApiModel,
     secretRows: [
       {
         kind: 'appSecret',
@@ -69,6 +75,36 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         .setValue(presentation.appIdValue)
         .onChange(async value => {
           await this.settings.update({ appId: value.trim() });
+        }));
+
+    new Setting(this.containerEl)
+      .setName('默认封面路径')
+      .setDesc('Vault 内图片路径；选择“插件默认封面”时使用。')
+      .addText(text => text
+        .setPlaceholder('例如 assets/default-cover.png')
+        .setValue(presentation.globalDefaultCoverPath)
+        .onChange(async value => {
+          await this.settings.update({ globalDefaultCoverPath: value.trim() });
+        }));
+
+    new Setting(this.containerEl)
+      .setName('图片服务地址')
+      .setDesc('兼容第三方图片生成接口；生成前会再次展示并确认。')
+      .addText(text => text
+        .setPlaceholder('例如 https://api.example.com')
+        .setValue(presentation.imageApiBaseUrl)
+        .onChange(async value => {
+          await this.settings.update({ imageApiBaseUrl: value.trim() });
+        }));
+
+    new Setting(this.containerEl)
+      .setName('图片模型')
+      .setDesc('由图片服务提供方定义的模型名称。')
+      .addText(text => text
+        .setPlaceholder('例如 image-model')
+        .setValue(presentation.imageApiModel)
+        .onChange(async value => {
+          await this.settings.update({ imageApiModel: value.trim() });
         }));
 
     for (const row of presentation.secretRows) {

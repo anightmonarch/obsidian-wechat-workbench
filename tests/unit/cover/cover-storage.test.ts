@@ -14,7 +14,8 @@ describe('CoverStorage', () => {
     const path = await storage.save('01-公众号/My Article.md', png);
 
     const hash = createHash('sha256').update('01-公众号/My Article.md').digest('hex').slice(0, 8);
-    expect(path).toBe(`.wechat-workbench/covers/my-article-${hash}/cover.png`);
+    const contentHash = createHash('sha256').update(png).digest('hex').slice(0, 8);
+    expect(path).toBe(`.wechat-workbench/covers/my-article-${hash}/cover-${contentHash}.png`);
     expect(path).not.toContain('..');
     expect(ensureDirectory).toHaveBeenCalledWith(`.wechat-workbench/covers/my-article-${hash}`);
     expect(writeBinary).toHaveBeenCalledWith(path, png);
@@ -27,6 +28,7 @@ describe('CoverStorage', () => {
     });
 
     await expect(storage.save('../公众号/文章.md', new Uint8Array())).rejects.toThrow(/empty/i);
-    expect(storage.pathFor('../公众号/文章.md')).toMatch(/^\.wechat-workbench\/covers\/article-[a-f0-9]{8}\/cover\.png$/u);
+    expect(storage.pathFor('../公众号/文章.md', '1234567890abcdef'))
+      .toMatch(/^\.wechat-workbench\/covers\/article-[a-f0-9]{8}\/cover-12345678\.png$/u);
   });
 });

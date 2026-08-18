@@ -33,6 +33,7 @@ export interface PublishCommand {
   artifact: Readonly<RenderArtifact>;
   accountHash: string;
   cover: Readonly<UploadImage>;
+  coverPath: string;
   coverHash: string;
 }
 

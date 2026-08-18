@@ -49,7 +49,7 @@ describe('WeChatWorkbenchView', () => {
     expect(view.contentEl.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(view.contentEl.querySelector('[data-testid="workbench-empty"]')?.textContent)
       .toBe('打开一篇 Markdown 笔记开始预览');
-    expect(view.contentEl.querySelectorAll('button:disabled')).toHaveLength(4);
+    expect(view.contentEl.querySelectorAll('button:disabled')).toHaveLength(5);
   });
 
   it('renders artifact, preflight, theme selector, and inert remote placeholder', async () => {
@@ -68,6 +68,11 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
+      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      aiCoverDisclosure: () => { throw new Error('not used'); },
+      prepareCover: async () => { throw new Error('not used'); },
+      generateAiCover: async () => { throw new Error('not used'); },
+      confirmCover: async () => undefined,
     });
     await view.onOpen();
 

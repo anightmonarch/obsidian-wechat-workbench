@@ -27,14 +27,16 @@ function pathHash(notePath: string): string {
 export class CoverStorage {
   constructor(private readonly vault: CoverStoragePort) {}
 
-  pathFor(notePath: string): string {
+  pathFor(notePath: string, contentHash: string): string {
     const directory = `${ROOT}/${safeSlug(notePath)}-${pathHash(notePath)}`;
-    return `${directory}/cover.png`;
+    const suffix = /^[a-f0-9]{8,}$/iu.test(contentHash) ? contentHash.slice(0, 8).toLowerCase() : pathHash(contentHash);
+    return `${directory}/cover-${suffix}.png`;
   }
 
   async save(notePath: string, bytes: Uint8Array): Promise<string> {
     if (bytes.byteLength === 0) throw new Error('Generated cover output is empty.');
-    const path = this.pathFor(notePath);
+    const contentHash = createHash('sha256').update(bytes).digest('hex');
+    const path = this.pathFor(notePath, contentHash);
     const directory = posix.dirname(path);
     if (!path.startsWith(`${ROOT}/`) || directory === '.' || path.includes('..')) {
       throw new Error('Generated cover path is outside the plugin-owned directory.');

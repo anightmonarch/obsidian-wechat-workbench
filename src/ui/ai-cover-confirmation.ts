@@ -49,10 +49,13 @@ export function buildAiCoverDisclosure(
 }
 
 export class AiCoverConfirmationModal extends Modal {
+  private decided = false;
+
   constructor(
     app: App,
     private readonly disclosure: Readonly<AiCoverDisclosure>,
     private readonly confirm: () => void,
+    private readonly cancel: () => void = () => undefined,
   ) { super(app); }
 
   onOpen(): void {
@@ -76,10 +79,24 @@ export class AiCoverConfirmationModal extends Modal {
     }));
     const actions = createDiv('modal-button-container');
     const cancel = createEl('button', { text: '取消' });
-    cancel.addEventListener('click', () => this.close());
+    cancel.addEventListener('click', () => {
+      this.decided = true;
+      this.cancel();
+      this.close();
+    });
     const generate = createEl('button', { cls: 'mod-cta', text: '确认并生成' });
-    generate.addEventListener('click', () => { this.close(); this.confirm(); });
+    generate.addEventListener('click', () => {
+      this.decided = true;
+      this.close();
+      this.confirm();
+    });
     actions.append(cancel, generate);
     this.contentEl.append(actions);
+  }
+
+  onClose(): void {
+    if (this.decided) return;
+    this.decided = true;
+    this.cancel();
   }
 }

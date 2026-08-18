@@ -31,6 +31,7 @@ export interface PluginSettings {
   defaultAuthor: string;
   defaultSourceUrl: string;
   defaultCoverStrategy: DefaultCoverStrategy;
+  globalDefaultCoverPath: string;
   imageApiBaseUrl: string;
   imageApiModel: string;
   accessTokenExpiresAt: number | null;
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   defaultAuthor: '',
   defaultSourceUrl: '',
   defaultCoverStrategy: 'first-image',
+  globalDefaultCoverPath: '',
   imageApiBaseUrl: '',
   imageApiModel: '',
   accessTokenExpiresAt: null,

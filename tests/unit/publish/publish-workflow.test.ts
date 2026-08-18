@@ -67,6 +67,7 @@ describe('PublishWorkflow', () => {
       action: 'CREATE', accountSuffix: '123456', coverLabel: 'cover.png', formalPublish: false,
     });
     expect(prepared.command.coverHash).toBe(createHash('sha256').update(png).digest('hex'));
+    expect(prepared.command.coverPath).toBe('assets/cover.png');
     expect(Object.isFrozen(prepared.command)).toBe(true);
   });
 

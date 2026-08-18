@@ -12,6 +12,9 @@ describe('buildSettingsPresentation', () => {
     });
 
     expect(presentation.appIdValue).toBe('');
+    expect(presentation).toMatchObject({
+      globalDefaultCoverPath: '', imageApiBaseUrl: '', imageApiModel: '',
+    });
     expect(presentation.secretRows).toEqual([
       { kind: 'appSecret', label: 'AppSecret', status: '已配置', inputValue: '' },
       { kind: 'imageApiKey', label: '图片 API Key', status: '未配置', inputValue: '' },

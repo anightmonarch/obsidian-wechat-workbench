@@ -115,6 +115,7 @@ export class PublishWorkflow {
         mimeType: coverMime,
         filename: posix.basename(coverPath),
       }),
+      coverPath,
       coverHash,
     });
     return Object.freeze({

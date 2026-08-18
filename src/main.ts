@@ -3,6 +3,11 @@ import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
 import { ClipboardAssetResolver } from './clipboard/asset-resolver';
 import { ClipboardService } from './clipboard/clipboard-service';
 import { ElectronClipboardPort } from './clipboard/electron-clipboard-port';
+import type { RenderArtifact } from './domain/artifact';
+import { CoverStorage } from './cover/cover-storage';
+import { CoverWorkflow } from './cover/cover-workflow';
+import { ElectronImagePort } from './cover/electron-image-port';
+import { OpenAiImageGenerator } from './cover/openai-image-generator';
 import { ObsidianVaultPorts, ObsidianWorkbenchSource } from './obsidian/workbench-adapters';
 import { PreflightEngine } from './preflight/preflight-engine';
 import { AssetCache, type AssetCacheDataPort } from './publish/asset-cache';
@@ -13,6 +18,7 @@ import { PublishWorkflow } from './publish/publish-workflow';
 import { AmbiguousReconciler } from './publish/reconcile-ambiguous';
 import { RecoveryReceiptStore, type RecoveryDataPort } from './publish/recovery-receipt-store';
 import { RenderArtifactBuilder } from './render/artifact-builder';
+import { hashContent } from './render/canonicalize';
 import { BrowserMermaidEngine, DiagramRenderer, ElectronSvgRasterizer } from './render/diagram-renderer';
 import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
@@ -27,6 +33,7 @@ import {
   openWorkbench,
   WORKBENCH_VIEW_TYPE,
 } from './ui/open-workbench';
+import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
@@ -110,9 +117,10 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     const state = new PublishStateStore(vaultPorts, vaultPorts);
     const receipts = new RecoveryReceiptStore(recoveryData);
     const wechat = new WeChatClient(http);
+    const remoteImages = new RemoteImageFetcher();
     const uploadAssets = new AssetUploadService(
       vaultPorts,
-      new RemoteImageFetcher(),
+      remoteImages,
       diagrams,
       wechat,
       new AssetCache(mediaCacheData),
@@ -125,6 +133,14 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       state,
       receipts,
       currentSourceHash: async file => (await snapshots.snapshot(file)).sourceHash,
+      currentCover: async command => {
+        const current = await snapshots.snapshot(command.file);
+        const configured = current.metadata.cover;
+        const path = configured === null
+          ? command.coverPath
+          : await vaultPorts.resolveLink(configured, command.file.path) ?? configured;
+        return { path, hash: hashContent(await vaultPorts.readBinary(path)) };
+      },
     });
     const publisher = new PublishWorkflow(
       {
@@ -140,6 +156,39 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       coordinator,
       { receipts, tokens, reconciler: new AmbiguousReconciler(wechat) },
     );
+    const coverWorkflow = new CoverWorkflow(
+      vaultPorts,
+      new ElectronImagePort(),
+      new CoverStorage(vaultPorts),
+      new OpenAiImageGenerator(http, remoteImages),
+      vaultPorts,
+      {
+        get: () => ({
+          globalDefaultCoverPath: this.pluginSettings.globalDefaultCoverPath,
+          imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
+          imageApiModel: this.pluginSettings.imageApiModel,
+        }),
+      },
+      {
+        get: () => secretStore.get('imageApiKey'),
+        has: () => secretStore.status().imageApiKey,
+      },
+    );
+    const covers = {
+      model: coverWorkflow.model.bind(coverWorkflow),
+      prepareSelection: coverWorkflow.prepareSelection.bind(coverWorkflow),
+      prepareLocal: coverWorkflow.prepareLocal.bind(coverWorkflow),
+      prepareAi: coverWorkflow.prepareAi.bind(coverWorkflow),
+      confirm: coverWorkflow.confirm.bind(coverWorkflow),
+      disclosure: (artifact: Readonly<RenderArtifact>) => buildAiCoverDisclosure({
+        title: artifact.metadata.title,
+        digest: artifact.metadata.digest,
+        plainText: artifact.plainText,
+      }, {
+        imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
+        imageApiModel: this.pluginSettings.imageApiModel,
+      }),
+    };
 
     this.registerView(
       WORKBENCH_VIEW_TYPE,
@@ -163,6 +212,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
           400,
           clipboard,
           publisher,
+          covers,
         ));
         return view;
       },

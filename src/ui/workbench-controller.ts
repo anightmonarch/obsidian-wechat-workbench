@@ -2,9 +2,15 @@ import type { NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
 import type { VaultFileRef } from '../domain/ports';
 import type { ThemeDefinition } from '../domain/theme';
+import type {
+  CoverPickerModel,
+  CoverPickerOption,
+  PreparedCover,
+} from '../cover/cover-workflow';
 import type { PreflightContext, PreflightReport } from '../preflight/preflight-engine';
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
+import type { AiCoverDisclosure } from './ai-cover-confirmation';
 
 export interface WorkbenchEventHandle {
   hostEvent?: unknown;
@@ -68,6 +74,20 @@ export interface WorkbenchPublishPort {
   unlink(file: VaultFileRef): Promise<void>;
 }
 
+export interface WorkbenchCoverPort {
+  model(snapshot: Readonly<NoteSnapshot>, artifact: Readonly<RenderArtifact>): Readonly<CoverPickerModel>;
+  disclosure(artifact: Readonly<RenderArtifact>): Readonly<AiCoverDisclosure>;
+  prepareSelection(
+    file: VaultFileRef,
+    snapshot: Readonly<NoteSnapshot>,
+    artifact: Readonly<RenderArtifact>,
+    kind: CoverPickerOption['kind'],
+  ): Promise<Readonly<PreparedCover>>;
+  prepareLocal(file: VaultFileRef, path: string): Promise<Readonly<PreparedCover>>;
+  prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedCover>>;
+  confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
+}
+
 export class WorkbenchActionError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
@@ -100,6 +120,7 @@ export class WorkbenchController {
     private readonly debounceMs = 400,
     private readonly clipboard?: WorkbenchClipboardPort,
     private readonly publisher?: WorkbenchPublishPort,
+    private readonly covers?: WorkbenchCoverPort,
   ) {}
 
   start(): void {
@@ -230,6 +251,53 @@ export class WorkbenchController {
       modifiedAt: this.snapshot.modifiedAt,
     });
     this.rebuild('publish-unlink');
+  }
+
+  coverPickerModel(): Readonly<CoverPickerModel> {
+    const current = this.coverContext();
+    return this.covers?.model(current.snapshot, current.artifact)
+      ?? { localOptions: Object.freeze([]), aiEnabled: false, aiDisabledReason: '封面服务不可用' };
+  }
+
+  aiCoverDisclosure(): Readonly<AiCoverDisclosure> {
+    const current = this.coverContext();
+    if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    return this.covers.disclosure(current.artifact);
+  }
+
+  async prepareCover(
+    input: Readonly<CoverPickerOption> | string,
+  ): Promise<Readonly<PreparedCover>> {
+    const current = this.coverContext();
+    if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    const file = this.currentFile(current.snapshot);
+    return typeof input === 'string'
+      ? this.covers.prepareLocal(file, input)
+      : this.covers.prepareSelection(file, current.snapshot, current.artifact, input.kind);
+  }
+
+  async generateAiCover(): Promise<Readonly<PreparedCover>> {
+    const current = this.coverContext();
+    if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    return this.covers.prepareAi(this.currentFile(current.snapshot), current.artifact);
+  }
+
+  async confirmCover(prepared: Readonly<PreparedCover>): Promise<void> {
+    const current = this.coverContext();
+    if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    await this.covers.confirm(this.currentFile(current.snapshot), prepared);
+    this.rebuild('cover-confirmed');
+  }
+
+  private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {
+    if (this.snapshot === null || this.artifact === null) {
+      throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
+    }
+    return Object.freeze({ snapshot: this.snapshot, artifact: this.artifact });
+  }
+
+  private currentFile(snapshot: Readonly<NoteSnapshot>): VaultFileRef {
+    return { path: snapshot.vaultPath, basename: snapshot.basename, modifiedAt: snapshot.modifiedAt };
   }
 
   private addSubscription(subscription: WorkbenchEventHandle): void {
