@@ -11,6 +11,18 @@ export interface MediaCacheRecord {
   lastUsedAt: number;
 }
 
+export interface RecoveryReceiptRecord {
+  taskId: string;
+  accountHash: string;
+  mediaId: string;
+  operation: 'CREATE' | 'UPDATE';
+  contentHash: string;
+  themeHash: string;
+  coverHash: string;
+  remoteTimestamp: number;
+  status: 'UNRESOLVED' | 'RESOLVED';
+}
+
 export interface PluginSettings {
   schemaVersion: 1;
   appId: string;
@@ -24,6 +36,7 @@ export interface PluginSettings {
   accessTokenExpiresAt: number | null;
   accountHash: string | null;
   mediaCache: readonly Readonly<MediaCacheRecord>[];
+  recoveryReceipts: readonly Readonly<RecoveryReceiptRecord>[];
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
@@ -39,4 +52,5 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   accessTokenExpiresAt: null,
   accountHash: null,
   mediaCache: Object.freeze([]),
+  recoveryReceipts: Object.freeze([]),
 });

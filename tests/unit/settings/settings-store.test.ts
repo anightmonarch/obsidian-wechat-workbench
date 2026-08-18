@@ -58,4 +58,23 @@ describe('SettingsStore', () => {
     expect(adapter.saved).not.toHaveProperty('accessToken');
     expect(adapter.saved).not.toHaveProperty('imageApiKey');
   });
+
+  it('sanitizes recovery receipts and drops article or credential-shaped extras', async () => {
+    const store = new SettingsStore(new MemoryPluginData({
+      schemaVersion: 1,
+      recoveryReceipts: [{
+        taskId: 'TASK_1', accountHash: 'ACCOUNT_HASH', mediaId: 'TEST_MEDIA_ID',
+        operation: 'CREATE', contentHash: 'CONTENT_HASH', themeHash: 'THEME_HASH',
+        coverHash: 'COVER_HASH', remoteTimestamp: 1, status: 'UNRESOLVED',
+        title: 'must-not-load', accessToken: 'must-not-load', html: 'must-not-load',
+      }],
+    }));
+
+    const settings = await store.load();
+
+    expect(settings.recoveryReceipts).toHaveLength(1);
+    expect(settings.recoveryReceipts[0]).not.toHaveProperty('title');
+    expect(settings.recoveryReceipts[0]).not.toHaveProperty('accessToken');
+    expect(settings.recoveryReceipts[0]).not.toHaveProperty('html');
+  });
 });

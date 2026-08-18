@@ -3,6 +3,7 @@ import {
   type DefaultCoverStrategy,
   type MediaCacheRecord,
   type PluginSettings,
+  type RecoveryReceiptRecord,
 } from './model';
 
 export interface PluginDataPort {
@@ -66,6 +67,39 @@ function mediaCache(value: unknown): readonly Readonly<MediaCacheRecord>[] {
   return Object.freeze(entries);
 }
 
+function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptRecord>[] {
+  if (!Array.isArray(value)) return DEFAULT_SETTINGS.recoveryReceipts;
+  const unresolved: Readonly<RecoveryReceiptRecord>[] = [];
+  const resolved: Readonly<RecoveryReceiptRecord>[] = [];
+  for (const item of value) {
+    if (!isRecord(item)
+      || typeof item.taskId !== 'string'
+      || typeof item.accountHash !== 'string'
+      || typeof item.mediaId !== 'string'
+      || (item.operation !== 'CREATE' && item.operation !== 'UPDATE')
+      || typeof item.contentHash !== 'string'
+      || typeof item.themeHash !== 'string'
+      || typeof item.coverHash !== 'string'
+      || typeof item.remoteTimestamp !== 'number' || !Number.isFinite(item.remoteTimestamp)
+      || (item.status !== 'UNRESOLVED' && item.status !== 'RESOLVED')) continue;
+    const receipt = Object.freeze({
+      taskId: item.taskId,
+      accountHash: item.accountHash,
+      mediaId: item.mediaId,
+      operation: item.operation,
+      contentHash: item.contentHash,
+      themeHash: item.themeHash,
+      coverHash: item.coverHash,
+      remoteTimestamp: item.remoteTimestamp,
+      status: item.status,
+    });
+    if (receipt.status === 'UNRESOLVED') unresolved.push(receipt);
+    else resolved.push(receipt);
+  }
+  resolved.sort((left, right) => right.remoteTimestamp - left.remoteTimestamp);
+  return Object.freeze([...unresolved, ...resolved.slice(0, 20)]);
+}
+
 function sanitizeSettings(value: unknown): PluginSettings {
   const stored = isRecord(value) && value.schemaVersion === 1 ? value : {};
 
@@ -88,6 +122,7 @@ function sanitizeSettings(value: unknown): PluginSettings {
     ),
     accountHash: nullableString(stored.accountHash, DEFAULT_SETTINGS.accountHash),
     mediaCache: mediaCache(stored.mediaCache),
+    recoveryReceipts: recoveryReceipts(stored.recoveryReceipts),
   };
 }
 
