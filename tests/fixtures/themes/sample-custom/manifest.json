@@ -1,0 +1,7 @@
+{
+  "id": "sample-custom",
+  "name": "示例蓝灰",
+  "version": "1.0.0",
+  "author": "WeChat Workbench",
+  "description": "用于自动化验证自定义主题发现与渲染的合成主题。"
+}
