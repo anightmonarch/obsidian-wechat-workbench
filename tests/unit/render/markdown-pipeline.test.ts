@@ -1,0 +1,56 @@
+import { readFile } from 'node:fs/promises';
+import { describe, expect, it } from 'vitest';
+
+import type { NoteSnapshot } from '../../../src/domain/article';
+import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
+import { BUILTIN_THEMES } from '../../../src/themes/builtin';
+
+function snapshot(markdown: string): Readonly<NoteSnapshot> {
+  return Object.freeze({
+    vaultPath: 'fixtures/article.md',
+    basename: 'article',
+    modifiedAt: 100,
+    markdown,
+    frontmatter: Object.freeze({}),
+    metadata: Object.freeze({
+      title: 'Fixture article',
+      author: 'Test author',
+      digest: 'Fixture digest',
+      cover: null,
+      contentSourceUrl: 'https://example.test/source',
+    }),
+    selectedThemeId: 'native',
+    sourceHash: 'source-hash',
+  });
+}
+
+const nativeTheme = BUILTIN_THEMES.find(theme => theme.manifest.id === 'native');
+if (nativeTheme === undefined) throw new Error('Native theme fixture is missing.');
+
+describe('RenderArtifactBuilder', () => {
+  it('removes scripts, raw images, event handlers, and javascript URLs', async () => {
+    const builder = new RenderArtifactBuilder();
+    const artifact = await builder.build(snapshot([
+      '<script>globalThis.compromised = true;</script>',
+      '<img src="x" onerror="globalThis.compromised = true">',
+      '[unsafe](javascript:alert(1))',
+    ].join('\n\n')), nativeTheme);
+
+    expect(artifact.canonicalHtml).not.toMatch(/script|onerror|javascript:|compromised/iu);
+  });
+
+  it('renders supported structures, callouts, code, and inline theme styles', async () => {
+    const markdown = await readFile('tests/fixtures/articles/core-elements.md', 'utf8');
+    const artifact = await new RenderArtifactBuilder().build(snapshot(markdown), nativeTheme);
+    const golden = await readFile('tests/golden/core-elements.html', 'utf8');
+
+    expect(artifact.canonicalHtml).toContain('<section class="wechat-article"');
+    expect(artifact.canonicalHtml).toContain('<table');
+    expect(artifact.canonicalHtml).toContain('callout-note');
+    expect(artifact.canonicalHtml).toContain('class="hljs-');
+    expect(artifact.canonicalHtml).toMatch(/style="[^"]*line-height/iu);
+    expect(artifact.plainText).toContain('系统组件');
+    expect(artifact.assets).toEqual([]);
+    expect(artifact.canonicalHtml).toBe(golden.trimEnd());
+  });
+});

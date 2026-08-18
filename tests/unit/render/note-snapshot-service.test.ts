@@ -99,4 +99,15 @@ describe('NoteSnapshotService', () => {
     });
     expect(snapshot.selectedThemeId).toBe('technical');
   });
+
+  it('removes only leading YAML frontmatter from the renderable markdown', async () => {
+    const snapshot = await new NoteSnapshotService(
+      new MemoryVault('---   \r\ntitle: Hidden metadata\r\n---  \r\n\r\n# Visible body\r\n\r\n---\r\n'),
+      new MemoryMetadata({ title: 'Hidden metadata' }),
+      defaults,
+    ).snapshot(file);
+
+    expect(snapshot.markdown).toBe('\n# Visible body\n\n---\n');
+    expect(snapshot.sourceHash).toBe(createHash('sha256').update('\n# Visible body\n\n---\n').digest('hex'));
+  });
 });

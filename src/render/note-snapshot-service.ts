@@ -14,7 +14,8 @@ export interface SnapshotDefaults {
 }
 
 function normalizedMarkdown(markdown: string): string {
-  return markdown.replace(/\r\n?/gu, '\n');
+  const normalized = markdown.replace(/\r\n?/gu, '\n');
+  return normalized.replace(/^---[ \t]*\n[\s\S]*?\n---[ \t]*(?:\n|$)/u, '');
 }
 
 function sha256(value: string): string {

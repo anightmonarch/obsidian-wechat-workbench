@@ -34,8 +34,16 @@
     "vitest": "4.1.11"
   },
   "dependencies": {
+    "highlight.js": "11.12.0",
     "juice": "12.1.2",
     "postcss": "8.5.26",
-    "postcss-selector-parser": "7.1.5"
+    "postcss-selector-parser": "7.1.5",
+    "rehype-sanitize": "6.0.0",
+    "rehype-stringify": "10.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5",
+    "unist-util-visit": "5.1.0"
   }
 }
