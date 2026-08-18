@@ -20,7 +20,7 @@ export default defineConfig(
       },
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['eslint.config.mjs'],
+          allowDefaultProject: ['eslint.config.mjs', 'scripts/*.mjs'],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -54,6 +54,13 @@ export default defineConfig(
       'obsidianmd/prefer-create-el': 'off',
       'obsidianmd/ui/sentence-case': 'off',
       'obsidianmd/no-global-this': 'off',
+    },
+  },
+  {
+    files: ['scripts/sync-test-vault.mjs', 'tests/integration/local-assets.test.ts'],
+    rules: {
+      // This external development tool locates a test vault before Obsidian is running.
+      'obsidianmd/hardcoded-config-path': 'off',
     },
   },
 );
