@@ -119,6 +119,17 @@ describe('WeChatClient', () => {
     });
   });
 
+  it('marks draft transport failures ambiguous and never retries internally', async () => {
+    const request = vi.fn(async () => { throw new Error('synthetic connection reset'); });
+    const client = new WeChatClient({ request });
+
+    await expect(client.addDraft(article, 'TEST_ACCESS_TOKEN')).rejects.toMatchObject({
+      code: 'DRAFT_COMMIT_AMBIGUOUS', stage: 'DRAFT_CREATE', remoteEffect: 'UNKNOWN',
+      retryable: false,
+    });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it('uses only approved media endpoints with deterministic multipart bodies', async () => {
     const current = transport({ url: 'https://mmbiz.qpic.cn/TEST_IMAGE_URL' });
     const client = new WeChatClient(current.http, () => 'TEST_BOUNDARY');

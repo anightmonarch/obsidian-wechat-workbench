@@ -249,7 +249,18 @@ export class WeChatClient implements MediaUploadPort {
       if (error !== null) throw error;
       return body;
     } catch (error) {
-      throw toPublicError(error, stage);
+      if (error instanceof PublicError) throw error;
+      const publicError = toPublicError(error, stage);
+      if (stage === 'DRAFT_CREATE' || stage === 'DRAFT_UPDATE') {
+        throw new PublicError({
+          ...publicError,
+          code: 'DRAFT_COMMIT_AMBIGUOUS',
+          remoteEffect: 'UNKNOWN',
+          retryable: false,
+          nextAction: 'Do not retry automatically; reconcile with the WeChat draft box.',
+        });
+      }
+      throw publicError;
     }
   }
 
