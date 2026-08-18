@@ -1,0 +1,69 @@
+import { type App, type EventRef, TFile } from 'obsidian';
+import { posix } from 'node:path';
+
+import type { BinaryFilePort, VaultFileRef, VaultPort } from '../domain/ports';
+import type { MetadataPort } from '../render/note-snapshot-service';
+import type { ThemeSourcePort } from '../themes/theme-registry';
+import type { WorkbenchEventHandle, WorkbenchSourcePort } from '../ui/workbench-controller';
+
+function markdownRef(file: TFile | null): VaultFileRef | null {
+  if (file === null || file.extension.toLowerCase() !== 'md') return null;
+  return { path: file.path, basename: file.basename, modifiedAt: file.stat.mtime };
+}
+
+function eventHandle(ref: EventRef, dispose: () => void): WorkbenchEventHandle {
+  return { hostEvent: ref, dispose };
+}
+
+export class ObsidianWorkbenchSource implements WorkbenchSourcePort {
+  constructor(private readonly app: App) {}
+
+  currentMarkdown(): VaultFileRef | null {
+    return markdownRef(this.app.workspace.getActiveFile());
+  }
+
+  onActiveMarkdownChanged(listener: () => void): WorkbenchEventHandle {
+    const ref = this.app.workspace.on('file-open', listener);
+    return eventHandle(ref, () => this.app.workspace.offref(ref));
+  }
+
+  onVaultFileModified(listener: (path: string) => void): WorkbenchEventHandle {
+    const ref = this.app.vault.on('modify', file => {
+      if (file instanceof TFile) listener(file.path);
+    });
+    return eventHandle(ref, () => this.app.vault.offref(ref));
+  }
+}
+
+export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPort, ThemeSourcePort {
+  constructor(private readonly app: App) {}
+
+  async readText(path: string): Promise<string> {
+    return this.app.vault.adapter.read(path);
+  }
+
+  async readBinary(path: string): Promise<Uint8Array> {
+    return new Uint8Array(await this.app.vault.adapter.readBinary(path));
+  }
+
+  async resolveLink(source: string, fromPath: string): Promise<string | null> {
+    return this.app.metadataCache.getFirstLinkpathDest(source, fromPath)?.path ?? null;
+  }
+
+  getFrontmatter(path: string): Readonly<Record<string, unknown>> {
+    return this.app.metadataCache.getCache(path)?.frontmatter ?? {};
+  }
+
+  async listDirectories(root: string): Promise<string[]> {
+    try {
+      const listed = await this.app.vault.adapter.list(root);
+      return listed.folders.map(path => posix.basename(path)).sort();
+    } catch {
+      return [];
+    }
+  }
+
+  async exists(path: string): Promise<boolean> {
+    return this.app.vault.adapter.exists(path);
+  }
+}

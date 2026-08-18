@@ -28,6 +28,7 @@ Source: https://github.com/anightmonarch/obsidian-wechat-workbench
     '@lezer/highlight',
     '@lezer/lr',
     ...builtinModules,
+    ...builtinModules.map(module => `node:${module}`),
   ],
   format: 'cjs',
   target: 'es2021',

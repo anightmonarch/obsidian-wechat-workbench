@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { NoteSnapshot } from '../../../src/domain/article';
-import { DiagramRenderer, type MermaidEnginePort, type SvgRasterizerPort } from '../../../src/render/diagram-renderer';
+import {
+  DiagramRenderer,
+  ElectronSvgRasterizer,
+  type MermaidEnginePort,
+  type SvgRasterizerPort,
+} from '../../../src/render/diagram-renderer';
 import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
 import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
@@ -64,5 +69,14 @@ describe('Mermaid resource slots', () => {
     expect(toPng).toHaveBeenCalledOnce();
     expect(generated.mimeType).toBe('image/png');
     expect(generated.bytes).toEqual(Uint8Array.from([0x89, 0x50, 0x4e, 0x47]));
+  });
+
+  it('rejects active or externally loaded SVG before Electron rasterization', async () => {
+    const rasterizer = new ElectronSvgRasterizer();
+
+    await expect(rasterizer.toPng('<svg><script>alert(1)</script></svg>')).rejects
+      .toThrow('external or active resource');
+    await expect(rasterizer.toPng('<svg><image href="https://example.test/a.png" /></svg>')).rejects
+      .toThrow('external or active resource');
   });
 });

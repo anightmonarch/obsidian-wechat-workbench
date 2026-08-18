@@ -1,13 +1,22 @@
-import { Plugin, type WorkspaceLeaf } from 'obsidian';
+import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
 
+import { ObsidianVaultPorts, ObsidianWorkbenchSource } from './obsidian/workbench-adapters';
+import { PreflightEngine } from './preflight/preflight-engine';
+import { RenderArtifactBuilder } from './render/artifact-builder';
+import { BrowserMermaidEngine, DiagramRenderer, ElectronSvgRasterizer } from './render/diagram-renderer';
+import { NoteSnapshotService } from './render/note-snapshot-service';
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
 import { WeChatWorkbenchSettingTab } from './settings/settings-tab';
+import { BUILTIN_THEMES } from './themes/builtin';
+import { ThemeRegistry } from './themes/theme-registry';
 import {
   openWorkbench,
   WORKBENCH_VIEW_TYPE,
 } from './ui/open-workbench';
+import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
+import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
 
 export default class WeChatWorkbenchPlugin extends Plugin {
@@ -20,10 +29,39 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     });
     this.pluginSettings = await settingsStore.load();
     const secretStore = new SecretStore(this.app.secretStorage);
+    const vaultPorts = new ObsidianVaultPorts(this.app);
+    const source = new ObsidianWorkbenchSource(this.app);
+    const themes = new ThemeRegistry(BUILTIN_THEMES, vaultPorts);
+    await themes.load(this.pluginSettings.customThemeDirectory);
+    const currentSettings = (): Readonly<PluginSettings> => this.pluginSettings;
+    const snapshots = new NoteSnapshotService(vaultPorts, vaultPorts, {
+      get defaultAuthor() { return currentSettings().defaultAuthor; },
+      get defaultSourceUrl() { return currentSettings().defaultSourceUrl; },
+      get defaultThemeId() { return currentSettings().defaultThemeId; },
+    });
+    const builder = new RenderArtifactBuilder(vaultPorts);
+    const preflight = new PreflightEngine();
+    const previewAssets = new WorkbenchPreviewAssetResolver(
+      vaultPorts,
+      new DiagramRenderer(new BrowserMermaidEngine(), new ElectronSvgRasterizer()),
+    );
 
     this.registerView(
       WORKBENCH_VIEW_TYPE,
-      leaf => new WeChatWorkbenchView(leaf),
+      leaf => {
+        const view = new WeChatWorkbenchView(leaf, previewAssets);
+        view.setController(new WorkbenchController(
+          source,
+          snapshots,
+          themes,
+          builder,
+          preflight,
+          view,
+          event => this.registerEvent(event as EventRef),
+          () => this.pluginSettings.defaultThemeId,
+        ));
+        return view;
+      },
     );
 
     const revealWorkbench = (): void => {
@@ -48,6 +86,10 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         get: () => this.pluginSettings,
         update: async patch => {
           this.pluginSettings = await settingsStore.save({ ...this.pluginSettings, ...patch });
+          await themes.load(this.pluginSettings.customThemeDirectory);
+          for (const leaf of this.app.workspace.getLeavesOfType(WORKBENCH_VIEW_TYPE)) {
+            if (leaf.view instanceof WeChatWorkbenchView) leaf.view.requestRebuild('settings');
+          }
           return this.pluginSettings;
         },
       },

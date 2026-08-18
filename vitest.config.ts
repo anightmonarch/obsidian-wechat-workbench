@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       obsidian: fileURLToPath(new URL('./tests/mocks/obsidian.ts', import.meta.url)),
+      electron: fileURLToPath(new URL('./tests/mocks/electron.ts', import.meta.url)),
     },
   },
   test: {

@@ -4,6 +4,7 @@ Object.assign(globalThis, {
   createEl: <K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] => (
     document.createElement(tag)
   ),
+  createDiv: (): HTMLDivElement => document.createElement('div'),
 });
 
 export class ItemView {
