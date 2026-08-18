@@ -6,7 +6,7 @@
 
 **Architecture:** 主插件只负责生命周期和依赖装配；设置模型、非敏感持久化、凭据存储和 UI 视图分离。构建产物通过显式脚本同步到用户提供的隔离测试 Vault，不把测试 Vault 或凭据写进仓库。
 
-**Tech Stack:** Node.js 22、npm、TypeScript 5.8.3、Obsidian API 1.13.1、esbuild 0.25.5、Vitest 4.1.11、jsdom 30.0.1、ESLint 9.39.4。
+**Tech Stack:** Node.js 22.13+、npm、TypeScript 5.8.3、Obsidian API 1.13.1、esbuild 0.25.5、Vitest 4.1.11、jsdom 29.0.0、ESLint 9.39.4。
 
 ## Global Constraints
 
@@ -92,7 +92,7 @@ Create `package.json` with exact baseline dependencies:
   "private": true,
   "type": "module",
   "main": "main.js",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.13.0" },
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "test": "vitest run",
@@ -112,7 +112,7 @@ Create `package.json` with exact baseline dependencies:
     "eslint": "9.39.4",
     "eslint-plugin-obsidianmd": "0.4.1",
     "globals": "17.6.0",
-    "jsdom": "30.0.1",
+    "jsdom": "29.0.0",
     "obsidian": "1.13.1",
     "typescript": "5.8.3",
     "typescript-eslint": "8.59.1",
