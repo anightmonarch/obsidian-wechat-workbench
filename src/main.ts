@@ -1,4 +1,4 @@
-import { type EventRef, Notice, Plugin, type WorkspaceLeaf } from 'obsidian';
+import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
 
 import { ClipboardAssetResolver } from './clipboard/asset-resolver';
 import { ClipboardService } from './clipboard/clipboard-service';
@@ -38,7 +38,7 @@ import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
-import { openPluginSettings } from './ui/settings-navigator';
+import { AccountSettingsModal } from './ui/account-settings-modal';
 import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
@@ -81,6 +81,23 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     const source = new ObsidianWorkbenchSource(this.app);
     const themes = new ThemeRegistry(BUILTIN_THEMES, vaultPorts);
     await themes.load(this.pluginSettings.customThemeDirectory);
+    const refreshWorkbenchSettings = async (
+      patch: Partial<PluginSettings>,
+    ): Promise<Readonly<PluginSettings>> => {
+      await updateSettings(patch);
+      await themes.load(this.pluginSettings.customThemeDirectory);
+      for (const leaf of this.app.workspace.getLeavesOfType(WORKBENCH_VIEW_TYPE)) {
+        if (leaf.view instanceof WeChatWorkbenchView) leaf.view.requestRebuild('settings');
+      }
+      return this.pluginSettings;
+    };
+    const settingsAccess = {
+      get: () => this.pluginSettings,
+      update: refreshWorkbenchSettings,
+    };
+    const openAccountSettings = (): void => {
+      new AccountSettingsModal(this.app, settingsAccess, secretStore).open();
+    };
     const currentSettings = (): Readonly<PluginSettings> => this.pluginSettings;
     const snapshots = new NoteSnapshotService(vaultPorts, vaultPorts, {
       get defaultAuthor() { return currentSettings().defaultAuthor; },
@@ -202,11 +219,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     this.registerView(
       WORKBENCH_VIEW_TYPE,
       leaf => {
-        const view = new WeChatWorkbenchView(leaf, previewAssets, () => {
-          openPluginSettings(() => {
-            new Notice('请打开设置 → 第三方插件 → WeChat Workbench，管理本地公众号账号。');
-          });
-        });
+        const view = new WeChatWorkbenchView(leaf, previewAssets, openAccountSettings);
         view.setController(new WorkbenchController(
           source,
           snapshots,
@@ -243,17 +256,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     this.addSettingTab(new WeChatWorkbenchSettingTab(
       this.app,
       this,
-      {
-        get: () => this.pluginSettings,
-        update: async patch => {
-          await updateSettings(patch);
-          await themes.load(this.pluginSettings.customThemeDirectory);
-          for (const leaf of this.app.workspace.getLeavesOfType(WORKBENCH_VIEW_TYPE)) {
-            if (leaf.view instanceof WeChatWorkbenchView) leaf.view.requestRebuild('settings');
-          }
-          return this.pluginSettings;
-        },
-      },
+      settingsAccess,
       secretStore,
     ));
   }

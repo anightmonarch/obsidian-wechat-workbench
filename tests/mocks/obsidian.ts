@@ -61,8 +61,77 @@ export class PluginSettingTab {
   constructor(readonly app: unknown, readonly plugin: unknown) {}
 }
 
+export class TextComponent {
+  readonly inputEl = document.createElement('input');
+
+  constructor() {}
+
+  setPlaceholder(value: string): this {
+    this.inputEl.placeholder = value;
+    return this;
+  }
+
+  setValue(value: string): this {
+    this.inputEl.value = value;
+    return this;
+  }
+
+  onChange(callback: (value: string) => void): this {
+    this.inputEl.addEventListener('change', () => callback(this.inputEl.value));
+    return this;
+  }
+}
+
+export class ButtonComponent {
+  readonly buttonEl = document.createElement('button');
+
+  setButtonText(value: string): this {
+    this.buttonEl.textContent = value;
+    return this;
+  }
+
+  setCta(): this { return this; }
+
+  onClick(callback: () => void): this {
+    this.buttonEl.addEventListener('click', () => callback());
+    return this;
+  }
+}
+
 export class Setting {
-  constructor(readonly containerEl: HTMLElement) {}
+  readonly settingEl = document.createElement('div');
+
+  constructor(readonly containerEl: HTMLElement) {
+    this.containerEl.append(this.settingEl);
+  }
+
+  setName(value: string): this {
+    const name = document.createElement('strong');
+    name.textContent = value;
+    this.settingEl.append(name);
+    return this;
+  }
+
+  setDesc(value: string): this {
+    const desc = document.createElement('small');
+    desc.textContent = value;
+    this.settingEl.append(desc);
+    return this;
+  }
+
+  addText(builder: (component: TextComponent) => unknown): this {
+    const component = new TextComponent();
+    this.settingEl.append(component.inputEl);
+    builder(component);
+    return this;
+  }
+
+  addButton(builder: (component: ButtonComponent) => unknown): this {
+    const component = new ButtonComponent();
+    this.settingEl.append(component.buttonEl);
+    builder(component);
+    return this;
+  }
 }
 
 export class Notice {

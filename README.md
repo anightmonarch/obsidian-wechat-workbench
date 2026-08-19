@@ -41,7 +41,7 @@ WECHAT_WORKBENCH_TEST_VAULT=/absolute/path/to/test-vault npm run sync:test-vault
 
 ## 公众号账号
 
-在插件设置中填写 AppID，通过密码输入框将 AppSecret 保存到 `SecretStorage`。插件按需获取并缓存 Access Token；普通设置、文章 Frontmatter、日志和恢复报告都不保存密钥。
+点击工作台右上角账号入口可快速填写 AppID、保存或清除 AppSecret；完整主题、封面和图片服务选项仍在 Obsidian 的 `WeChat Workbench` 插件设置页中。AppSecret 保存到 `SecretStorage`，插件按需获取并缓存 Access Token；普通设置、文章 Frontmatter、日志和恢复报告都不保存密钥。
 
 发布前请完成[公众号 IP 白名单配置](docs/user-guide/wechat-ip-whitelist.md)。工作台的“发文章”按钮会先打开草稿同步确认，最终只同步到公众号后台草稿箱，不会正式群发；确认框不展示账号尾号、哈希或接口主机等实现细节。
 
