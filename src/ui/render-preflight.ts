@@ -30,16 +30,16 @@ export function renderPreflightDetails(
   container.replaceChildren();
   const items = [...report.blocking, ...report.warnings];
   if (items.length === 0) {
-    const summary = document.createElement('p');
+    const summary = createEl('p');
     summary.textContent = '当前文章可以同步到公众号草稿箱。';
     container.append(summary);
     return;
   }
 
-  const list = document.createElement('ul');
+  const list = createEl('ul');
   list.className = 'wechat-workbench__check-details';
   for (const item of items) {
-    const row = document.createElement('li');
+    const row = createEl('li');
     row.dataset.code = item.code;
     row.textContent = item.message;
     list.append(row);

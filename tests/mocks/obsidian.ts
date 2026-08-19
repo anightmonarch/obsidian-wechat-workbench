@@ -25,6 +25,11 @@ Object.assign(globalThis, {
     if (className !== undefined) node.className = className;
     return node;
   },
+  createSpan: (className?: string): HTMLSpanElement => {
+    const node = document.createElement('span');
+    if (className !== undefined) node.className = className;
+    return node;
+  },
 });
 
 export class ItemView {
