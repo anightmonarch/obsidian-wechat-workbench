@@ -19,13 +19,13 @@ Version: `0.1.0`
 
 | Environment | Status | Evidence |
 | --- | --- | --- |
-| macOS, installed test Vault | PARTIAL | Obsidian 1.13.7 observed the basic UI pass on `f2f52a5`; current `e27fe8d` was synced but not reloaded before the session locked. See [WeSight UI evidence](wesight-ui-redesign.md). |
+| macOS, installed test Vault | PARTIAL | Obsidian 1.13.7 observed the basic UI pass on `f2f52a5`; current `d487d48` was synced but not reloaded before the session locked. See [WeSight UI evidence](wesight-ui-redesign.md). |
 | Obsidian 1.13.7 desktop pass | PARTIAL | The prior build rendered the smoke note, opened publishing settings, and opened the native theme menu; current-build rerun is pending unlock. See [WeSight UI evidence](wesight-ui-redesign.md). |
 | Latest Obsidian status | BLOCKED | Latest-version status has not been independently verified. |
 | Minimum Obsidian 1.11.4 | BLOCKED | Not installed in current environment |
 | Windows | BLOCKED | No Windows host available |
 | Linux | BLOCKED | No Linux desktop host available |
-| Dedicated WeChat account | BLOCKED | Requires unlocked Obsidian and backend visual comparison |
+| Dedicated WeChat account | BLOCKED | Requires unlocked Obsidian and backend visual comparison; local account entry is implemented but not desktop-observed on the current build. |
 | Real intelligent-cover provider | BLOCKED | Requires explicit per-call disclosure confirmation |
 
 No push, tag, GitHub Release, BRAT beta or Obsidian community submission has been performed.
