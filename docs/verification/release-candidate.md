@@ -19,8 +19,8 @@ Version: `0.1.0`
 
 | Environment | Status | Evidence |
 | --- | --- | --- |
-| macOS, installed test Vault | PARTIAL | Obsidian 1.13.7 opened the rebuilt right-side workbench and passed the basic UI interaction pass; width-specific checks were blocked after the session locked. See [WeSight UI evidence](wesight-ui-redesign.md). |
-| Obsidian 1.13.7 desktop pass | PASS | Isolated test Vault rendered the smoke note, opened publishing settings, and opened the native theme menu. See [WeSight UI evidence](wesight-ui-redesign.md). |
+| macOS, installed test Vault | PARTIAL | Obsidian 1.13.7 observed the basic UI pass on `f2f52a5`; current `e27fe8d` was synced but not reloaded before the session locked. See [WeSight UI evidence](wesight-ui-redesign.md). |
+| Obsidian 1.13.7 desktop pass | PARTIAL | The prior build rendered the smoke note, opened publishing settings, and opened the native theme menu; current-build rerun is pending unlock. See [WeSight UI evidence](wesight-ui-redesign.md). |
 | Latest Obsidian status | BLOCKED | Latest-version status has not been independently verified. |
 | Minimum Obsidian 1.11.4 | BLOCKED | Not installed in current environment |
 | Windows | BLOCKED | No Windows host available |
