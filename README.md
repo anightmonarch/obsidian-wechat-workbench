@@ -43,15 +43,15 @@ WECHAT_WORKBENCH_TEST_VAULT=/absolute/path/to/test-vault npm run sync:test-vault
 
 在插件设置中填写 AppID，通过密码输入框将 AppSecret 保存到 `SecretStorage`。插件按需获取并缓存 Access Token；普通设置、文章 Frontmatter、日志和恢复报告都不保存密钥。
 
-发布前请完成[公众号 IP 白名单配置](docs/user-guide/wechat-ip-whitelist.md)。同步按钮始终标为“发布到草稿箱”，最终确认框会显示账号后缀、CREATE/UPDATE/SKIP、主题、封面、哈希和目标主机。
+发布前请完成[公众号 IP 白名单配置](docs/user-guide/wechat-ip-whitelist.md)。工作台的“发文章”按钮会先打开草稿同步确认，最终只同步到公众号后台草稿箱，不会正式群发；确认框不展示账号尾号、哈希或接口主机等实现细节。
 
 ## 使用入口
 
 - 点击左侧 Ribbon 的报纸图标，或运行命令 `Open workbench`。
 - 在右侧工作台选择主题并检查阻断项/警告项。
-- `复制到公众号` 写入富文本剪贴板；更多菜单可复制 HTML 源码。
-- `文章封面` 选择或生成封面。
-- `发布到草稿箱` 只创建或更新后台草稿，不会正式群发。
+- `复制` 写入公众号富文本剪贴板；更多菜单可复制 HTML 源码。
+- `发布设置` 查看文章信息、选择或生成封面，以及查看草稿关联状态。
+- `发文章` 只创建或更新后台草稿，不会正式群发。
 
 ## 文档
 
