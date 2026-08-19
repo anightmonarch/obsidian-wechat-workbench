@@ -94,7 +94,10 @@ describe('WeChatWorkbenchView', () => {
 
     view.showArtifact(renderState);
 
-    expect(view.contentEl.querySelector('[data-testid="active-article"]')?.textContent).toContain('article.md');
+    expect(view.contentEl.querySelector('[data-testid="active-article"]')?.textContent)
+      .toBe('已连接 · article');
+    expect(view.contentEl.querySelector('[data-testid="active-article"]')?.textContent)
+      .not.toContain('article.md');
     expect(view.contentEl.querySelector('[data-testid="preflight-status"]')?.textContent)
       .toBe('发布检查通过');
     expect(view.contentEl.textContent).not.toContain('Digest is empty.');
@@ -140,16 +143,91 @@ describe('WeChatWorkbenchView', () => {
     });
     await view.onOpen();
     view.showArtifact(renderState);
+    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="preflight-status"]')?.click();
+    expect(view.contentEl.textContent).toContain('Digest is empty.');
     view.showLoading('article.md');
 
     expect(view.contentEl.querySelector('.wechat-article h1')?.textContent).toBe('Article');
     expect(view.contentEl.querySelector('[data-testid="publish-state"]')?.textContent).toBe('正在排版');
+    expect(view.contentEl.querySelector<HTMLButtonElement>('[data-testid="preflight-status"]')?.disabled)
+      .toBe(true);
+    expect(view.contentEl.querySelector('[data-testid="preflight-status"]')?.getAttribute('aria-expanded'))
+      .toBe('false');
+    expect(view.contentEl.textContent).not.toContain('Digest is empty.');
 
     const settingsTab = [...view.contentEl.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(tab => tab.textContent === '发布设置');
     settingsTab?.click();
-    expect(view.contentEl.textContent).toContain('文章信息');
-    expect(view.contentEl.textContent).toContain('文章封面');
-    expect(view.contentEl.textContent).toContain('发布状态');
+    const settings = view.contentEl.querySelector('.wechat-workbench__publish-settings');
+    expect(settings?.textContent).not.toContain('Article');
+    expect(settings?.textContent).toContain('正在排版');
+  });
+
+  it('offers a safe retry after a render error without exposing raw diagnostics', async () => {
+    const rebuild = vi.fn();
+    const view = new WeChatWorkbenchView({} as never);
+    view.setController({
+      start: () => undefined,
+      stop: () => undefined,
+      rebuild,
+      selectTheme: () => undefined,
+      copyForWeChat: async () => undefined,
+      copyHtmlSource: async () => undefined,
+      preparePublish: async () => { throw new Error('not used'); },
+      executePublish: async () => { throw new Error('not used'); },
+      reconcilePublish: async () => { throw new Error('not used'); },
+      repairLocalPublish: async () => { throw new Error('not used'); },
+      prepareUnlinkAssociation: () => ({ path: 'article.md', basename: 'article', modifiedAt: 1 }),
+      unlinkPublishAssociation: async () => undefined,
+      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      aiCoverDisclosure: () => { throw new Error('not used'); },
+      prepareCover: async () => { throw new Error('not used'); },
+      generateAiCover: async () => { throw new Error('not used'); },
+      confirmCover: async () => undefined,
+    });
+    await view.onOpen();
+
+    view.showError('ENOENT: /Users/private/article.md and secret=should-not-render');
+
+    expect(view.contentEl.textContent).toContain('文章排版失败');
+    expect(view.contentEl.textContent).not.toContain('/Users/private/article.md');
+    const retry = view.contentEl.querySelector<HTMLButtonElement>('[data-testid="recheck"]');
+    expect(retry?.disabled).toBe(false);
+    retry?.click();
+    expect(rebuild).toHaveBeenCalledWith('manual-check');
+  });
+
+  it('opens local account settings when draft preparation reports missing configuration', async () => {
+    const openSettings = vi.fn();
+    const view = new WeChatWorkbenchView({} as never, undefined, openSettings);
+    view.setController({
+      start: () => undefined,
+      stop: () => undefined,
+      rebuild: () => undefined,
+      selectTheme: () => undefined,
+      copyForWeChat: async () => undefined,
+      copyHtmlSource: async () => undefined,
+      preparePublish: async () => Promise.reject(Object.assign(
+        new Error('微信公众号 AppSecret 未配置。'),
+        { code: 'PUBLISH_PREPARE_BLOCKED' },
+      )),
+      executePublish: async () => { throw new Error('not used'); },
+      reconcilePublish: async () => { throw new Error('not used'); },
+      repairLocalPublish: async () => { throw new Error('not used'); },
+      prepareUnlinkAssociation: () => ({ path: 'article.md', basename: 'article', modifiedAt: 1 }),
+      unlinkPublishAssociation: async () => undefined,
+      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      aiCoverDisclosure: () => { throw new Error('not used'); },
+      prepareCover: async () => { throw new Error('not used'); },
+      generateAiCover: async () => { throw new Error('not used'); },
+      confirmCover: async () => undefined,
+    });
+    await view.onOpen();
+    view.showArtifact(renderState);
+
+    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="publish-draft"]')?.click();
+    await new Promise(resolve => window.setTimeout(resolve, 0));
+
+    expect(openSettings).toHaveBeenCalledOnce();
   });
 });

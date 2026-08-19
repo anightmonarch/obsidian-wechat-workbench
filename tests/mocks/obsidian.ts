@@ -45,6 +45,14 @@ export class ItemView {
     this.contentEl = document.createElement('div');
     this.containerEl.append(this.contentEl);
   }
+
+  registerDomEvent(
+    target: EventTarget,
+    event: string,
+    callback: EventListener,
+  ): void {
+    target.addEventListener(event, callback);
+  }
 }
 
 export class PluginSettingTab {

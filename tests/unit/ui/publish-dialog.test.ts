@@ -30,15 +30,16 @@ describe('publish confirmation and report models', () => {
 
     expect(model).toMatchObject({
       action: 'UPDATE',
-      accountSuffix: '123456',
       title: 'Synthetic article',
       theme: 'native@1.0.0',
       imageCount: 2,
       coverLabel: 'cover.png',
       sendsArticle: true,
       formalPublish: false,
-      destinations: ['api.weixin.qq.com', 'mmbiz.qpic.cn'],
     });
+    expect(model).not.toHaveProperty('accountSuffix');
+    expect(model).not.toHaveProperty('hashes');
+    expect(model).not.toHaveProperty('destinations');
     expect(JSON.stringify(model)).not.toMatch(/secret|access.?token/iu);
 
     const modal = new PublishConfirmationModal({} as never, model, () => undefined);

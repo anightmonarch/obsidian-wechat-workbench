@@ -6,14 +6,11 @@ export type { PublishDialogInput } from '../publish/publish-types';
 
 export interface PublishDialogModel {
   action: PublishAction;
-  accountSuffix: string;
   title: string;
   digest: string;
   theme: string;
-  hashes: Readonly<{ content: string; theme: string; cover: string }>;
   imageCount: number;
   coverLabel: string;
-  destinations: readonly string[];
   sendsArticle: true;
   formalPublish: false;
 }
@@ -21,18 +18,11 @@ export interface PublishDialogModel {
 export function buildPublishDialogModel(input: Readonly<PublishDialogInput>): Readonly<PublishDialogModel> {
   return Object.freeze({
     action: input.action,
-    accountSuffix: input.appId.slice(-6),
     title: input.title,
     digest: input.digest,
     theme: `${input.themeId}@${input.themeVersion}`,
-    hashes: Object.freeze({
-      content: input.contentHash,
-      theme: input.themeHash,
-      cover: input.coverHash,
-    }),
     imageCount: input.imageCount,
     coverLabel: input.coverLabel,
-    destinations: Object.freeze(['api.weixin.qq.com', 'mmbiz.qpic.cn']),
     sendsArticle: true,
     formalPublish: false,
   });

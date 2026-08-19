@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

@@ -253,13 +253,13 @@
   padding: clamp(1rem, 5vw, 2rem);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  background: var(--background-primary);
+  background: var(--wechat-paper, #fff);
   box-shadow: var(--shadow-s);
 }
 
 .wechat-workbench__preview-sheet > .wechat-article {
   width: 100%;
-  color: #242424;
+  color: var(--wechat-article-text, #242424);
 }
 
 .wechat-workbench__preview-sheet img {

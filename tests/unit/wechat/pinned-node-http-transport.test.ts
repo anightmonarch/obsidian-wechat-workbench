@@ -31,7 +31,9 @@ describe('PinnedNodeHttpTransport', () => {
       request.socket.once('close', () => closed());
     });
     try {
-      const transport = new PinnedNodeHttpTransport(policy(current.port), 1024, 20);
+      // Leave enough time for the local server to accept the socket before the
+      // deliberately short total deadline is exercised under parallel Vitest runs.
+      const transport = new PinnedNodeHttpTransport(policy(current.port), 1024, 100);
 
       await expect(transport.request({ method: 'POST', url: 'http://example.test/hang', json: {} }))
         .rejects.toThrow(/timed out/i);

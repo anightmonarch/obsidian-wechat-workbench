@@ -203,8 +203,8 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       WORKBENCH_VIEW_TYPE,
       leaf => {
         const view = new WeChatWorkbenchView(leaf, previewAssets, () => {
-          openPluginSettings(this.app, this.manifest.id, () => {
-            new Notice('请打开插件设置，管理本地公众号账号。');
+          openPluginSettings(() => {
+            new Notice('请打开设置 → 第三方插件 → WeChat Workbench，管理本地公众号账号。');
           });
         });
         view.setController(new WorkbenchController(

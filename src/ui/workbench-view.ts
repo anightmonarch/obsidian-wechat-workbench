@@ -45,6 +45,8 @@ interface WorkbenchControllerBinding {
   confirmCover(prepared: Readonly<PreparedCover>): Promise<void>;
 }
 
+let workbenchViewCounter = 0;
+
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -63,25 +65,31 @@ function disabledAction(label: string, primary = false): HTMLButtonElement {
   return button;
 }
 
+function isMissingAccountConfiguration(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  if (candidate.code !== 'PUBLISH_PREPARE_BLOCKED') return false;
+  return typeof candidate.message === 'string'
+    && /AppID|AppSecret|Access Token|公众号账号/iu.test(candidate.message);
+}
+
 export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private controller: WorkbenchControllerBinding | null = null;
   private readonly previewRenderer: ArticlePreviewRenderer;
   private activeArticle: HTMLElement | null = null;
   private previewEl: HTMLElement | null = null;
-  private previewPanel: HTMLElement | null = null;
   private settingsEl: HTMLElement | null = null;
   private previewTab: HTMLButtonElement | null = null;
-  private settingsTab: HTMLButtonElement | null = null;
   private themeTrigger: HTMLButtonElement | null = null;
   private copyButton: HTMLButtonElement | null = null;
   private sourceButton: HTMLButtonElement | null = null;
   private publishButton: HTMLButtonElement | null = null;
   private unlinkButton: HTMLButtonElement | null = null;
+  private recheckButton: HTMLButtonElement | null = null;
   private checkButton: HTMLButtonElement | null = null;
   private checkDetailsEl: HTMLElement | null = null;
   private publishStateEl: HTMLElement | null = null;
   private latestState: Readonly<WorkbenchRenderState> | null = null;
-  private previewTabActive = true;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -105,7 +113,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   getIcon(): string { return 'newspaper'; }
 
   async onOpen(): Promise<void> {
-    this.previewTabActive = true;
     this.latestState = null;
     this.contentEl.replaceChildren();
     this.contentEl.classList.add('wechat-workbench');
@@ -122,37 +129,46 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     account.dataset.testid = 'account-settings';
     account.setAttribute('aria-label', '管理本地公众号设置');
     setIcon(account, 'circle-user-round');
-    account.addEventListener('click', this.openSettings);
+    this.registerDomEvent(account, 'click', this.openSettings);
     header.append(brand, account);
 
     const tabs = element('div', 'wechat-workbench__tabs');
     tabs.setAttribute('role', 'tablist');
+    const viewId = ++workbenchViewCounter;
+    const previewTabId = `wechat-workbench-preview-tab-${viewId}`;
+    const settingsTabId = `wechat-workbench-settings-tab-${viewId}`;
+    const previewPanelId = `wechat-workbench-preview-panel-${viewId}`;
+    const settingsPanelId = `wechat-workbench-settings-panel-${viewId}`;
     const previewTab = element('button', 'is-active', '公众号预览');
     previewTab.type = 'button';
+    previewTab.id = previewTabId;
     previewTab.setAttribute('role', 'tab');
     previewTab.setAttribute('aria-selected', 'true');
+    previewTab.setAttribute('aria-controls', previewPanelId);
     const settingsTab = element('button', undefined, '发布设置');
     settingsTab.type = 'button';
+    settingsTab.id = settingsTabId;
     settingsTab.setAttribute('role', 'tab');
     settingsTab.setAttribute('aria-selected', 'false');
+    settingsTab.setAttribute('aria-controls', settingsPanelId);
     tabs.append(previewTab, settingsTab);
     this.previewTab = previewTab;
-    this.settingsTab = settingsTab;
 
     const toolbar = element('div', 'wechat-workbench__action-bar');
     const publishButton = disabledAction('发文章', true);
     publishButton.dataset.testid = 'publish-draft';
-    publishButton.addEventListener('click', () => void this.preparePublish());
+    this.registerDomEvent(publishButton, 'click', () => void this.preparePublish());
     this.publishButton = publishButton;
     const copyButton = disabledAction('复制');
     copyButton.dataset.testid = 'copy-rich';
-    copyButton.addEventListener('click', () => void this.runCopy('rich'));
+    this.registerDomEvent(copyButton, 'click', () => void this.runCopy('rich'));
     this.copyButton = copyButton;
     const themeTrigger = disabledAction('主题');
     themeTrigger.dataset.testid = 'theme-trigger';
     themeTrigger.classList.add('wechat-workbench__theme-trigger');
     themeTrigger.setAttribute('aria-haspopup', 'menu');
-    themeTrigger.addEventListener('click', event => this.showThemeMenu(event));
+    themeTrigger.setAttribute('aria-label', '选择文章主题');
+    this.registerDomEvent(themeTrigger, 'click', event => this.showThemeMenu(event));
     this.themeTrigger = themeTrigger;
     const publishState = element('div', 'wechat-workbench__publish-state');
     const publishStateIcon = element('span');
@@ -162,16 +178,21 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     publishState.dataset.testid = 'publish-state';
     this.publishStateEl = publishState;
     const more = element('details', 'wechat-workbench__more');
-    more.append(element('summary', undefined, '···'));
+    const moreSummary = element('summary', undefined, '···');
+    moreSummary.setAttribute('aria-label', '更多操作');
+    moreSummary.setAttribute('title', '更多操作');
+    more.append(moreSummary);
     const sourceButton = disabledAction('复制 HTML 源码');
     sourceButton.dataset.testid = 'copy-source';
-    sourceButton.addEventListener('click', () => void this.runCopy('source'));
+    this.registerDomEvent(sourceButton, 'click', () => void this.runCopy('source'));
     this.sourceButton = sourceButton;
     const checkAgain = disabledAction('重新检查');
-    checkAgain.addEventListener('click', () => this.requestRebuild('manual-check'));
+    checkAgain.dataset.testid = 'recheck';
+    this.registerDomEvent(checkAgain, 'click', () => this.requestRebuild('manual-check'));
+    this.recheckButton = checkAgain;
     const unlinkButton = disabledAction('解除草稿关联');
     unlinkButton.dataset.testid = 'unlink-draft';
-    unlinkButton.addEventListener('click', () => this.confirmUnlink());
+    this.registerDomEvent(unlinkButton, 'click', () => this.confirmUnlink());
     this.unlinkButton = unlinkButton;
     const moreMenu = element('div', 'wechat-workbench__more-menu');
     moreMenu.append(sourceButton, checkAgain, unlinkButton);
@@ -186,7 +207,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     check.disabled = true;
     check.dataset.testid = 'preflight-status';
     check.setAttribute('aria-expanded', 'false');
-    check.addEventListener('click', () => this.togglePreflightDetails());
+    this.registerDomEvent(check, 'click', () => this.togglePreflightDetails());
     this.checkButton = check;
     const checkDetails = element('section', 'wechat-workbench__check-popover');
     checkDetails.hidden = true;
@@ -194,6 +215,9 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     summary.append(this.activeArticle, check, checkDetails);
 
     const previewPanel = element('main', 'wechat-workbench__body');
+    previewPanel.id = previewPanelId;
+    previewPanel.setAttribute('role', 'tabpanel');
+    previewPanel.setAttribute('aria-labelledby', previewTabId);
     const canvas = element('div', 'wechat-workbench__preview-canvas');
     this.previewEl = element('div', 'wechat-workbench__preview wechat-workbench__preview-sheet');
     const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
@@ -201,13 +225,23 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     this.previewEl.append(empty);
     canvas.append(this.previewEl);
     previewPanel.append(canvas);
-    this.previewPanel = previewPanel;
 
     this.settingsEl = element('section', 'wechat-workbench__settings wechat-workbench__publish-settings');
+    this.settingsEl.id = settingsPanelId;
+    this.settingsEl.setAttribute('role', 'tabpanel');
+    this.settingsEl.setAttribute('aria-labelledby', settingsTabId);
     this.settingsEl.hidden = true;
 
-    previewTab.addEventListener('click', () => this.switchTab(true, previewTab, settingsTab, previewPanel));
-    settingsTab.addEventListener('click', () => this.switchTab(false, previewTab, settingsTab, previewPanel));
+    this.registerDomEvent(
+      previewTab,
+      'click',
+      () => this.switchTab(true, previewTab, settingsTab, previewPanel),
+    );
+    this.registerDomEvent(
+      settingsTab,
+      'click',
+      () => this.switchTab(false, previewTab, settingsTab, previewPanel),
+    );
 
     this.contentEl.append(
       header, tabs, toolbar, summary,
@@ -234,11 +268,14 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
+    if (this.recheckButton !== null) this.recheckButton.disabled = true;
     if (this.checkButton !== null) this.checkButton.disabled = true;
     if (this.checkDetailsEl !== null) {
       this.checkDetailsEl.hidden = true;
       this.checkDetailsEl.replaceChildren();
+      this.checkButton?.setAttribute('aria-expanded', 'false');
     }
+    if (this.settingsEl !== null) this.renderSettingsPlaceholder('打开一篇 Markdown 笔记开始预览');
     this.setPublishState('准备发布');
     if (this.previewEl !== null) {
       const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
@@ -248,37 +285,57 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   }
 
   showLoading(path: string): void {
-    if (this.activeArticle !== null) this.activeArticle.textContent = `正在渲染 · ${path}`;
+    this.latestState = null;
+    if (this.activeArticle !== null) {
+      this.activeArticle.textContent = `正在渲染 · ${path.split('/').pop() ?? path}`;
+    }
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
     if (this.themeTrigger !== null) this.themeTrigger.disabled = true;
+    if (this.recheckButton !== null) this.recheckButton.disabled = true;
+    if (this.checkButton !== null) {
+      this.checkButton.disabled = true;
+      this.checkButton.setAttribute('aria-expanded', 'false');
+      delete this.checkButton.dataset.tone;
+    }
+    if (this.checkDetailsEl !== null) {
+      this.checkDetailsEl.hidden = true;
+      this.checkDetailsEl.replaceChildren();
+    }
+    if (this.settingsEl !== null) this.renderSettingsPlaceholder('正在排版…');
     this.setPublishState('正在排版');
   }
 
-  showError(message: string): void {
+  showError(_message: string): void {
+    this.latestState = null;
     this.previewRenderer.clear();
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.sourceButton !== null) this.sourceButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.unlinkButton !== null) this.unlinkButton.disabled = true;
     if (this.themeTrigger !== null) this.themeTrigger.disabled = true;
+    if (this.recheckButton !== null) this.recheckButton.disabled = false;
     if (this.checkButton !== null) this.checkButton.disabled = true;
     if (this.checkDetailsEl !== null) {
       this.checkDetailsEl.hidden = true;
       this.checkDetailsEl.replaceChildren();
+      this.checkButton?.setAttribute('aria-expanded', 'false');
     }
+    if (this.settingsEl !== null) this.renderSettingsPlaceholder('文章排版失败，请先重新检查。');
     this.setPublishState('需要重试');
     if (this.previewEl !== null) this.previewEl.replaceChildren(element(
-      'div', 'wechat-workbench__error', `渲染失败：${message}`,
+      'div',
+      'wechat-workbench__error',
+      '文章排版失败，请检查当前笔记或主题设置，然后点击“重新检查”。',
     ));
   }
 
   showArtifact(state: Readonly<WorkbenchRenderState>): void {
     this.latestState = state;
     if (this.activeArticle !== null) {
-      this.activeArticle.textContent = `已连接 · ${state.snapshot.vaultPath}`;
+      this.activeArticle.textContent = `已连接 · ${state.snapshot.basename}`;
     }
     if (this.previewTab !== null) {
       this.previewTab.textContent = `公众号预览（${state.snapshot.basename}）`;
@@ -290,6 +347,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       this.checkButton.dataset.tone = presentation.tone;
       this.checkButton.setAttribute('aria-label', `${presentation.label}，查看详情`);
     }
+    if (this.recheckButton !== null) this.recheckButton.disabled = false;
     if (this.checkDetailsEl !== null) {
       this.checkDetailsEl.hidden = true;
       this.checkDetailsEl.replaceChildren();
@@ -297,6 +355,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.themeTrigger !== null) {
       const current = state.themes.find(theme => theme.manifest.id === state.selectedThemeId);
       this.themeTrigger.textContent = `主题 · ${current?.manifest.name ?? state.selectedThemeId}`;
+      this.themeTrigger.setAttribute('aria-label', `选择文章主题，当前为 ${current?.manifest.name ?? state.selectedThemeId}`);
       this.themeTrigger.disabled = state.themes.length === 0;
     }
     if (this.previewEl !== null) this.previewRenderer.render(this.previewEl, state.artifact);
@@ -311,6 +370,11 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private renderSettings(state: Readonly<WorkbenchRenderState>): void {
     if (this.settingsEl === null) return;
     renderPublishSettings(this.settingsEl, state, { chooseCover: () => this.openCoverPicker() });
+  }
+
+  private renderSettingsPlaceholder(message: string): void {
+    if (this.settingsEl === null) return;
+    this.settingsEl.replaceChildren(element('div', 'wechat-workbench__empty', message));
   }
 
   private setPublishState(label: string): void {
@@ -374,7 +438,12 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
         () => void this.executePublish(prepared.command),
       ).open();
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : '无法准备草稿同步');
+      if (isMissingAccountConfiguration(error)) {
+        new Notice('公众号账号未配置，请先打开插件设置完善本地账号信息。');
+        this.openSettings();
+      } else {
+        new Notice(error instanceof Error ? error.message : '无法准备草稿同步');
+      }
     } finally {
       this.publishButton.disabled = false;
     }
@@ -486,7 +555,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     settingsTab: HTMLButtonElement,
     previewPanel: HTMLElement,
   ): void {
-    this.previewTabActive = preview;
     previewTab.classList.toggle('is-active', preview);
     settingsTab.classList.toggle('is-active', !preview);
     previewTab.setAttribute('aria-selected', String(preview));
