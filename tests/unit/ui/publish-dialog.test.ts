@@ -25,7 +25,7 @@ const input: Readonly<PublishDialogInput> = Object.freeze({
 });
 
 describe('publish confirmation and report models', () => {
-  it('shows account, action, hashes, cover, and network summary before commit', () => {
+  it('shows a focused editorial summary without implementation details', () => {
     const model = buildPublishDialogModel(input);
 
     expect(model).toMatchObject({
@@ -43,9 +43,11 @@ describe('publish confirmation and report models', () => {
 
     const modal = new PublishConfirmationModal({} as never, model, () => undefined);
     modal.open();
-    expect(modal.contentEl.textContent).toContain('CONTENT_HASH');
-    expect(modal.contentEl.textContent).toContain('THEME_HASH');
-    expect(modal.contentEl.textContent).toContain('COVER_HASH');
+    expect(modal.contentEl.textContent).toContain('Synthetic article');
+    expect(modal.contentEl.textContent).toContain('native@1.0.0');
+    expect(modal.contentEl.textContent).toContain('cover.png');
+    expect(modal.contentEl.textContent).toContain('2 张');
+    expect(modal.contentEl.textContent).not.toMatch(/CONTENT_HASH|THEME_HASH|COVER_HASH|api\.weixin\.com|123456/u);
     expect(modal.contentEl.textContent).toContain('不会正式群发');
   });
 

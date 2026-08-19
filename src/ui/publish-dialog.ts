@@ -47,28 +47,26 @@ export class PublishConfirmationModal extends Modal {
 
   onOpen(): void {
     this.contentEl.replaceChildren();
-    this.titleEl.textContent = '发布到公众号草稿箱';
+    this.titleEl.textContent = '同步到公众号草稿箱';
     const summary = createDiv();
     summary.className = 'wechat-workbench__publish-summary';
     const rows: Array<[string, string]> = [
-      ['操作', this.model.action],
-      ['账号', `AppID …${this.model.accountSuffix}`],
+      ['操作', this.model.action === 'CREATE' ? '新建草稿' : '更新草稿'],
       ['标题', this.model.title],
       ['摘要', this.model.digest || '使用正文安全截断'],
       ['主题', this.model.theme],
-      ['内容指纹', this.model.hashes.content],
-      ['主题指纹', this.model.hashes.theme],
-      ['封面指纹', this.model.hashes.cover],
       ['图片', `${this.model.imageCount} 张`],
       ['封面', this.model.coverLabel],
-      ['网络', this.model.destinations.join('、')],
     ];
     for (const [label, value] of rows) {
-      const row = createEl('p');
-      row.append(createEl('strong', { text: `${label}：` }), document.createTextNode(value));
+      const row = createDiv('wechat-workbench__publish-summary-row');
+      row.append(createEl('strong', { text: label }), createSpan({ text: value }));
       summary.append(row);
     }
-    summary.append(createEl('p', { cls: 'wechat-workbench__publish-warning', text: '只同步到草稿箱，不会正式群发。' }));
+    summary.append(createEl('p', {
+      cls: 'wechat-workbench__publish-warning',
+      text: '只同步到草稿箱，不会正式群发。同步后可在公众号后台继续编辑。',
+    }));
     const actions = createDiv('modal-button-container');
     const cancel = createEl('button', { text: '取消' });
     cancel.addEventListener('click', () => this.close());

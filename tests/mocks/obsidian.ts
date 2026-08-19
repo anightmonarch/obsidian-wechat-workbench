@@ -25,9 +25,13 @@ Object.assign(globalThis, {
     if (className !== undefined) node.className = className;
     return node;
   },
-  createSpan: (className?: string): HTMLSpanElement => {
+  createSpan: (options?: string | { text?: string; cls?: string }): HTMLSpanElement => {
     const node = document.createElement('span');
-    if (className !== undefined) node.className = className;
+    if (typeof options === 'string') node.className = options;
+    if (typeof options === 'object' && options !== null) {
+      if (options.text !== undefined) node.textContent = options.text;
+      if (options.cls !== undefined) node.className = options.cls;
+    }
     return node;
   },
 });
