@@ -1,4 +1,4 @@
-import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
+import { type EventRef, Notice, Plugin, type WorkspaceLeaf } from 'obsidian';
 
 import { ClipboardAssetResolver } from './clipboard/asset-resolver';
 import { ClipboardService } from './clipboard/clipboard-service';
@@ -38,6 +38,7 @@ import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
+import { openPluginSettings } from './ui/settings-navigator';
 import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
@@ -202,11 +203,9 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       WORKBENCH_VIEW_TYPE,
       leaf => {
         const view = new WeChatWorkbenchView(leaf, previewAssets, () => {
-          const appId = this.pluginSettings.appId.trim();
-          if (appId.length === 0) return '本地账号未配置';
-          return secretStore.status().appSecret
-            ? `账号 …${appId.slice(-6)} 已配置`
-            : `账号 …${appId.slice(-6)} 缺少 AppSecret`;
+          openPluginSettings(this.app, this.manifest.id, () => {
+            new Notice('请打开插件设置，管理本地公众号账号。');
+          });
         });
         view.setController(new WorkbenchController(
           source,

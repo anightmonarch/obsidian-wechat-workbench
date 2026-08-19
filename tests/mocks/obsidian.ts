@@ -56,3 +56,46 @@ export class Setting {
 export class Notice {
   constructor(_message: string) {}
 }
+
+export class MenuItem {
+  title = '';
+  checked = false;
+  callback: (() => void) | null = null;
+
+  setTitle(title: string): this {
+    this.title = title;
+    return this;
+  }
+
+  setChecked(checked: boolean | null): this {
+    this.checked = checked === true;
+    return this;
+  }
+
+  setIcon(_icon: string): this { return this; }
+
+  onClick(callback: () => void): this {
+    this.callback = callback;
+    return this;
+  }
+}
+
+export class Menu {
+  static last: Menu | null = null;
+  readonly items: MenuItem[] = [];
+
+  constructor() { Menu.last = this; }
+
+  addItem(builder: (item: MenuItem) => void): this {
+    const item = new MenuItem();
+    builder(item);
+    this.items.push(item);
+    return this;
+  }
+
+  showAtMouseEvent(_event: MouseEvent): this { return this; }
+}
+
+export function setIcon(target: HTMLElement, icon: string): void {
+  target.dataset.icon = icon;
+}
