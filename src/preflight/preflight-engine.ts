@@ -103,8 +103,10 @@ function evaluateArtifact(
     if (asset.kind === 'local-image') {
       items.push(diagnostic(
         PREFLIGHT_CODES.LOCAL_ASSET_UNRESOLVED,
-        'BLOCKING',
-        `Local image could not be resolved: ${asset.source}`,
+        context.purpose === 'publish' ? 'BLOCKING' : 'INFO',
+        context.purpose === 'publish'
+          ? 'A local article image is missing or unreadable.'
+          : 'Local image will be resolved when the user requests copy.',
         asset.source,
       ));
     } else if (asset.kind === 'remote-image') {

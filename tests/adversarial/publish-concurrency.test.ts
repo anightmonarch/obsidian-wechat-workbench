@@ -17,6 +17,7 @@ const artifact: Readonly<RenderArtifact> = Object.freeze({
 function command(accountHash: string): PublishCommand {
   return {
     file: { path: 'article.md', basename: 'article', modifiedAt: 1 },
+    expectedAssociation: null,
     artifact,
     accountHash,
     cover: {

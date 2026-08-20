@@ -38,27 +38,27 @@ export class CoverPickerSession {
   async selectLocal(kind: CoverPickerOption['kind']): Promise<void> {
     const option = this.options.find(item => item.kind === kind);
     if (option === undefined || !option.enabled || option.sourcePath === null) {
-      throw new CoverPickerError('COVER_SOURCE_UNAVAILABLE', 'The selected cover source is unavailable.');
+      throw new CoverPickerError('COVER_SOURCE_UNAVAILABLE', '这个封面来源暂时不可用。');
     }
     await this.prepare(option);
   }
 
   async selectVaultPath(path: string): Promise<void> {
-    if (path.trim().length === 0) throw new CoverPickerError('COVER_PATH_EMPTY', 'Vault image path is empty.');
+    if (path.trim().length === 0) throw new CoverPickerError('COVER_PATH_EMPTY', '请填写 Vault 内的图片路径。');
     await this.prepare(path.trim());
   }
 
   async generateAi(): Promise<void> {
-    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', 'A cover operation is already in progress.');
+    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', '封面正在处理中，请稍候。');
     this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
     try {
       this.selected = await this.ports.generateAi();
-    } catch (error) {
+    } catch {
       this.selected = null;
       this.errorCode = 'AI_COVER_GENERATION_FAILED';
-      this.errorMessage = error instanceof Error ? error.message : 'AI cover generation failed.';
+      this.errorMessage = '智能封面生成失败，请检查图片服务设置后再试。';
     } finally {
       this.busy = false;
     }
@@ -66,13 +66,13 @@ export class CoverPickerSession {
 
   async confirm(): Promise<void> {
     if (this.busy || this.selected === null) {
-      throw new CoverPickerError('COVER_CONFIRMATION_REQUIRED', 'Select and preview a cover before confirming.');
+      throw new CoverPickerError('COVER_CONFIRMATION_REQUIRED', '请先选择并预览一个封面。');
     }
     await this.ports.confirm(this.selected);
   }
 
   private async prepare(input: Readonly<CoverPickerOption> | string): Promise<void> {
-    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', 'A cover operation is already in progress.');
+    if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', '封面正在处理中，请稍候。');
     this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
@@ -127,7 +127,7 @@ export class CoverPickerModal extends Modal {
       preview.className = 'wechat-workbench__cover-preview';
       preview.src = this.session.selected.previewDataUrl;
       preview.alt = '2.35:1 封面裁剪预览';
-      this.contentEl.append(preview, createEl('p', { text: this.session.selected.vaultPath }));
+      this.contentEl.append(preview, createEl('p', { text: '封面预览已准备' }));
     }
     if (this.session.errorMessage !== null) {
       this.contentEl.append(createEl('p', { cls: 'wechat-workbench__error', text: this.session.errorMessage }));
@@ -149,7 +149,7 @@ export class CoverPickerModal extends Modal {
     try {
       await action();
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : '封面操作失败');
+      new Notice(error instanceof CoverPickerError ? error.message : '封面操作失败，请检查图片文件后再试。');
     } finally {
       this.render();
     }

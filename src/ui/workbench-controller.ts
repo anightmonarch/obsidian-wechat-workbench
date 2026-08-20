@@ -1,4 +1,4 @@
-import type { NoteSnapshot } from '../domain/article';
+import type { EditableArticleSettings, NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
 import type { VaultFileRef } from '../domain/ports';
 import type { ThemeDefinition } from '../domain/theme';
@@ -9,7 +9,7 @@ import type {
 } from '../cover/cover-workflow';
 import type { PreflightContext, PreflightReport } from '../preflight/preflight-engine';
 import type { PreparedPublish } from '../publish/publish-workflow';
-import type { PublishCommand, PublishOutcome } from '../publish/publish-types';
+import type { DraftAssociationRef, PublishCommand, PublishOutcome } from '../publish/publish-types';
 import { publishPayloadHash } from '../publish/publish-content';
 import type { AiCoverDisclosure } from './ai-cover-confirmation';
 
@@ -76,7 +76,7 @@ export interface WorkbenchPublishPort {
     taskId: string,
     fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
   ): Promise<Readonly<PublishOutcome>>;
-  unlink(file: VaultFileRef): Promise<void>;
+  unlink(association: Readonly<DraftAssociationRef>): Promise<void>;
 }
 
 export interface WorkbenchCoverPort {
@@ -91,6 +91,13 @@ export interface WorkbenchCoverPort {
   prepareLocal(file: VaultFileRef, path: string, contextHash: string): Promise<Readonly<PreparedCover>>;
   prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
+}
+
+export interface WorkbenchArticleSettingsPort {
+  update(
+    file: VaultFileRef,
+    settings: Readonly<EditableArticleSettings>,
+  ): Promise<void>;
 }
 
 export class WorkbenchActionError extends Error {
@@ -126,6 +133,7 @@ export class WorkbenchController {
     private readonly clipboard?: WorkbenchClipboardPort,
     private readonly publisher?: WorkbenchPublishPort,
     private readonly covers?: WorkbenchCoverPort,
+    private readonly articleSettings?: WorkbenchArticleSettingsPort,
   ) {}
 
   start(): void {
@@ -187,7 +195,11 @@ export class WorkbenchController {
       throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
     }
     if (this.report.blocking.length > 0) {
-      throw new WorkbenchActionError('COPY_PREFLIGHT_BLOCKED', '请先修复复制预检中的阻断项。');
+      const blocking = this.report.blocking[0];
+      throw new WorkbenchActionError(
+        blocking?.code ?? 'COPY_PREFLIGHT_BLOCKED',
+        blocking?.message ?? '请先修复复制预检中的阻断项。',
+      );
     }
     if (this.clipboard === undefined) {
       throw new WorkbenchActionError('CLIPBOARD_UNAVAILABLE', '剪贴板服务不可用。');
@@ -247,22 +259,11 @@ export class WorkbenchController {
     return result;
   }
 
-  prepareUnlinkAssociation(): VaultFileRef {
-    if (this.publisher === undefined || this.snapshot === null) {
-      throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '当前笔记或草稿服务不可用。');
-    }
-    return {
-      path: this.snapshot.vaultPath,
-      basename: this.snapshot.basename,
-      modifiedAt: this.snapshot.modifiedAt,
-    };
-  }
-
-  async unlinkPublishAssociation(file: VaultFileRef): Promise<void> {
-    if (this.publisher === undefined || this.snapshot?.vaultPath !== file.path) {
+  async unlinkPublishAssociation(association: Readonly<DraftAssociationRef>): Promise<void> {
+    if (this.publisher === undefined || this.snapshot?.vaultPath !== association.file.path) {
       throw new WorkbenchActionError('ARTICLE_CONTEXT_CHANGED', '当前笔记已变化，请重新打开解除关联确认框。');
     }
-    await this.publisher.unlink(file);
+    await this.publisher.unlink(association);
     this.rebuild('publish-unlink');
   }
 
@@ -304,6 +305,20 @@ export class WorkbenchController {
     }
     await this.covers.confirm(this.currentFile(current.snapshot), prepared);
     this.rebuild('cover-confirmed');
+  }
+
+  async saveArticleSettings(
+    file: VaultFileRef,
+    settings: Readonly<EditableArticleSettings>,
+  ): Promise<void> {
+    if (this.snapshot === null || this.articleSettings === undefined) {
+      throw new WorkbenchActionError('ARTICLE_SETTINGS_UNAVAILABLE', '当前文章尚未准备好。');
+    }
+    if (this.snapshot.vaultPath !== file.path || this.snapshot.modifiedAt !== file.modifiedAt) {
+      throw new WorkbenchActionError('ARTICLE_CONTEXT_CHANGED', '当前文章已经变化，请重新编辑文章信息。');
+    }
+    await this.articleSettings.update(file, settings);
+    this.rebuild('article-settings');
   }
 
   private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {

@@ -4,8 +4,10 @@ import type { NoteSnapshot } from '../../src/domain/article';
 import type { RenderArtifact } from '../../src/domain/artifact';
 import type { VaultFileRef } from '../../src/domain/ports';
 import type { ThemeDefinition } from '../../src/domain/theme';
+import type { PreflightReport } from '../../src/preflight/preflight-engine';
 import {
   WorkbenchController,
+  type WorkbenchArticleSettingsPort,
   type WorkbenchClipboardPort,
   type WorkbenchEventHandle,
   type WorkbenchSourcePort,
@@ -92,6 +94,13 @@ function controller(
   view: FakeView,
   build: (snapshot: Readonly<NoteSnapshot>) => Promise<Readonly<RenderArtifact>>,
   clipboard?: WorkbenchClipboardPort,
+  articleSettings?: WorkbenchArticleSettingsPort,
+  preflightReport: Readonly<PreflightReport> = Object.freeze({
+    ok: true,
+    blocking: Object.freeze([]),
+    warnings: Object.freeze([]),
+    info: Object.freeze([]),
+  }),
 ) {
   const registered: unknown[] = [];
   return {
@@ -101,12 +110,15 @@ function controller(
       { snapshot: async ref => snapshotFor(ref) },
       { get: id => id === 'native' ? theme : undefined, list: () => [theme] },
       { build },
-      { run: () => Object.freeze({ ok: true, blocking: [], warnings: [], info: [] }) },
+      { run: () => preflightReport },
       view,
       event => registered.push(event),
       'native',
       400,
       clipboard,
+      undefined,
+      undefined,
+      articleSettings,
     ),
   };
 }
@@ -230,5 +242,88 @@ describe('WorkbenchController', () => {
     expect(copyForWeChat).toHaveBeenCalledOnce();
     expect(copyForWeChat.mock.calls[0]?.[0].source.vaultPath).toBe('active.md');
     expect(copyHtmlSource).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the first blocking diagnostic code when copy is rejected', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const copyForWeChat = vi.fn(async () => undefined);
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      { copyForWeChat, copyHtmlSource: vi.fn(async () => undefined) },
+      undefined,
+      Object.freeze({
+        ok: false,
+        blocking: Object.freeze([Object.freeze({
+          code: 'REMOTE_ASSET_INSECURE', severity: 'BLOCKING' as const,
+          message: 'Remote image URL must be HTTPS.', source: 'http://example.test/image.png',
+        })]),
+        warnings: Object.freeze([]),
+        info: Object.freeze([]),
+      }),
+    );
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await expect(harness.instance.copyForWeChat())
+      .rejects.toMatchObject({ code: 'REMOTE_ASSET_INSECURE' });
+    expect(copyForWeChat).not.toHaveBeenCalled();
+  });
+
+  it('writes editable article settings to the bound note and rebuilds it', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const update = vi.fn(async () => undefined);
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      undefined,
+      { update },
+    );
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await harness.instance.saveArticleSettings(file('active.md'), {
+      title: 'Updated title',
+      author: 'wbs',
+      digest: 'Updated digest',
+      contentSourceUrl: 'https://example.com/source',
+    });
+
+    expect(update).toHaveBeenCalledWith(file('active.md'), {
+      title: 'Updated title',
+      author: 'wbs',
+      digest: 'Updated digest',
+      contentSourceUrl: 'https://example.com/source',
+    });
+  });
+
+  it('rejects a settings form that belongs to a note that is no longer active', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const update = vi.fn(async () => undefined);
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      undefined,
+      { update },
+    );
+    harness.instance.start();
+    source.emitActive('article-a.md');
+    await vi.advanceTimersByTimeAsync(400);
+    const staleFile = file('article-a.md');
+    source.emitActive('article-b.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await expect(harness.instance.saveArticleSettings(staleFile, {
+      title: 'Stale title', author: '', digest: '', contentSourceUrl: '',
+    })).rejects.toMatchObject({ code: 'ARTICLE_CONTEXT_CHANGED' });
+    expect(update).not.toHaveBeenCalled();
   });
 });

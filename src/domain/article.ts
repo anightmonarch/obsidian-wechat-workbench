@@ -6,6 +6,13 @@ export interface ArticleMetadata {
   contentSourceUrl: string;
 }
 
+export interface EditableArticleSettings {
+  title: string;
+  author: string;
+  digest: string;
+  contentSourceUrl: string;
+}
+
 export interface NoteSnapshot {
   vaultPath: string;
   basename: string;

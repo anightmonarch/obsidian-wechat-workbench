@@ -12,8 +12,10 @@ function requestBody(request: Readonly<HttpRequest>): string | ArrayBuffer | und
 }
 
 export class ObsidianHttpTransport implements HttpTransport {
+  constructor(private readonly send: typeof requestUrl = requestUrl) {}
+
   async request(request: Readonly<HttpRequest>): Promise<Readonly<HttpResponse<unknown>>> {
-    const response = await requestUrl({
+    const response = await this.send({
       url: request.url,
       method: request.method,
       headers: { ...request.headers },

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   CoverPickerError,
+  CoverPickerModal,
   CoverPickerSession,
   type CoverPickerModel,
 } from '../../src/ui/cover-picker-modal';
@@ -36,6 +37,8 @@ describe('cover picker session', () => {
 
     expect(session.options).toContainEqual(expect.objectContaining({ kind: 'first-image', enabled: true }));
     expect(session.errorCode).toBe('AI_COVER_GENERATION_FAILED');
+    expect(session.errorMessage).toBe('智能封面生成失败，请检查图片服务设置后再试。');
+    expect(session.errorMessage).not.toContain('provider unavailable');
     expect(session.selected).toBeNull();
   });
 
@@ -65,6 +68,21 @@ describe('cover picker session', () => {
     await session.confirm();
 
     expect(confirm).toHaveBeenCalledWith(prepared);
+  });
+
+  it('shows the prepared cover without exposing the internal vault path', async () => {
+    const session = new CoverPickerSession(model, {
+      prepareLocal: vi.fn(async () => prepared),
+      generateAi: vi.fn(),
+      confirm: vi.fn(async () => undefined),
+    });
+    await session.selectLocal('first-image');
+    const modal = new CoverPickerModal({} as never, session);
+
+    modal.open();
+
+    expect(modal.contentEl.textContent).toContain('封面预览已准备');
+    expect(modal.contentEl.textContent).not.toContain(prepared.vaultPath);
   });
 
   it('prevents a second generation request while one is still running', async () => {

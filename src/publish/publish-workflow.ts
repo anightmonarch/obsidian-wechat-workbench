@@ -11,7 +11,12 @@ import { accountHashForAppId } from '../settings/account';
 import { PublicError } from '../wechat/errors';
 import type { PublishCoordinator } from './publish-coordinator';
 import { decidePublish } from './publish-decision';
-import type { PublishCommand, PublishDialogInput, PublishOutcome } from './publish-types';
+import type {
+  DraftAssociationRef,
+  PublishCommand,
+  PublishDialogInput,
+  PublishOutcome,
+} from './publish-types';
 import type { AmbiguousReconciler } from './reconcile-ambiguous';
 import type { RecoveryReceipt, RecoveryReceiptStore } from './recovery-receipt-store';
 import type { PublishStateStore, SyncedDraftState } from './publish-state-store';
@@ -56,6 +61,46 @@ function preparationError(messages: readonly string[]): PublicError {
   });
 }
 
+function accountConfigurationError(): PublicError {
+  return new PublicError({
+    code: 'WECHAT_ACCOUNT_NOT_CONFIGURED',
+    stage: 'LOCAL_STATE',
+    errcode: null,
+    errmsg: 'WeChat account is not configured.',
+    rid: null,
+    remoteEffect: 'NONE',
+    retryable: false,
+    nextAction: 'Configure the local WeChat account before preparing a draft.',
+  });
+}
+
+export class DraftAssociationMismatchError extends PublicError {
+  constructor(readonly association: Readonly<DraftAssociationRef>) {
+    super({
+      code: 'DRAFT_ACCOUNT_MISMATCH',
+      stage: 'LOCAL_STATE',
+      errcode: null,
+      errmsg: 'The existing draft association belongs to a different WeChat account.',
+      rid: null,
+      remoteEffect: 'NONE',
+      retryable: false,
+      nextAction: 'Switch accounts or explicitly unlink the captured local association.',
+    });
+    this.name = 'DraftAssociationMismatchError';
+  }
+}
+
+function associationRef(
+  file: VaultFileRef,
+  local: Readonly<SyncedDraftState>,
+): Readonly<DraftAssociationRef> {
+  return Object.freeze({
+    file: Object.freeze({ ...file }),
+    draftId: local.draftId,
+    accountId: local.accountId,
+  });
+}
+
 export class PublishWorkflow {
   constructor(
     private readonly settings: PublishWorkflowSettingsPort,
@@ -72,6 +117,9 @@ export class PublishWorkflow {
   ): Promise<Readonly<PreparedPublish>> {
     const settings = this.settings.get();
     const accountHash = settings.accountHash ?? accountHashForAppId(settings.appId);
+    if (settings.appId.trim().length === 0 || accountHash === null) {
+      throw accountConfigurationError();
+    }
     const local = await this.state.read(file);
     const pendingCreate = this.recovery?.receipts.listUnresolved().find(receipt => (
       receipt.operation === 'CREATE'
@@ -80,6 +128,9 @@ export class PublishWorkflow {
     ));
     if (local === null && pendingCreate !== undefined) {
       throw preparationError(['An unresolved CREATE receipt must be reconciled before creating another draft.']);
+    }
+    if (local !== null && local.accountId !== accountHash) {
+      throw new DraftAssociationMismatchError(associationRef(file, local));
     }
     const coverPath = await this.coverPath(file, artifact, settings.defaultCoverStrategy);
     let coverBytes: Uint8Array | null = null;
@@ -118,6 +169,7 @@ export class PublishWorkflow {
     }
     const command: Readonly<PublishCommand> = Object.freeze({
       file: Object.freeze({ ...file }),
+      expectedAssociation: local === null ? null : associationRef(file, local),
       artifact,
       accountHash,
       cover: Object.freeze({
@@ -202,8 +254,11 @@ export class PublishWorkflow {
     return this.commitRecovered(command, taskId, mediaId, operation);
   }
 
-  async unlink(file: VaultFileRef): Promise<void> {
-    await this.state.unlink(file);
+  async unlink(association: Readonly<DraftAssociationRef>): Promise<void> {
+    await this.state.unlink(association.file, {
+      draftId: association.draftId,
+      accountId: association.accountId,
+    });
   }
 
   private async coverPath(

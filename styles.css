@@ -79,7 +79,7 @@
 
 .wechat-workbench__action-bar {
   display: grid;
-  grid-template-columns: auto auto minmax(7rem, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(7rem, 1fr);
   align-items: center;
   gap: var(--size-4-2);
   min-height: 68px;
@@ -103,66 +103,9 @@
   text-overflow: ellipsis;
 }
 
-.wechat-workbench__publish-state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--size-4-1);
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-  white-space: nowrap;
-}
-
-.wechat-workbench__publish-state-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wechat-workbench__more {
-  position: relative;
-}
-
-.wechat-workbench__more summary {
-  padding: var(--size-4-1) var(--size-4-2);
-  cursor: pointer;
-  list-style: none;
-  color: var(--text-muted);
-  font-size: var(--font-ui-medium);
-  line-height: 1;
-}
-
-.wechat-workbench__more summary::-webkit-details-marker {
-  display: none;
-}
-
-.wechat-workbench__more-menu {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + var(--size-4-1));
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-4-1);
-  width: max-content;
-  min-width: 10rem;
-  padding: var(--size-4-1);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  box-shadow: var(--shadow-s);
-}
-
-.wechat-workbench__more-menu > button {
-  width: 100%;
-  text-align: left;
-}
-
 .wechat-workbench__summary-row {
-  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--size-4-3);
   min-height: 44px;
   padding: 0 var(--size-4-4);
   border-bottom: 1px solid var(--background-modifier-border);
@@ -185,42 +128,6 @@
   border-radius: 50%;
   background: var(--wechat-accent);
   content: '';
-}
-
-.wechat-workbench__check-button {
-  flex: 0 0 auto;
-  padding: var(--size-4-1) 0;
-  border: 0;
-  color: var(--wechat-accent);
-  background: transparent;
-  font-size: inherit;
-  white-space: nowrap;
-}
-
-.wechat-workbench__check-button[data-tone='warning'] {
-  color: var(--text-warning);
-}
-
-.wechat-workbench__check-button[data-tone='blocking'] {
-  color: var(--text-error);
-}
-
-.wechat-workbench__check-popover {
-  position: absolute;
-  z-index: 11;
-  top: calc(100% - var(--size-4-1));
-  right: var(--size-4-4);
-  width: min(28rem, calc(100% - var(--size-4-8)));
-  padding: var(--size-4-3);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  background: var(--background-primary);
-  box-shadow: var(--shadow-s);
-}
-
-.wechat-workbench__check-details {
-  margin: 0;
-  padding-left: var(--size-4-5);
 }
 
 .wechat-workbench__body,
@@ -351,6 +258,32 @@
   color: var(--text-muted);
 }
 
+.wechat-workbench__setting-field {
+  display: grid;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.wechat-workbench__setting-field input,
+.wechat-workbench__setting-field textarea {
+  width: 100%;
+  color: var(--text-normal);
+  background: var(--background-primary-alt);
+}
+
+.wechat-workbench__setting-field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.wechat-workbench__settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--size-4-3);
+}
+
 .wechat-workbench__cover-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -417,14 +350,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .wechat-workbench__theme-trigger,
-  .wechat-workbench__publish-state,
-  .wechat-workbench__more {
-    grid-column: span 1;
-  }
-
-  .wechat-workbench__publish-state {
-    justify-content: center;
+  .wechat-workbench__theme-trigger {
+    grid-column: 1 / -1;
   }
 
   .wechat-workbench__summary-row {
@@ -436,8 +363,4 @@
     padding-bottom: var(--size-4-2);
   }
 
-  .wechat-workbench__check-popover {
-    right: var(--size-4-2);
-    width: calc(100% - var(--size-4-4));
-  }
 }

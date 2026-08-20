@@ -24,6 +24,7 @@ import { BrowserMermaidEngine, DiagramRenderer, ElectronSvgRasterizer } from './
 import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
 import { accountHashForAppId } from './settings/account';
+import { ArticleSettingsService } from './settings/article-settings';
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
@@ -39,6 +40,7 @@ import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
 import { AccountSettingsModal } from './ui/account-settings-modal';
+import { ObsidianHttpTransport } from './wechat/obsidian-http-transport';
 import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
@@ -78,6 +80,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       await updateSettings({ accountHash: expectedAccountHash });
     }
     const vaultPorts = new ObsidianVaultPorts(this.app);
+    const articleSettings = new ArticleSettingsService(vaultPorts);
     const source = new ObsidianWorkbenchSource(this.app);
     const themes = new ThemeRegistry(BUILTIN_THEMES, vaultPorts);
     await themes.load(this.pluginSettings.customThemeDirectory);
@@ -118,14 +121,15 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       ),
       new ElectronClipboardPort(),
     );
-    const http = new TimeoutHttpTransport(new PinnedNodeHttpTransport(), 35_000);
+    const wechatHttp = new TimeoutHttpTransport(new ObsidianHttpTransport(), 35_000);
+    const providerHttp = new TimeoutHttpTransport(new PinnedNodeHttpTransport(), 35_000);
     const tokens = new TokenService(secretStore, {
       get appId() { return currentSettings().appId; },
       get accessTokenExpiresAt() { return currentSettings().accessTokenExpiresAt; },
       saveAccessTokenMetadata: async expiresAt => {
         await updateSettings({ accessTokenExpiresAt: expiresAt });
       },
-    } satisfies TokenSettingsPort, http);
+    } satisfies TokenSettingsPort, wechatHttp);
     const mediaCacheData: AssetCacheDataPort = {
       get entries() { return currentSettings().mediaCache; },
       save: async entries => { await updateSettings({ mediaCache: entries }); },
@@ -136,7 +140,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     };
     const state = new PublishStateStore(vaultPorts, vaultPorts);
     const receipts = new RecoveryReceiptStore(recoveryData);
-    const wechat = new WeChatClient(http);
+    const wechat = new WeChatClient(wechatHttp);
     const remoteImages = new RemoteImageFetcher();
     const uploadAssets = new AssetUploadService(
       vaultPorts,
@@ -186,7 +190,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       vaultPorts,
       new ElectronImagePort(),
       new CoverStorage(vaultPorts),
-      new OpenAiImageGenerator(http, remoteImages),
+      new OpenAiImageGenerator(providerHttp, remoteImages),
       vaultPorts,
       {
         get: () => ({
@@ -233,6 +237,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
           clipboard,
           publisher,
           covers,
+          articleSettings,
         ));
         return view;
       },

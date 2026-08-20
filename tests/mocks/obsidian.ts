@@ -1,5 +1,9 @@
 export class Plugin {}
 
+export async function requestUrl(): Promise<never> {
+  throw new Error('requestUrl test mock must be injected explicitly.');
+}
+
 export class Modal {
   readonly contentEl = document.createElement('div');
   readonly titleEl = document.createElement('h2');

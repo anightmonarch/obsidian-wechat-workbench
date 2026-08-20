@@ -79,6 +79,13 @@ function frozenCommand(command: Readonly<PublishCommand>): Readonly<PublishComma
   };
   return Object.freeze({
     file: Object.freeze({ ...command.file }),
+    expectedAssociation: command.expectedAssociation === null
+      ? null
+      : Object.freeze({
+        file: Object.freeze({ ...command.expectedAssociation.file }),
+        draftId: command.expectedAssociation.draftId,
+        accountId: command.expectedAssociation.accountId,
+      }),
     artifact,
     accountHash: command.accountHash,
     cover: Object.freeze(cover),

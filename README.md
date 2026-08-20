@@ -1,6 +1,6 @@
 # WeChat Workbench
 
-WeChat Workbench 是一个 Obsidian 桌面端微信公众号工作台：在 Vault 中写 Markdown，在右侧实时查看公众号排版，复制富文本或 HTML，并将文章明确同步到公众号后台草稿箱。
+WeChat Workbench 是一个 Obsidian 桌面端微信公众号工作台：在 Vault 中写 Markdown，在右侧实时查看公众号排版，复制公众号富文本，并将文章明确同步到公众号后台草稿箱。
 
 项目当前是本地验证中的 `0.1.0` 候选版本，尚未提交 Obsidian 社区插件市场，也未创建公开 Release。
 
@@ -9,7 +9,7 @@ WeChat Workbench 是一个 Obsidian 桌面端微信公众号工作台：在 Vaul
 - 4 套内置主题，以及经过隔离和校验的 Vault 自定义主题。
 - Markdown、GFM 表格、Callout、代码高亮、KaTeX、Mermaid 确定性渲染。
 - 活动笔记 400 ms 防抖实时预览；被动预览不加载远程图片。
-- 一键复制公众号富文本，或复制可审计的 HTML 源码。
+- 一键复制可直接粘贴到公众号编辑器的富文本。
 - 文章、正文首图、插件默认图、本地 Vault 图片和可选智能生成封面；统一裁剪为 2.35:1，确认后才写入文章。
 - 本机直连微信公众号 API，支持创建草稿、更新已关联草稿、无变化跳过和失败恢复。
 - 单账号 UI；AppSecret、Access Token、图片 API Key 保存到 Obsidian `SecretStorage`。
@@ -48,9 +48,9 @@ WECHAT_WORKBENCH_TEST_VAULT=/absolute/path/to/test-vault npm run sync:test-vault
 ## 使用入口
 
 - 点击左侧 Ribbon 的报纸图标，或运行命令 `Open workbench`。
-- 在右侧工作台选择主题并检查阻断项/警告项。
-- `复制` 写入公众号富文本剪贴板；更多菜单可复制 HTML 源码。
-- `发布设置` 查看文章信息、选择或生成封面，以及查看草稿关联状态。
+- 在右侧工作台切换主题并实时检查排版效果。
+- `复制` 写入公众号富文本剪贴板。
+- `发布设置` 编辑文章信息、选择或生成封面，以及查看草稿关联状态。
 - `发文章` 只创建或更新后台草稿，不会正式群发。
 
 ## 文档

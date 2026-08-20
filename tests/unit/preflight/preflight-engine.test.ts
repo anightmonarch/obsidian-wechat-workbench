@@ -35,7 +35,7 @@ describe('PreflightEngine', () => {
     expect(report.blocking.map(item => item.code)).toEqual([PREFLIGHT_CODES.ACTIVE_MARKDOWN_MISSING]);
   });
 
-  it('blocks unresolved local assets and warns for an empty digest', () => {
+  it('defers local asset resolution to the requested action and warns for an empty digest', () => {
     const input = artifact({
       metadata: Object.freeze({
         title: 'Article', author: '', digest: '   ', cover: null, contentSourceUrl: '',
@@ -48,9 +48,18 @@ describe('PreflightEngine', () => {
 
     const report = new PreflightEngine().run(input, copyContext);
 
-    expect(report.blocking.map(item => item.code)).toContain(PREFLIGHT_CODES.LOCAL_ASSET_UNRESOLVED);
+    expect(report.blocking.map(item => item.code)).not.toContain(PREFLIGHT_CODES.LOCAL_ASSET_UNRESOLVED);
+    expect(report.info.map(item => item.code)).toContain(PREFLIGHT_CODES.LOCAL_ASSET_UNRESOLVED);
     expect(report.warnings.map(item => item.code)).toContain(PREFLIGHT_CODES.DIGEST_EMPTY);
-    expect(report.ok).toBe(false);
+    expect(report.ok).toBe(true);
+
+    const publishReport = new PreflightEngine().run(input, {
+      purpose: 'publish', themeValid: true, accountConfigured: true, coverReady: true,
+      associationAccountMatches: true,
+    });
+    expect(publishReport.blocking.map(item => item.code))
+      .toContain(PREFLIGHT_CODES.LOCAL_ASSET_UNRESOLVED);
+    expect(publishReport.ok).toBe(false);
   });
 
   it('checks title, sanitized body, and active theme without requiring an account for copy', () => {

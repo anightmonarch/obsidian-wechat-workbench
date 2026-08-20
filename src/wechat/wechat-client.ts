@@ -118,8 +118,12 @@ function approvedWechatImageUrl(value: unknown, stage: WeChatStage): string {
     const url = new URL(value);
     const hostApproved = url.hostname === 'mmbiz.qpic.cn' || url.hostname.endsWith('.mmbiz.qpic.cn');
     const sensitiveQuery = [...url.searchParams.keys()].some(key => /token|secret|key/iu.test(key));
-    if (url.protocol !== 'https:' || !hostApproved || sensitiveQuery
+    if (!hostApproved || sensitiveQuery
       || url.username.length > 0 || url.password.length > 0) {
+      throw new Error('WeChat image URL is outside the approved CDN boundary.');
+    }
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    if (url.protocol !== 'https:') {
       throw new Error('WeChat image URL is outside the approved CDN boundary.');
     }
     return url.toString();

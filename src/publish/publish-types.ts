@@ -14,6 +14,12 @@ export type PublishStage =
 
 export type PublishAction = 'CREATE' | 'UPDATE' | 'SKIP';
 
+export interface DraftAssociationRef {
+  file: VaultFileRef;
+  draftId: string;
+  accountId: string;
+}
+
 export interface PublishDialogInput {
   action: PublishAction;
   appId: string;
@@ -30,6 +36,7 @@ export interface PublishDialogInput {
 
 export interface PublishCommand {
   file: VaultFileRef;
+  expectedAssociation: Readonly<DraftAssociationRef> | null;
   artifact: Readonly<RenderArtifact>;
   accountHash: string;
   cover: Readonly<UploadImage>;

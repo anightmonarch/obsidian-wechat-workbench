@@ -41,6 +41,19 @@ function localWriteError(error: unknown, remoteCommitted: boolean): PublicError 
   });
 }
 
+function associationChangedError(): PublicError {
+  return new PublicError({
+    code: 'DRAFT_ASSOCIATION_CHANGED',
+    stage: 'LOCAL_STATE',
+    errcode: null,
+    errmsg: 'The local draft association changed before it could be removed.',
+    rid: null,
+    remoteEffect: 'NONE',
+    retryable: false,
+    nextAction: 'Reopen the recovery action and verify the current draft association.',
+  });
+}
+
 export class PublishStateStore {
   constructor(
     private readonly reader: FrontmatterReadPort,
@@ -78,12 +91,20 @@ export class PublishStateStore {
     }
   }
 
-  async unlink(file: VaultFileRef): Promise<void> {
+  async unlink(
+    file: VaultFileRef,
+    expected: Readonly<Pick<SyncedDraftState, 'draftId' | 'accountId'>>,
+  ): Promise<void> {
     try {
       await this.writer.processFrontmatter(file, frontmatter => {
+        if (text(frontmatter[WECHAT_FRONTMATTER_FIELDS.draftId]) !== expected.draftId
+          || text(frontmatter[WECHAT_FRONTMATTER_FIELDS.accountId]) !== expected.accountId) {
+          throw associationChangedError();
+        }
         for (const key of WECHAT_OWNED_FRONTMATTER_KEYS) delete frontmatter[key];
       });
     } catch (error) {
+      if (error instanceof PublicError) throw error;
       throw localWriteError(error, false);
     }
   }

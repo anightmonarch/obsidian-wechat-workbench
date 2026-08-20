@@ -2,7 +2,7 @@ import type { ThemeManifest } from '../../domain/theme';
 
 export const EDITORIAL_MANIFEST: ThemeManifest = Object.freeze({
   id: 'editorial',
-  name: 'Editorial',
+  name: '编辑精选',
   version: '1.0.0',
   author: 'WeChat Workbench',
   description: 'A book-like editorial theme for long-form articles.',

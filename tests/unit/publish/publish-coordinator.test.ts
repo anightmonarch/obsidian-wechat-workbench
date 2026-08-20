@@ -83,6 +83,7 @@ function harness(local: Readonly<SyncedDraftState> | null = null) {
 
 const command = Object.freeze({
   file,
+  expectedAssociation: null,
   artifact,
   accountHash: 'ACCOUNT_A',
   cover,

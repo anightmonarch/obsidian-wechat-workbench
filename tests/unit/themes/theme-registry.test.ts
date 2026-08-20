@@ -49,6 +49,8 @@ describe('ThemeRegistry', () => {
 
     expect(registry.list().filter(theme => theme.source === 'builtin').map(theme => theme.manifest.id))
       .toEqual(['editorial', 'native', 'technical', 'verdant']);
+    expect(registry.list().filter(theme => theme.source === 'builtin').map(theme => theme.manifest.name))
+      .toEqual(['编辑精选', '原生简约', '技术文档', '苍绿']);
   });
 
   it('loads a valid custom theme and returns its scoped CSS', async () => {

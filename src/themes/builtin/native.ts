@@ -2,7 +2,7 @@ import type { ThemeManifest } from '../../domain/theme';
 
 export const NATIVE_MANIFEST: ThemeManifest = Object.freeze({
   id: 'native',
-  name: 'Native',
+  name: '原生简约',
   version: '1.0.0',
   author: 'WeChat Workbench',
   description: 'Clean typography close to the native WeChat reading experience.',

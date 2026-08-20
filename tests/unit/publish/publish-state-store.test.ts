@@ -62,9 +62,32 @@ describe('PublishStateStore', () => {
       'wechat-synced-at': '2026-08-19T00:00:00.000Z',
     });
 
-    await current.store.unlink(file);
+    await current.store.unlink(file, {
+      draftId: 'TEST_MEDIA_ID',
+      accountId: 'ACCOUNT_HASH',
+    });
 
     expect(current.frontmatter).toEqual({ title: 'Keep title', custom_user_field: 'keep-me' });
+  });
+
+  it('refuses to unlink when a stale recovery action no longer matches the current association', async () => {
+    const current = harness({
+      title: 'Keep title',
+      'wechat-draft-id': 'NEW_MEDIA_ID',
+      'wechat-account-id': 'NEW_ACCOUNT_HASH',
+      'wechat-content-hash': 'NEW_CONTENT_HASH',
+    });
+
+    await expect(current.store.unlink(file, {
+      draftId: 'OLD_MEDIA_ID',
+      accountId: 'OLD_ACCOUNT_HASH',
+    })).rejects.toMatchObject({ code: 'DRAFT_ASSOCIATION_CHANGED', remoteEffect: 'NONE' });
+
+    expect(current.frontmatter).toMatchObject({
+      'wechat-draft-id': 'NEW_MEDIA_ID',
+      'wechat-account-id': 'NEW_ACCOUNT_HASH',
+      'wechat-content-hash': 'NEW_CONTENT_HASH',
+    });
   });
 
   it('returns a stable local-state error when Frontmatter is read-only', async () => {

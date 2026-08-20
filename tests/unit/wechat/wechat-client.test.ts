@@ -150,6 +150,21 @@ describe('WeChatClient', () => {
     expect(current.requests[0]?.body).toBeInstanceOf(Uint8Array);
   });
 
+  it('upgrades an HTTP image URL returned by the approved WeChat CDN to HTTPS', async () => {
+    const image = {
+      bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+      mimeType: 'image/png' as const,
+      filename: 'image.png',
+    };
+    const client = new WeChatClient(transport({
+      url: 'http://mmbiz.qpic.cn/mmbiz_png/SYNTHETIC/0?wx_fmt=png',
+    }).http);
+
+    await expect(client.uploadBodyImage(image, 'TEST_ACCESS_TOKEN')).resolves.toEqual({
+      url: 'https://mmbiz.qpic.cn/mmbiz_png/SYNTHETIC/0?wx_fmt=png',
+    });
+  });
+
   it('rejects upload URLs outside the approved WeChat image CDN boundary', async () => {
     const image = {
       bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),

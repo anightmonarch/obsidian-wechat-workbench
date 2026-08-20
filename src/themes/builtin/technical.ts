@@ -2,7 +2,7 @@ import type { ThemeManifest } from '../../domain/theme';
 
 export const TECHNICAL_MANIFEST: ThemeManifest = Object.freeze({
   id: 'technical',
-  name: 'Technical',
+  name: '技术文档',
   version: '1.0.0',
   author: 'WeChat Workbench',
   description: 'A compact technical theme optimized for code and structured notes.',

@@ -14,7 +14,7 @@ Scope: article HTML/CSS, network assets, credentials, cover confirmation, publis
 - Draft change detection now hashes title, author, digest, source URL, body and theme, so Frontmatter-only edits no longer become false SKIP results.
 - Cover and unlink confirmations are bound to the originating note and article context. A stale dialog cannot mutate the newly active note.
 - Recovery validates note, account and fingerprint, refuses to overwrite a different current draft, supports repair from a known remote result when receipt persistence failed, and reports receipt-resolution failure as `LOCAL_COMMITTED`.
-- WeChat and image-provider requests now use DNS/IP-pinned Node transport with active socket destruction, total/connect/read deadlines and a 32 MiB streamed response ceiling.
+- Fixed official WeChat API endpoints use Obsidian `requestUrl` to remain compatible with VPN/proxy Fake-IP DNS. User-configurable image-provider requests retain the DNS/IP-pinned Node transport with active socket destruction, total/connect/read deadlines and a 32 MiB streamed response ceiling.
 - Remote image redirects remain HTTPS and share one end-to-end deadline. Provider URLs cannot contain credentials, query strings or fragments; uploaded image URLs are restricted to the approved WeChat CDN boundary.
 - Error redaction covers header/JSON/query, snake_case and camelCase credential forms. Settings expose explicit credential clearing.
 
@@ -26,6 +26,6 @@ Scope: article HTML/CSS, network assets, credentials, cover confirmation, publis
 - `tests/adversarial/large-input.test.ts`
 - Existing transaction tests cover double publish, account mismatch, missing drafts, ambiguous remote effects, and local write recovery.
 
-Final local command result for this review: 56 test files and 207 tests passed, followed by lint, typecheck, production build, release verification and sensitive-information scan.
+At the time of this review, 56 test files and 207 tests passed, followed by lint, typecheck, production build, release verification and sensitive-information scan. Later UI hardening, account-entry, editable-article-settings, recovery-safety, Obsidian transport, actionable-token-error and WeChat CDN normalization tests bring the current suite to 62 test files and 240 tests; see the current [WeSight UI evidence](wesight-ui-redesign.md).
 
 No test invokes a real account, formal publish endpoint, deletion endpoint, or mass-send endpoint.

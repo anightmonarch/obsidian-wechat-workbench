@@ -79,13 +79,37 @@ describe('PublishWorkflow', () => {
   it('blocks missing account, cover, and account mismatch before any network call', async () => {
     await expect(harness({ appId: '', accountHash: null, defaultCoverStrategy: 'first-image' })
       .workflow.prepare(file, { ...artifact, assets: Object.freeze([]) }))
-      .rejects.toMatchObject({ code: 'PUBLISH_PREPARE_BLOCKED' });
+      .rejects.toMatchObject({ code: 'WECHAT_ACCOUNT_NOT_CONFIGURED' });
 
     const mismatched: Readonly<SyncedDraftState> = Object.freeze({
       draftId: 'TEST_MEDIA_ID', accountId: 'OTHER_ACCOUNT', contentHash: 'OLD',
       themeId: 'native', themeVersion: '1.0.0', coverHash: 'OLD', syncedAt: 'old',
     });
     await expect(harness(undefined, mismatched).workflow.prepare(file, artifact))
+      .rejects.toMatchObject({
+        code: 'DRAFT_ACCOUNT_MISMATCH',
+        association: {
+          file,
+          draftId: 'TEST_MEDIA_ID',
+          accountId: 'OTHER_ACCOUNT',
+        },
+      });
+  });
+
+  it('blocks a missing body image while still allowing a readable first image as cover', async () => {
+    const missingBodyImage = Object.freeze({
+      ...artifact,
+      canonicalHtml: `${artifact.canonicalHtml.slice(0, -10)}<img data-asset-id="asset:missing" data-asset-kind="local-image"></section>`,
+      assets: Object.freeze([
+        ...artifact.assets,
+        Object.freeze({
+          id: 'asset:missing', kind: 'local-image' as const, source: 'assets/missing.png',
+          status: 'unresolved' as const, contentHash: null, resolvedUrl: null,
+        }),
+      ]),
+    });
+
+    await expect(harness().workflow.prepare(file, missingBodyImage))
       .rejects.toMatchObject({ code: 'PUBLISH_PREPARE_BLOCKED' });
   });
 
@@ -99,12 +123,21 @@ describe('PublishWorkflow', () => {
     expect(current.publish).toHaveBeenCalledWith(prepared.command);
   });
 
-  it('unlinks only the active note local association', async () => {
-    const current = harness();
+  it('unlinks only the exact draft association captured by the recovery action', async () => {
+    const local: Readonly<SyncedDraftState> = Object.freeze({
+      draftId: 'TEST_MEDIA_ID', accountId: 'ACCOUNT_HASH', contentHash: 'OLD',
+      themeId: 'native', themeVersion: '1.0.0', coverHash: 'OLD', syncedAt: 'old',
+    });
+    const current = harness(undefined, local);
+    const association = (await current.workflow.prepare(file, artifact)).command.expectedAssociation;
 
-    await current.workflow.unlink(file);
+    expect(association).not.toBeNull();
+    await current.workflow.unlink(association!);
 
-    expect(current.state.unlink).toHaveBeenCalledWith(file);
+    expect(current.state.unlink).toHaveBeenCalledWith(file, {
+      draftId: 'TEST_MEDIA_ID',
+      accountId: 'ACCOUNT_HASH',
+    });
     expect(current.publish).not.toHaveBeenCalled();
   });
 

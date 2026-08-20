@@ -12,6 +12,9 @@ export default defineConfig({
     environment: 'jsdom',
     clearMocks: true,
     restoreMocks: true,
+    // jsdom + KaTeX/Mermaid workers are memory-heavy. Serial file execution
+    // keeps clean-install verification deterministic on ordinary laptops.
+    fileParallelism: false,
     include: ['tests/**/*.test.ts'],
   },
 });

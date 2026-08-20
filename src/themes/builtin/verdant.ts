@@ -2,7 +2,7 @@ import type { ThemeManifest } from '../../domain/theme';
 
 export const VERDANT_MANIFEST: ThemeManifest = Object.freeze({
   id: 'verdant',
-  name: 'Verdant',
+  name: '苍绿',
   version: '1.0.0',
   author: 'WeChat Workbench',
   description: 'A restrained green theme with clear section hierarchy.',
