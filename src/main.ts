@@ -28,6 +28,11 @@ import { ArticleSettingsService } from './settings/article-settings';
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
+import { CodeThemeRegistry } from './styles/code-theme-registry';
+import { StyleCompiler } from './styles/style-compiler';
+import { StyleFrontmatterStore } from './styles/style-frontmatter-store';
+import { StyleResolver } from './styles/style-resolver';
+import { StyleWorkflow } from './styles/style-workflow';
 import { WeChatWorkbenchSettingTab } from './settings/settings-tab';
 import { BUILTIN_THEMES } from './themes/builtin';
 import { ThemeRegistry } from './themes/theme-registry';
@@ -108,6 +113,29 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       get defaultThemeId() { return currentSettings().defaultThemeId; },
     });
     const builder = new RenderArtifactBuilder(vaultPorts);
+    const styleWorkflow = new StyleWorkflow(
+      new StyleResolver(),
+      {
+        get: () => ({
+          defaultStyle: this.pluginSettings.defaultStyle,
+          recentStyles: this.pluginSettings.recentStyles,
+        }),
+        update: async patch => { await updateSettings(patch); },
+      },
+      themes,
+      new StyleCompiler(new CodeThemeRegistry()),
+      new StyleFrontmatterStore(vaultPorts),
+    );
+    const buildCurrentArtifact = async (file: { path: string; basename: string; modifiedAt: number }): Promise<Readonly<RenderArtifact>> => {
+      const current = await snapshots.snapshot(file);
+      const resolved = styleWorkflow.resolve(current);
+      const theme = styleWorkflow.materialize(resolved);
+      return builder.build(
+        current,
+        theme,
+        resolved.renderMode === 'compiled' ? resolved.config : null,
+      );
+    };
     const preflight = new PreflightEngine();
     const diagrams = new DiagramRenderer(new BrowserMermaidEngine(), new ElectronSvgRasterizer());
     const previewAssets = new WorkbenchPreviewAssetResolver(
@@ -157,12 +185,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       state,
       receipts,
       currentSourceHash: async file => (await snapshots.snapshot(file)).sourceHash,
-      currentPayloadHash: async command => {
-        const current = await snapshots.snapshot(command.file);
-        const theme = themes.get(command.artifact.theme.id);
-        if (theme === undefined) throw new Error('Confirmed theme is no longer available.');
-        return publishPayloadHash(await builder.build(current, theme));
-      },
+      currentPayloadHash: async command => publishPayloadHash(await buildCurrentArtifact(command.file)),
       currentCover: async command => {
         const current = await snapshots.snapshot(command.file);
         const configured = current.metadata.cover;
@@ -238,6 +261,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
           publisher,
           covers,
           articleSettings,
+          styleWorkflow,
         ));
         return view;
       },
