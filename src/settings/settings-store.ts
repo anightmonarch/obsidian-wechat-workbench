@@ -5,6 +5,8 @@ import {
   type PluginSettings,
   type RecoveryReceiptRecord,
 } from './model';
+import type { ArticleStyleConfig } from '../domain/style';
+import { parseArticleStyle } from '../styles/style-config';
 
 export interface PluginDataPort {
   loadData(): Promise<unknown>;
@@ -51,6 +53,23 @@ function coverStrategy(value: unknown): DefaultCoverStrategy {
   return typeof value === 'string' && COVER_STRATEGIES.has(value as DefaultCoverStrategy)
     ? value as DefaultCoverStrategy
     : DEFAULT_SETTINGS.defaultCoverStrategy;
+}
+
+function styleConfig(value: unknown, fallback: Readonly<ArticleStyleConfig>): Readonly<ArticleStyleConfig> {
+  const parsed = parseArticleStyle(value, fallback);
+  return parsed.status === 'valid' ? parsed.config : fallback;
+}
+
+function recentStyles(value: unknown): Readonly<Record<string, Readonly<ArticleStyleConfig>>> {
+  if (!isRecord(value)) return Object.freeze({});
+  const entries: Array<readonly [string, Readonly<ArticleStyleConfig>]> = [];
+  for (const [themeId, candidate] of Object.entries(value).slice(-100)) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(themeId)) continue;
+    const parsed = parseArticleStyle(candidate);
+    if (parsed.status !== 'valid') continue;
+    entries.push([themeId, parsed.config]);
+  }
+  return Object.freeze(Object.fromEntries(entries) as Record<string, Readonly<ArticleStyleConfig>>);
 }
 
 function mediaCache(value: unknown): readonly Readonly<MediaCacheRecord>[] {
@@ -115,12 +134,16 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
 }
 
 function sanitizeSettings(value: unknown): PluginSettings {
-  const stored = isRecord(value) && value.schemaVersion === 1 ? value : {};
+  const stored = isRecord(value) && (value.schemaVersion === 1 || value.schemaVersion === 2)
+    ? value
+    : {};
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
+    defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
+    recentStyles: recentStyles(stored.recentStyles),
     customThemeDirectory: stringValue(
       stored.customThemeDirectory,
       DEFAULT_SETTINGS.customThemeDirectory,

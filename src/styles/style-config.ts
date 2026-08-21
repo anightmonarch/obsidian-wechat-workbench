@@ -29,7 +29,7 @@ const BASE_DEFAULTS = Object.freeze({
   headingStyles: Object.freeze({
     h1: 'default', h2: 'default', h3: 'default',
     h4: 'default', h5: 'default', h6: 'default',
-  }) as Readonly<Partial<Record<HeadingLevel, HeadingStyle>>>,
+  }),
   codeThemeId: 'github-dark',
   showCodeLineNumbers: false,
   macCodeBlock: true,

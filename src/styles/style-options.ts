@@ -1,6 +1,5 @@
 import type {
   FontFamilyId,
-  FontSize,
   HeadingStyle,
   ImageCaptionMode,
 } from '../domain/style';
@@ -18,9 +17,9 @@ export const STYLE_OPTIONS = Object.freeze({
     Object.freeze({ id: 'doocs-simple', label: '简洁', description: '轻量现代的简洁排版。' }),
   ] satisfies readonly StyleOption<string>[]),
   fonts: Object.freeze([
-    Object.freeze({ id: 'sans-serif' as FontFamilyId, label: '无衬线', description: '清晰现代。' }),
-    Object.freeze({ id: 'serif' as FontFamilyId, label: '衬线', description: '更有阅读感。' }),
-    Object.freeze({ id: 'monospace' as FontFamilyId, label: '等宽', description: '适合技术内容。' }),
+    Object.freeze({ id: 'sans-serif', label: '无衬线', description: '清晰现代。' }),
+    Object.freeze({ id: 'serif', label: '衬线', description: '更有阅读感。' }),
+    Object.freeze({ id: 'monospace', label: '等宽', description: '适合技术内容。' }),
   ] satisfies readonly StyleOption<FontFamilyId>[]),
   fontSizes: Object.freeze([14, 15, 16, 17, 18] as const),
   colors: Object.freeze([
@@ -37,17 +36,17 @@ export const STYLE_OPTIONS = Object.freeze({
     Object.freeze({ id: '#FFB7C5', label: '樱花粉', description: '浪漫甜美。' }),
   ]),
   headingStyles: Object.freeze([
-    Object.freeze({ id: 'default' as HeadingStyle, label: '默认', description: '使用主题默认标题。' }),
-    Object.freeze({ id: 'color-only' as HeadingStyle, label: '主题色文字', description: '只使用主题色。' }),
-    Object.freeze({ id: 'border-bottom' as HeadingStyle, label: '下边框', description: '主题色下边框。' }),
-    Object.freeze({ id: 'border-left' as HeadingStyle, label: '左边框', description: '主题色左边框。' }),
+    Object.freeze({ id: 'default', label: '默认', description: '使用主题默认标题。' }),
+    Object.freeze({ id: 'color-only', label: '主题色文字', description: '只使用主题色。' }),
+    Object.freeze({ id: 'border-bottom', label: '下边框', description: '主题色下边框。' }),
+    Object.freeze({ id: 'border-left', label: '左边框', description: '主题色左边框。' }),
   ] satisfies readonly StyleOption<HeadingStyle>[]),
   captionModes: Object.freeze([
-    Object.freeze({ id: 'title-alt' as ImageCaptionMode, label: 'title 优先', description: '优先显示 title。' }),
-    Object.freeze({ id: 'alt-title' as ImageCaptionMode, label: 'alt 优先', description: '优先显示 alt。' }),
-    Object.freeze({ id: 'title' as ImageCaptionMode, label: '仅 title', description: '只显示 title。' }),
-    Object.freeze({ id: 'alt' as ImageCaptionMode, label: '仅 alt', description: '只显示 alt。' }),
-    Object.freeze({ id: 'filename' as ImageCaptionMode, label: '文件名', description: '显示图片文件名。' }),
-    Object.freeze({ id: 'none' as ImageCaptionMode, label: '不显示', description: '隐藏图注。' }),
+    Object.freeze({ id: 'title-alt', label: 'title 优先', description: '优先显示 title。' }),
+    Object.freeze({ id: 'alt-title', label: 'alt 优先', description: '优先显示 alt。' }),
+    Object.freeze({ id: 'title', label: '仅 title', description: '只显示 title。' }),
+    Object.freeze({ id: 'alt', label: '仅 alt', description: '只显示 alt。' }),
+    Object.freeze({ id: 'filename', label: '文件名', description: '显示图片文件名。' }),
+    Object.freeze({ id: 'none', label: '不显示', description: '隐藏图注。' }),
   ] satisfies readonly StyleOption<ImageCaptionMode>[]),
 });
