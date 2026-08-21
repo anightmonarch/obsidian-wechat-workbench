@@ -6,7 +6,8 @@ WeChat Workbench 是一个 Obsidian 桌面端微信公众号工作台：在 Vaul
 
 ## 能力范围
 
-- 4 套内置主题，以及经过隔离和校验的 Vault 自定义主题。
+- 7 套内置主题，以及经过隔离和校验的 Vault 自定义主题。
+- Doocs 风格组合式样式工作台：主题、字体、字号、主题色、标题、代码、图注和段落设置均可独立调整。
 - Markdown、GFM 表格、Callout、代码高亮、KaTeX、Mermaid 确定性渲染。
 - 活动笔记 400 ms 防抖实时预览；被动预览不加载远程图片。
 - 一键复制可直接粘贴到公众号编辑器的富文本。
@@ -48,7 +49,7 @@ WECHAT_WORKBENCH_TEST_VAULT=/absolute/path/to/test-vault npm run sync:test-vault
 ## 使用入口
 
 - 点击左侧 Ribbon 的报纸图标，或运行命令 `Open workbench`。
-- 在右侧工作台切换主题并实时检查排版效果。
+- 在右侧工作台打开“样式”，实时组合排版并自动保存当前文章样式。
 - `复制` 写入公众号富文本剪贴板。
 - `发布设置` 编辑文章信息、选择或生成封面，以及查看草稿关联状态。
 - `发文章` 只创建或更新后台草稿，不会正式群发。
@@ -57,6 +58,7 @@ WECHAT_WORKBENCH_TEST_VAULT=/absolute/path/to/test-vault npm run sync:test-vault
 
 - [入门与本地安装](docs/user-guide/getting-started.md)
 - [自定义主题](docs/user-guide/themes.md)
+- [第三方主题来源与许可证](THIRD_PARTY_NOTICES.md)
 - [文章封面](docs/user-guide/covers.md)
 - [草稿恢复](docs/user-guide/recovery.md)
 - [IP 白名单](docs/user-guide/wechat-ip-whitelist.md)
