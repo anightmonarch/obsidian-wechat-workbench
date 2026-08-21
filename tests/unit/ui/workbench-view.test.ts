@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Menu } from '../../mocks/obsidian';
 import { UnlinkAssociationModal } from '../../../src/ui/publish-dialog';
 import type { WorkbenchRenderState } from '../../../src/ui/workbench-controller';
+import { defaultStyleForTheme } from '../../../src/styles/style-config';
 import {
   copyFailureMessage,
   isMissingAccountConfiguration,
@@ -43,6 +44,11 @@ const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
     css: '', contentHash: 'theme', source: 'builtin', previewPath: null,
   })]),
   selectedThemeId: 'native',
+  style: Object.freeze({
+    source: 'legacy', renderMode: 'legacy', themeId: 'native',
+    config: defaultStyleForTheme('native'), unsupportedVersion: null,
+  }),
+  styleSaveStatus: 'saved',
 });
 
 describe('WeChatWorkbenchView', () => {

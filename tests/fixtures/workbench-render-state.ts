@@ -1,4 +1,5 @@
 import type { WorkbenchRenderState } from '../../src/ui/workbench-controller';
+import { defaultStyleForTheme } from '../../src/styles/style-config';
 
 export const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
   snapshot: Object.freeze({
@@ -60,4 +61,9 @@ export const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
     previewPath: null,
   })]),
   selectedThemeId: 'native',
+  style: Object.freeze({
+    source: 'legacy', renderMode: 'legacy', themeId: 'native',
+    config: defaultStyleForTheme('native'), unsupportedVersion: null,
+  }),
+  styleSaveStatus: 'saved',
 });

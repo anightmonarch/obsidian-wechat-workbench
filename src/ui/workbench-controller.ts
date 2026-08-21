@@ -1,6 +1,7 @@
 import type { EditableArticleSettings, NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
 import type { VaultFileRef } from '../domain/ports';
+import type { ArticleStyleConfig } from '../domain/style';
 import type { ThemeDefinition } from '../domain/theme';
 import type {
   CoverPickerModel,
@@ -11,6 +12,8 @@ import type { PreflightContext, PreflightReport } from '../preflight/preflight-e
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { DraftAssociationRef, PublishCommand, PublishOutcome } from '../publish/publish-types';
 import { publishPayloadHash } from '../publish/publish-content';
+import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../styles/style-config';
+import type { ResolvedArticleStyle } from '../styles/style-resolver';
 import type { AiCoverDisclosure } from './ai-cover-confirmation';
 
 export interface WorkbenchEventHandle {
@@ -37,7 +40,16 @@ export interface ArtifactBuilderPort {
   build(
     snapshot: Readonly<NoteSnapshot>,
     theme: Readonly<ThemeDefinition>,
+    style?: Readonly<ArticleStyleConfig> | null,
   ): Promise<Readonly<RenderArtifact>>;
+}
+
+export interface WorkbenchStylePort {
+  resolve(snapshot: Readonly<NoteSnapshot>): Readonly<ResolvedArticleStyle>;
+  materialize(resolved: Readonly<ResolvedArticleStyle>): Readonly<ThemeDefinition>;
+  saveArticle(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
+  setGlobalDefault(config: Readonly<ArticleStyleConfig>): Promise<void>;
+  reset(themeId: string): Readonly<ArticleStyleConfig>;
 }
 
 export interface PreflightEnginePort {
@@ -53,6 +65,8 @@ export interface WorkbenchRenderState {
   preflight: Readonly<PreflightReport>;
   themes: readonly Readonly<ThemeDefinition>[];
   selectedThemeId: string;
+  style: Readonly<ResolvedArticleStyle>;
+  styleSaveStatus: 'saved' | 'saving' | 'unsaved';
 }
 
 export interface WorkbenchViewPort {
@@ -60,6 +74,8 @@ export interface WorkbenchViewPort {
   showLoading(path: string): void;
   showError(message: string): void;
   showArtifact(state: Readonly<WorkbenchRenderState>): void;
+  showStyleStatus?(status: 'saved' | 'saving' | 'unsaved', message?: string): void;
+  showStyleMessage?(message: string): void;
 }
 
 export interface WorkbenchClipboardPort {
@@ -112,13 +128,18 @@ type FallbackThemeSource = string | (() => string);
 
 export class WorkbenchController {
   private readonly subscriptions: WorkbenchEventHandle[] = [];
-  private readonly themeOverrides = new Map<string, string>();
   private timer: number | null = null;
+  private styleSaveTimer: number | null = null;
   private generation = 0;
   private started = false;
+  private styleBuildPending = false;
   private artifact: Readonly<RenderArtifact> | null = null;
   private report: Readonly<PreflightReport> | null = null;
   private snapshot: Readonly<NoteSnapshot> | null = null;
+  private style: Readonly<ResolvedArticleStyle> | null = null;
+  private styleSaveStatus: 'saved' | 'saving' | 'unsaved' = 'saved';
+  private previewStyleOverride: Readonly<{ path: string; config: Readonly<ArticleStyleConfig> }> | null = null;
+  private pendingStyleSave: Readonly<{ file: VaultFileRef; config: Readonly<ArticleStyleConfig> }> | null = null;
 
   constructor(
     private readonly source: WorkbenchSourcePort,
@@ -134,12 +155,15 @@ export class WorkbenchController {
     private readonly publisher?: WorkbenchPublishPort,
     private readonly covers?: WorkbenchCoverPort,
     private readonly articleSettings?: WorkbenchArticleSettingsPort,
+    private readonly styles?: WorkbenchStylePort,
   ) {}
 
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.addSubscription(this.source.onActiveMarkdownChanged(() => this.rebuild('active-file')));
+    this.addSubscription(this.source.onActiveMarkdownChanged(() => {
+      void this.flushStyleSave().finally(() => this.rebuild('active-file'));
+    }));
     this.addSubscription(this.source.onVaultFileModified(path => {
       const activePath = this.source.currentMarkdown()?.path;
       const activeAssetChanged = this.artifact?.assets.some(asset => (
@@ -150,7 +174,7 @@ export class WorkbenchController {
     this.rebuild('start');
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.started) return;
     this.started = false;
     this.generation += 1;
@@ -159,6 +183,9 @@ export class WorkbenchController {
     this.snapshot = null;
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = null;
+    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
+    this.styleSaveTimer = null;
+    await this.flushStyleSave();
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
   }
 
@@ -166,24 +193,89 @@ export class WorkbenchController {
     if (!this.started) return;
     this.generation += 1;
     const requestedGeneration = this.generation;
-    this.artifact = null;
-    this.report = null;
-    this.snapshot = null;
+    this.styleBuildPending = _reason === 'style';
+    if (!this.styleBuildPending) {
+      this.artifact = null;
+      this.report = null;
+      this.snapshot = null;
+      this.style = null;
+    }
     const pendingFile = this.source.currentMarkdown();
     if (pendingFile === null) this.view.showEmpty();
-    else this.view.showLoading(pendingFile.path);
+    else if (!this.styleBuildPending) this.view.showLoading(pendingFile.path);
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       this.timer = null;
-      void this.buildCurrent(requestedGeneration);
+      void this.buildCurrent(requestedGeneration, this.styleBuildPending);
     }, this.debounceMs);
   }
 
   selectTheme(themeId: string): void {
-    const file = this.source.currentMarkdown();
-    if (file === null || this.themes.get(themeId) === undefined) return;
-    this.themeOverrides.set(file.path, themeId);
-    this.rebuild('theme');
+    if (this.styles !== undefined) this.selectStyleTheme(themeId);
+  }
+
+  updateStyle(
+    patch: Readonly<Partial<Omit<ArticleStyleConfig, 'version' | 'headingStyles'>> & {
+      headingStyles?: ArticleStyleConfig['headingStyles'];
+    }>,
+  ): void {
+    if (this.styles === undefined) return;
+    const current = this.pendingStyleSave?.config ?? this.style?.config;
+    const file = this.snapshot === null ? null : this.currentFile(this.snapshot);
+    if (current === undefined || file === null) return;
+    if (this.style?.source === 'unsupported-fallback' && this.pendingStyleSave === null) {
+      this.view.showStyleMessage?.('当前文章样式来自更高版本，请升级插件后再修改。');
+      return;
+    }
+    const config = patchArticleStyle(current, patch);
+    this.previewStyleOverride = Object.freeze({ path: file.path, config });
+    this.pendingStyleSave = Object.freeze({ file, config });
+    this.styleSaveStatus = 'unsaved';
+    this.view.showStyleStatus?.('unsaved', '样式尚未保存');
+    this.scheduleStyleSave();
+    this.rebuild('style');
+  }
+
+  selectStyleTheme(themeId: string): void {
+    if (this.themes.get(themeId) === undefined) return;
+    this.updateStyle({ themeId });
+  }
+
+  resetStyle(): void {
+    const themeId = this.pendingStyleSave?.config.themeId ?? this.style?.config.themeId;
+    if (themeId !== undefined && this.styles !== undefined) this.updateStyle(this.styles.reset(themeId));
+  }
+
+  async setStyleAsDefault(): Promise<void> {
+    if (this.styles === undefined) return;
+    const config = this.pendingStyleSave?.config ?? this.style?.config;
+    if (config === undefined) return;
+    await this.styles.setGlobalDefault(config);
+  }
+
+  async flushStyleSave(): Promise<void> {
+    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
+    this.styleSaveTimer = null;
+    const pending = this.pendingStyleSave;
+    if (pending === null || this.styles === undefined) return;
+    this.pendingStyleSave = null;
+    this.styleSaveStatus = 'saving';
+    this.view.showStyleStatus?.('saving', '正在保存样式');
+    try {
+      await this.styles.saveArticle(pending.file, pending.config);
+      if (this.pendingStyleSave === null) {
+        this.styleSaveStatus = 'saved';
+        this.view.showStyleStatus?.('saved', '样式已保存');
+      }
+    } catch {
+      if (this.pendingStyleSave === null) this.pendingStyleSave = pending;
+      this.styleSaveStatus = 'unsaved';
+      this.view.showStyleStatus?.('unsaved', '样式尚未保存');
+    }
+  }
+
+  currentStyle(): Readonly<ResolvedArticleStyle> | null {
+    return this.style;
   }
 
   currentArtifact(): Readonly<RenderArtifact> | null {
@@ -337,46 +429,94 @@ export class WorkbenchController {
     if (subscription.hostEvent !== undefined) this.registerHostEvent(subscription.hostEvent);
   }
 
-  private async buildCurrent(requestedGeneration: number): Promise<void> {
+  private async buildCurrent(requestedGeneration: number, styleOnly = false): Promise<void> {
     const file = this.source.currentMarkdown();
     if (file === null) {
       if (this.isCurrent(requestedGeneration)) this.view.showEmpty();
       return;
     }
-    this.view.showLoading(file.path);
+    if (!styleOnly) this.view.showLoading(file.path);
 
     try {
       const snapshot = await this.snapshots.snapshot(file);
-      const requestedThemeId = this.themeOverrides.get(file.path) ?? snapshot.selectedThemeId;
-      const requestedTheme = this.themes.get(requestedThemeId);
-      const theme = requestedTheme
-        ?? this.themes.get(this.currentFallbackThemeId())
-        ?? this.themes.list()[0];
+      let resolved: Readonly<ResolvedArticleStyle> | null = null;
+      let theme: Readonly<ThemeDefinition> | undefined;
+      let themeIsValid = true;
+      if (this.styles !== undefined) {
+        resolved = this.styles.resolve(snapshot);
+        if (this.previewStyleOverride?.path === file.path) {
+          resolved = Object.freeze({
+            ...resolved,
+            source: 'article',
+            renderMode: 'compiled',
+            themeId: this.previewStyleOverride.config.themeId,
+            config: this.previewStyleOverride.config,
+            unsupportedVersion: null,
+          });
+        }
+        theme = this.styles.materialize(resolved);
+      } else {
+        const requestedTheme = this.themes.get(snapshot.selectedThemeId);
+        theme = requestedTheme
+          ?? this.themes.get(this.currentFallbackThemeId())
+          ?? this.themes.list()[0];
+        themeIsValid = requestedTheme !== undefined;
+      }
       if (theme === undefined) throw new Error('No valid article theme is available.');
-      const artifact = await this.builder.build(snapshot, theme);
+      const artifact = await this.builder.build(
+        snapshot,
+        theme,
+        resolved?.renderMode === 'compiled' ? resolved.config : null,
+      );
       if (!this.isCurrent(requestedGeneration)) return;
 
       const report = this.preflight.run(artifact, {
         purpose: 'copy',
-        themeValid: requestedTheme !== undefined,
+        themeValid: themeIsValid,
       });
       this.artifact = artifact;
       this.report = report;
       this.snapshot = snapshot;
+      if (resolved !== null) {
+        this.style = resolved;
+        if (resolved.source === 'unsupported-fallback') {
+          this.view.showStyleMessage?.('当前文章样式来自更高版本，请升级插件后再修改。');
+        }
+      }
       this.view.showArtifact(Object.freeze({
         snapshot,
         artifact,
         preflight: report,
         themes: this.themes.list(),
         selectedThemeId: theme.manifest.id,
+        style: resolved ?? Object.freeze({
+          source: 'global', renderMode: 'legacy', themeId: theme.manifest.id,
+          config: DEFAULT_ARTICLE_STYLE, unsupportedVersion: null,
+        }),
+        styleSaveStatus: this.styleSaveStatus,
       }));
     } catch (error) {
       if (!this.isCurrent(requestedGeneration)) return;
+      if (styleOnly && this.artifact !== null) {
+        this.styleSaveStatus = 'unsaved';
+        this.view.showStyleStatus?.('unsaved', '样式无法应用，已恢复上一次效果');
+        this.view.showStyleMessage?.('当前样式无法应用，已恢复上一次效果');
+        return;
+      }
       this.artifact = null;
       this.report = null;
       this.snapshot = null;
+      this.style = null;
       this.view.showError(error instanceof Error ? error.message : 'Article rendering failed.');
     }
+  }
+
+  private scheduleStyleSave(): void {
+    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
+    this.styleSaveTimer = window.setTimeout(() => {
+      this.styleSaveTimer = null;
+      void this.flushStyleSave();
+    }, this.debounceMs);
   }
 
   private isCurrent(requestedGeneration: number): boolean {

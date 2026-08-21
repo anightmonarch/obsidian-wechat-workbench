@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NoteSnapshot } from '../../src/domain/article';
 import type { RenderArtifact } from '../../src/domain/artifact';
 import type { VaultFileRef } from '../../src/domain/ports';
+import type { ArticleStyleConfig } from '../../src/domain/style';
 import type { ThemeDefinition } from '../../src/domain/theme';
 import type { PreflightReport } from '../../src/preflight/preflight-engine';
 import {
@@ -13,6 +14,8 @@ import {
   type WorkbenchSourcePort,
   type WorkbenchViewPort,
 } from '../../src/ui/workbench-controller';
+import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../../src/styles/style-config';
+import type { ResolvedArticleStyle } from '../../src/styles/style-resolver';
 
 function file(path: string): VaultFileRef {
   return { path, basename: path.replace(/\.md$/u, ''), modifiedAt: 1 };
@@ -78,15 +81,23 @@ class FakeSource implements WorkbenchSourcePort {
 
 class FakeView implements WorkbenchViewPort {
   rendered: string[] = [];
+  styles: string[] = [];
   emptyCount = 0;
   errors: string[] = [];
 
   showEmpty(): void { this.emptyCount += 1; }
   showLoading(): void {}
   showError(message: string): void { this.errors.push(message); }
-  showArtifact(state: { artifact: Readonly<RenderArtifact> }): void {
+  showArtifact(state: { artifact: Readonly<RenderArtifact>; style?: Readonly<ResolvedArticleStyle> }): void {
     this.rendered.push(state.artifact.source.vaultPath);
+    if (state.style !== undefined) this.styles.push(state.style.config.primaryColor);
   }
+}
+
+function resolvedStyle(config: Readonly<ArticleStyleConfig> = DEFAULT_ARTICLE_STYLE): Readonly<ResolvedArticleStyle> {
+  return Object.freeze({
+    source: 'global', renderMode: 'compiled', themeId: config.themeId, config, unsupportedVersion: null,
+  });
 }
 
 function controller(
@@ -121,6 +132,36 @@ function controller(
       articleSettings,
     ),
   };
+}
+
+function styledController(
+  source: FakeSource,
+  view: FakeView,
+  build: (snapshot: Readonly<NoteSnapshot>, style: Readonly<ArticleStyleConfig> | null) => Promise<Readonly<RenderArtifact>>,
+  styles: {
+    resolve(snapshot: Readonly<NoteSnapshot>): Readonly<ResolvedArticleStyle>;
+    materialize(resolved: Readonly<ResolvedArticleStyle>): Readonly<ThemeDefinition>;
+    saveArticle(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
+    setGlobalDefault(config: Readonly<ArticleStyleConfig>): Promise<void>;
+    reset(themeId: string): Readonly<ArticleStyleConfig>;
+  },
+) {
+  return new WorkbenchController(
+    source,
+    { snapshot: async ref => snapshotFor(ref) },
+    { get: id => id === 'native' ? theme : undefined, list: () => [theme] },
+    { build: (snapshot, _theme, style) => build(snapshot, style ?? null) },
+    { run: () => Object.freeze({ ok: true, blocking: Object.freeze([]), warnings: Object.freeze([]), info: Object.freeze([]) }) },
+    view,
+    () => undefined,
+    'native',
+    400,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    styles,
+  );
 }
 
 describe('WorkbenchController', () => {
@@ -180,7 +221,7 @@ describe('WorkbenchController', () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(view.rendered).toEqual(['active.md', 'active.md']);
 
-    harness.instance.stop();
+    await harness.instance.stop();
     source.emitActive('ignored.md');
     await vi.advanceTimersByTimeAsync(400);
     expect(view.rendered).toEqual(['active.md', 'active.md']);
@@ -325,5 +366,67 @@ describe('WorkbenchController', () => {
       title: 'Stale title', author: '', digest: '', contentSourceUrl: '',
     })).rejects.toMatchObject({ code: 'ARTICLE_CONTEXT_CHANGED' });
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the newest live style build when an older style build resolves later', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const pending = new Map<string, (artifact: Readonly<RenderArtifact>) => void>();
+    let initial = true;
+    const styles = {
+      resolve: () => resolvedStyle(),
+      materialize: (resolved: Readonly<ResolvedArticleStyle>) => theme,
+      saveArticle: vi.fn(async () => undefined),
+      setGlobalDefault: vi.fn(async () => undefined),
+      reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+    };
+    const instance = styledController(source, view, async (input, style) => {
+      if (initial) {
+        initial = false;
+        return artifactFor(input);
+      }
+      const color = style?.primaryColor ?? 'missing';
+      return new Promise(resolve => pending.set(color, resolve));
+    }, styles);
+    instance.start();
+    source.emitActive('article.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    instance.updateStyle({ primaryColor: '#009874' });
+    await vi.advanceTimersByTimeAsync(400);
+    instance.updateStyle({ primaryColor: '#FA5151' });
+    await vi.advanceTimersByTimeAsync(400);
+
+    pending.get('#FA5151')?.(artifactFor(snapshotFor(file('article.md'))));
+    await Promise.resolve();
+    pending.get('#009874')?.(artifactFor(snapshotFor(file('article.md'))));
+    await Promise.resolve();
+
+    expect(view.styles.at(-1)).toBe('#FA5151');
+  });
+
+  it('coalesces style saves and keeps the original file target', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const saveArticle = vi.fn(async (_file: VaultFileRef, _config: Readonly<ArticleStyleConfig>) => undefined);
+    const styles = {
+      resolve: () => resolvedStyle(),
+      materialize: () => theme,
+      saveArticle,
+      setGlobalDefault: vi.fn(async () => undefined),
+      reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+    };
+    const instance = styledController(source, view, async input => artifactFor(input), styles);
+    instance.start();
+    source.emitActive('article.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    instance.updateStyle({ primaryColor: '#009874' });
+    instance.updateStyle({ primaryColor: '#FA5151' });
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(saveArticle).toHaveBeenCalledOnce();
+    expect(saveArticle.mock.calls[0]?.[0]).toEqual(file('article.md'));
+    expect(saveArticle.mock.calls[0]?.[1].primaryColor).toBe('#FA5151');
   });
 });
