@@ -17,6 +17,7 @@
     "build": "npm run typecheck && node esbuild.config.mjs production",
     "verify:release": "node scripts/verify-release.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
+    "generate:code-themes": "node scripts/generate-code-themes.mjs",
     "sync:test-vault": "node scripts/sync-test-vault.mjs"
   },
   "license": "MIT",

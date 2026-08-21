@@ -3,6 +3,7 @@ import type {
   HeadingStyle,
   ImageCaptionMode,
 } from '../domain/style';
+import { DEFAULT_CODE_THEME_ID, DOOCS_CODE_THEME_IDS } from './code-theme-registry';
 
 export interface StyleOption<T extends string> {
   id: T;
@@ -49,4 +50,9 @@ export const STYLE_OPTIONS = Object.freeze({
     Object.freeze({ id: 'filename', label: '文件名', description: '显示图片文件名。' }),
     Object.freeze({ id: 'none', label: '不显示', description: '隐藏图注。' }),
   ] satisfies readonly StyleOption<ImageCaptionMode>[]),
+  codeThemes: Object.freeze(DOOCS_CODE_THEME_IDS.map(id => Object.freeze({
+    id,
+    label: id,
+    description: id === DEFAULT_CODE_THEME_ID ? '默认代码高亮。' : '本地代码高亮主题。',
+  }))),
 });
