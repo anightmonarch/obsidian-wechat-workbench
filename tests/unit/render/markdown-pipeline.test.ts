@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { NoteSnapshot } from '../../../src/domain/article';
 import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
+import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../../../src/styles/style-config';
 import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
 function snapshot(markdown: string): Readonly<NoteSnapshot> {
@@ -52,5 +53,25 @@ describe('RenderArtifactBuilder', () => {
     expect(artifact.plainText).toContain('系统组件');
     expect(artifact.assets).toEqual([]);
     expect(artifact.canonicalHtml).toBe(golden.trimEnd());
+  });
+
+  it('projects configured captions and code structure into the artifact', async () => {
+    const style = patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      imageCaption: 'alt',
+      showCodeLineNumbers: true,
+      macCodeBlock: true,
+    });
+    const artifact = await new RenderArtifactBuilder().build(
+      snapshot('![Preview](https://example.test/preview.png)\n\n```ts\nconst answer = 42;\nreturn answer;\n```'),
+      nativeTheme,
+      style,
+    );
+
+    expect(artifact.canonicalHtml).toContain('<figure class="image-figure"');
+    expect(artifact.canonicalHtml).toContain('<figcaption class="image-caption"');
+    expect(artifact.canonicalHtml).toContain('Preview');
+    expect(artifact.canonicalHtml).toContain('code-window-dots');
+    expect(artifact.canonicalHtml).toContain('code-line-number');
+    expect(artifact.canonicalHtml).toContain('code-line-content');
   });
 });

@@ -3,6 +3,7 @@ import juice from 'juice';
 import type { NoteSnapshot } from '../domain/article';
 import type { AssetSlot, Diagnostic, RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort } from '../domain/ports';
+import type { ArticleStyleConfig } from '../domain/style';
 import type { ThemeDefinition } from '../domain/theme';
 import { extractImageAssets } from './assets';
 import { canonicalizeHtml, hashContent, parseArticleRoot } from './canonicalize';
@@ -10,6 +11,7 @@ import { highlightCodeBlocks } from './extensions/code';
 import { renderMathExpressions } from './extensions/math';
 import { extractMermaidAssets } from './extensions/mermaid';
 import { markdownToSafeHtml } from './markdown-pipeline';
+import { applyImageCaptions } from './style-projections';
 
 const ARTIFACT_VERSION = '1';
 const RENDERER_VERSION = '0.1.0';
@@ -76,15 +78,20 @@ export class RenderArtifactBuilder {
   async build(
     snapshot: Readonly<NoteSnapshot>,
     theme: Readonly<ThemeDefinition>,
+    style: Readonly<ArticleStyleConfig> | null = null,
   ): Promise<Readonly<RenderArtifact>> {
     const safeBody = await markdownToSafeHtml(snapshot.markdown);
     const structuralRoot = parseArticleRoot(`<section class="wechat-article">${safeBody}</section>`);
     transformCallouts(structuralRoot);
     const text = plainText(structuralRoot);
+    if (style !== null) applyImageCaptions(structuralRoot, style.imageCaption);
     const images = await extractImageAssets(structuralRoot, snapshot.vaultPath, this.binaryFiles);
     const math = renderMathExpressions(structuralRoot);
     const diagrams = extractMermaidAssets(structuralRoot);
-    highlightCodeBlocks(structuralRoot);
+    highlightCodeBlocks(structuralRoot, style === null ? undefined : {
+      showLineNumbers: style.showCodeLineNumbers,
+      macWindow: style.macCodeBlock,
+    });
     const assets = assetsInDocumentOrder(structuralRoot, [
       ...images.assets,
       ...math.assets,
