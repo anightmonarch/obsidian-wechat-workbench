@@ -1,3 +1,5 @@
+import type { ArticleStyleConfig } from './style';
+
 export interface ThemeManifest {
   id: string;
   name: string;
@@ -12,4 +14,8 @@ export interface ThemeDefinition {
   contentHash: string;
   source: 'builtin' | 'vault';
   previewPath: string | null;
+  compiledStyle?: Readonly<{
+    config: Readonly<ArticleStyleConfig>;
+    baseThemeHash: string;
+  }>;
 }
