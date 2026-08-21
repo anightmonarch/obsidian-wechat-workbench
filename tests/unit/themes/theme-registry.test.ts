@@ -42,15 +42,18 @@ function validSource(): MemoryThemeSource {
 }
 
 describe('ThemeRegistry', () => {
-  it('lists exactly four built-in themes in stable id order', async () => {
+  it('lists seven built-in themes in stable id order', async () => {
     const registry = new ThemeRegistry(BUILTIN_THEMES, new MemoryThemeSource());
 
     await registry.load('.wechat-workbench/themes');
 
     expect(registry.list().filter(theme => theme.source === 'builtin').map(theme => theme.manifest.id))
-      .toEqual(['editorial', 'native', 'technical', 'verdant']);
+      .toEqual([
+        'doocs-classic', 'doocs-grace', 'doocs-simple',
+        'editorial', 'native', 'technical', 'verdant',
+      ]);
     expect(registry.list().filter(theme => theme.source === 'builtin').map(theme => theme.manifest.name))
-      .toEqual(['编辑精选', '原生简约', '技术文档', '苍绿']);
+      .toEqual(['经典', '优雅', '简洁', '编辑精选', '原生简约', '技术文档', '苍绿']);
   });
 
   it('loads a valid custom theme and returns its scoped CSS', async () => {
