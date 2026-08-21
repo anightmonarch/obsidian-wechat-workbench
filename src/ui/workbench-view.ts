@@ -1,4 +1,4 @@
-import { ItemView, Menu, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
 import type { EditableArticleSettings } from '../domain/article';
@@ -17,12 +17,17 @@ import {
 import { PublishReportModal } from './publish-report-modal';
 import { ArticlePreviewRenderer, type PreviewAssetResolver } from './render-preview';
 import { renderPublishSettings } from './workbench-publish-settings';
+import { StyleWorkbench } from './style-workbench';
 
 interface WorkbenchControllerBinding {
   start(): void;
   stop(): void;
   rebuild(reason: string): void;
   selectTheme(themeId: string): void;
+  updateStyle?(patch: Readonly<Record<string, unknown>>): void;
+  selectStyleTheme?(themeId: string): void;
+  resetStyle?(): void;
+  setStyleAsDefault?(): Promise<void>;
   copyForWeChat(): Promise<void>;
   copyHtmlSource(): Promise<void>;
   preparePublish(): Promise<Readonly<PreparedPublish>>;
@@ -147,11 +152,13 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private actionBar: HTMLElement | null = null;
   private summaryRow: HTMLElement | null = null;
   private previewEl: HTMLElement | null = null;
+  private styleHost: HTMLElement | null = null;
   private settingsEl: HTMLElement | null = null;
   private previewTab: HTMLButtonElement | null = null;
-  private themeTrigger: HTMLButtonElement | null = null;
+  private styleTrigger: HTMLButtonElement | null = null;
   private copyButton: HTMLButtonElement | null = null;
   private publishButton: HTMLButtonElement | null = null;
+  private styleWorkbench: StyleWorkbench | null = null;
   private latestState: Readonly<WorkbenchRenderState> | null = null;
 
   constructor(
@@ -228,14 +235,14 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     copyButton.dataset.testid = 'copy-rich';
     this.registerDomEvent(copyButton, 'click', () => void this.runCopy());
     this.copyButton = copyButton;
-    const themeTrigger = disabledAction('主题');
-    themeTrigger.dataset.testid = 'theme-trigger';
-    themeTrigger.classList.add('wechat-workbench__theme-trigger');
-    themeTrigger.setAttribute('aria-haspopup', 'menu');
-    themeTrigger.setAttribute('aria-label', '选择文章主题');
-    this.registerDomEvent(themeTrigger, 'click', event => this.showThemeMenu(event));
-    this.themeTrigger = themeTrigger;
-    toolbar.append(publishButton, copyButton, themeTrigger);
+    const styleTrigger = disabledAction('样式');
+    styleTrigger.dataset.testid = 'style-trigger';
+    styleTrigger.classList.add('wechat-workbench__style-trigger');
+    styleTrigger.setAttribute('aria-expanded', 'false');
+    styleTrigger.setAttribute('aria-label', '打开文章样式');
+    this.registerDomEvent(styleTrigger, 'click', () => this.toggleStylePanel());
+    this.styleTrigger = styleTrigger;
+    toolbar.append(publishButton, copyButton, styleTrigger);
 
     const summary = element('div', 'wechat-workbench__summary-row');
     summary.dataset.testid = 'article-connection';
@@ -248,13 +255,18 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     previewPanel.id = previewPanelId;
     previewPanel.setAttribute('role', 'tabpanel');
     previewPanel.setAttribute('aria-labelledby', previewTabId);
+    const stage = element('div', 'wechat-workbench__preview-stage');
     const canvas = element('div', 'wechat-workbench__preview-canvas');
     this.previewEl = element('div', 'wechat-workbench__preview wechat-workbench__preview-sheet');
     const empty = element('div', 'wechat-workbench__empty', '打开一篇 Markdown 笔记开始预览');
     empty.dataset.testid = 'workbench-empty';
     this.previewEl.append(empty);
     canvas.append(this.previewEl);
-    previewPanel.append(canvas);
+    const styleHost = element('div', 'wechat-workbench__style-host');
+    styleHost.hidden = true;
+    this.styleHost = styleHost;
+    stage.append(canvas, styleHost);
+    previewPanel.append(stage);
 
     this.settingsEl = element('section', 'wechat-workbench__settings wechat-workbench__publish-settings');
     this.settingsEl.id = settingsPanelId;
@@ -287,12 +299,13 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showEmpty(): void {
     this.latestState = null;
+    this.closeStylePanel(false);
     this.previewRenderer.clear();
     if (this.activeArticle !== null) this.activeArticle.textContent = '未连接活动笔记';
     if (this.previewTab !== null) this.previewTab.textContent = '文章预览';
-    if (this.themeTrigger !== null) {
-      this.themeTrigger.textContent = '主题';
-      this.themeTrigger.disabled = true;
+    if (this.styleTrigger !== null) {
+      this.styleTrigger.textContent = '样式';
+      this.styleTrigger.disabled = true;
     }
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
@@ -306,21 +319,23 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showLoading(path: string): void {
     this.latestState = null;
+    this.closeStylePanel(false);
     if (this.activeArticle !== null) {
       this.activeArticle.textContent = `正在渲染 · ${path.split('/').pop() ?? path}`;
     }
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
-    if (this.themeTrigger !== null) this.themeTrigger.disabled = true;
+    if (this.styleTrigger !== null) this.styleTrigger.disabled = true;
     if (this.settingsEl !== null) this.renderSettingsPlaceholder('正在排版…');
   }
 
   showError(_message: string): void {
     this.latestState = null;
+    this.closeStylePanel(false);
     this.previewRenderer.clear();
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
-    if (this.themeTrigger !== null) this.themeTrigger.disabled = true;
+    if (this.styleTrigger !== null) this.styleTrigger.disabled = true;
     if (this.settingsEl !== null) this.renderSettingsPlaceholder('文章排版失败，请检查当前笔记。');
     if (this.previewEl !== null) this.previewEl.replaceChildren(element(
       'div',
@@ -337,11 +352,11 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.previewTab !== null) {
       this.previewTab.textContent = '文章预览';
     }
-    if (this.themeTrigger !== null) {
-      const current = state.themes.find(theme => theme.manifest.id === state.selectedThemeId);
-      this.themeTrigger.textContent = `主题 · ${current?.manifest.name ?? state.selectedThemeId}`;
-      this.themeTrigger.setAttribute('aria-label', `选择文章主题，当前为 ${current?.manifest.name ?? state.selectedThemeId}`);
-      this.themeTrigger.disabled = state.themes.length === 0;
+    if (this.styleTrigger !== null) {
+      this.styleTrigger.textContent = '样式';
+      this.styleTrigger.setAttribute('aria-label', '打开文章样式');
+      this.styleTrigger.disabled = state.themes.length === 0;
+      if (this.styleWorkbench !== null) this.renderStylePanel(state);
     }
     if (this.previewEl !== null) this.previewRenderer.render(this.previewEl, state.artifact);
     if (this.copyButton !== null) this.copyButton.disabled = false;
@@ -367,17 +382,55 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     this.settingsEl.replaceChildren(element('div', 'wechat-workbench__empty', message));
   }
 
-  private showThemeMenu(event: MouseEvent): void {
-    const state = this.latestState;
-    if (state === null) return;
-    const menu = new Menu();
-    for (const theme of state.themes) {
-      menu.addItem(item => item
-        .setTitle(theme.manifest.name)
-        .setChecked(theme.manifest.id === state.selectedThemeId)
-        .onClick(() => this.controller?.selectTheme(theme.manifest.id)));
+  showStyleStatus(status: 'saved' | 'saving' | 'unsaved', message?: string): void {
+    if (this.styleWorkbench === null || this.latestState === null) return;
+    this.renderStylePanel(Object.freeze({
+      ...this.latestState,
+      styleSaveStatus: status,
+    }));
+    if (message !== undefined) this.showStyleMessage(message);
+  }
+
+  showStyleMessage(message: string): void {
+    const messageEl = this.styleHost?.querySelector<HTMLElement>('.wechat-workbench__style-message');
+    if (messageEl !== null && messageEl !== undefined) {
+      messageEl.textContent = message;
+      return;
     }
-    menu.showAtMouseEvent(event);
+    new Notice(message);
+  }
+
+  private toggleStylePanel(): void {
+    if (this.latestState === null || this.styleHost === null) return;
+    if (this.styleWorkbench !== null) {
+      this.closeStylePanel();
+      return;
+    }
+    this.styleWorkbench = new StyleWorkbench(this.styleHost, {
+      patch: patch => this.controller?.updateStyle?.(patch),
+      selectTheme: themeId => this.controller?.selectStyleTheme?.(themeId),
+      reset: () => this.controller?.resetStyle?.(),
+      setGlobalDefault: () => this.controller?.setStyleAsDefault?.() ?? Promise.resolve(),
+      close: () => this.closeStylePanel(),
+    });
+    this.renderStylePanel(this.latestState);
+    this.styleHost.hidden = false;
+    this.styleTrigger?.setAttribute('aria-expanded', 'true');
+    this.styleWorkbench.focusFirst();
+  }
+
+  private renderStylePanel(state: Readonly<WorkbenchRenderState>): void {
+    if (this.styleWorkbench === null) return;
+    this.styleWorkbench.render(state);
+    if (this.styleHost !== null) this.styleHost.hidden = false;
+  }
+
+  private closeStylePanel(restoreFocus = true): void {
+    this.styleWorkbench?.destroy();
+    this.styleWorkbench = null;
+    if (this.styleHost !== null) this.styleHost.hidden = true;
+    this.styleTrigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) this.styleTrigger?.focus();
   }
 
   private async runCopy(): Promise<void> {
@@ -540,6 +593,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     settingsTab: HTMLButtonElement,
     previewPanel: HTMLElement,
   ): void {
+    if (!preview) this.closeStylePanel(false);
     previewTab.classList.toggle('is-active', preview);
     settingsTab.classList.toggle('is-active', !preview);
     previewTab.setAttribute('aria-selected', String(preview));

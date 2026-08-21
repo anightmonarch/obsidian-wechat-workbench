@@ -13,6 +13,12 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench__preview-sheet\s+img[^}]*max-width:\s*100%/su);
     expect(css).toMatch(/wechat-workbench__cover-preview[^}]*aspect-ratio:\s*2\.35\s*\/\s*1/su);
     expect(css).toMatch(/overflow-wrap:\s*anywhere/gu);
+    expect(css).toMatch(/wechat-workbench__preview-stage\s*\{[^}]*container-type:\s*inline-size/su);
+    expect(css).toMatch(/wechat-workbench__preview-stage\s*\{[^}]*grid-template-columns:\s*minmax\(20rem,\s*1fr\)\s+minmax\(16rem,\s*19rem\)/su);
+    expect(css).toMatch(/@container\s*\(max-width:\s*56rem\)[\s\S]*wechat-workbench__style-host\s*\{[^}]*position:\s*absolute/su);
+    expect(css).toMatch(/wechat-workbench__style-body\s*\{[^}]*overflow:\s*auto/su);
+    expect(css).toMatch(/wechat-workbench__style-footer\s*\{[^}]*position:\s*sticky/su);
+    expect(css).not.toMatch(/(?:^|\n)\s*(?:button|input|select|h1|p)\s*\{/mu);
     expect(css).not.toMatch(/wechat-workbench__account-status/u);
   });
 });

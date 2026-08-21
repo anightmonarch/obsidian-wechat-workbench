@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Menu } from '../../mocks/obsidian';
 import { UnlinkAssociationModal } from '../../../src/ui/publish-dialog';
 import type { WorkbenchRenderState } from '../../../src/ui/workbench-controller';
 import { defaultStyleForTheme } from '../../../src/styles/style-config';
@@ -108,7 +107,7 @@ describe('WeChatWorkbenchView', () => {
     expect(openSettings).toHaveBeenCalledOnce();
   });
 
-  it('renders a compact ready state and opens a checked theme menu', async () => {
+  it('renders a compact ready state and opens the style workbench', async () => {
     const selected: string[] = [];
     const copied: string[] = [];
     const view = new WeChatWorkbenchView({} as never);
@@ -116,7 +115,8 @@ describe('WeChatWorkbenchView', () => {
       start: () => undefined,
       stop: () => undefined,
       rebuild: () => undefined,
-      selectTheme: id => selected.push(id),
+      selectTheme: () => undefined,
+      selectStyleTheme: id => selected.push(id),
       copyForWeChat: async () => { copied.push('rich'); },
       copyHtmlSource: async () => { copied.push('source'); },
       preparePublish: async () => { throw new Error('not used'); },
@@ -151,13 +151,14 @@ describe('WeChatWorkbenchView', () => {
       .toContain('远程图片');
     expect(view.contentEl.querySelector('.wechat-article img[src]')).toBeNull();
 
-    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="theme-trigger"]')
+    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="style-trigger"]')
       ?.dispatchEvent(new MouseEvent('click'));
-    expect(view.contentEl.querySelector('[data-testid="theme-trigger"]')?.textContent)
-      .toBe('主题 · 原生简约');
-    const option = Menu.last?.items.find(item => item.title === '原生简约');
-    expect(option?.checked).toBe(true);
-    option?.callback?.();
+    expect(view.contentEl.querySelector('[data-testid="style-trigger"]')?.textContent)
+      .toBe('样式');
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
+    expect(view.contentEl.querySelector('[data-style-theme="native"]')?.getAttribute('aria-pressed'))
+      .toBe('true');
+    view.contentEl.querySelector<HTMLButtonElement>('[data-style-theme="native"]')?.click();
     expect(selected).toEqual(['native']);
 
     view.contentEl.querySelector<HTMLButtonElement>('[data-testid="copy-rich"]')?.click();
