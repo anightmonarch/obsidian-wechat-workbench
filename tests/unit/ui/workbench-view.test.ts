@@ -161,6 +161,10 @@ describe('WeChatWorkbenchView', () => {
     view.contentEl.querySelector<HTMLButtonElement>('[data-style-theme="native"]')?.click();
     expect(selected).toEqual(['native']);
 
+    view.showLoading('article.md');
+    view.showArtifact(renderState);
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
+
     view.contentEl.querySelector<HTMLButtonElement>('[data-testid="copy-rich"]')?.click();
     await Promise.resolve();
     expect(copied).toEqual(['rich']);

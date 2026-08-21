@@ -319,7 +319,9 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showLoading(path: string): void {
     this.latestState = null;
-    this.closeStylePanel(false);
+    if (this.styleWorkbench !== null && this.styleHost !== null) {
+      this.styleHost.hidden = true;
+    }
     if (this.activeArticle !== null) {
       this.activeArticle.textContent = `正在渲染 · ${path.split('/').pop() ?? path}`;
     }

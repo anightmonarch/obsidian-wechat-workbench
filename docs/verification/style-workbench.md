@@ -24,9 +24,17 @@
 
 以下项目需要在独立 Obsidian 测试 Vault 和已授权公众号账号中执行，不能由单元测试替代：
 
-- Obsidian 桌面端宽窗口与窄侧栏的实际截图验收。
-- 重启 Obsidian 后文章级 `wechat-style` 的持久化读取。
+- 窄侧栏下的实际截图验收。
 - 真实剪贴板粘贴到微信公众号编辑器后的视觉检查。
 - 使用已授权账号创建或更新一个草稿，并在公众号后台核对结果。
+
+## 已执行的真实 Obsidian 验证
+
+在独立 Vault `/tmp/wechat-workbench-checkpoint-1`、Obsidian 1.13.7 中完成：
+
+- 插件从 `.obsidian/plugins/wechat-workbench` 加载，文章预览和样式工作台可用。
+- 重新打开独立 Vault 后，文章级 `wechat-style` 能读取并显示当前主题。
+- 切换主题后 Frontmatter 更新，预览刷新，样式面板保持打开，可连续调整。
+- 真实窗口截图确认中文主题、字体、字号和主题色控件可见；未显示内部校验细节。
 
 本项目没有执行正式发布、群发、删除草稿、`git push`、npm 发布或社区提交。
