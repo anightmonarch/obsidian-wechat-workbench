@@ -1,10 +1,10 @@
 # WeChat Workbench 公众号账号、封面与主题适配设计
 
-- 状态：技术方案已确认，书面规格待用户复核
+- 状态：技术方案与动态交互原型已确认
 - 日期：2026-08-22
 - 适用版本：`0.1.x`
 - 验收 Vault：`$HOME/workspace/Github/wechat-workbench-test-vault`
-- 依据：用户于 2026-08-22 提供的五张真实 Obsidian 截图及逐项反馈
+- 依据：用户于 2026-08-22 提供的七张真实 Obsidian 截图、逐项反馈及已确认动态交互原型
 
 ## 1. 结论
 
@@ -31,7 +31,7 @@
 本规格不降低下列既有约束：
 
 - 插件仅创建或更新公众号草稿，不群发、不公开发布。
-- AppSecret、Access Token、图片 API Key 只进入 Obsidian `SecretStorage`。
+- AppSecret、Access Token、服务 API Key 只进入 Obsidian `SecretStorage`。
 - 被动预览不联网。
 - 同一次操作的预览、复制和草稿正文继续共享不可变 `RenderArtifact`。
 - 发布结果未知时继续进入 `AMBIGUOUS`，不得自动重试创建草稿。
@@ -76,15 +76,18 @@
   最近验证：YYYY-MM-DD HH:mm:ss
                              [重新验证] [断开连接]
 
-智能封面
-  图片服务地址
-  图片模型
-  图片 API Key                          [已安全保存 / 输入新值]
+智能封面服务
+  接口协议                              [OpenAI 兼容 / Anthropic]
+  服务地址                              [官方地址或自定义兼容地址]
+  服务 API Key                          [已安全保存 / 输入新值]
+  可用模型                              [获取模型] [下拉列表]
 ```
 
 账号配置区与连接状态区之间最大使用一个 `var(--size-4-4)` 间距。不得通过 `min-height`、空 `Setting`、空容器或绝对定位制造截图中的中部空白。
 
 “公众号名称”仅是本地展示名，不修改微信后台账号名称，不参与账号哈希、Token 或草稿关联。
+
+动态原型顶部的“插件设置 / 工作台”“浅色 / 深色”和强调色切换只用于方案审查，不属于插件 UI，生产实现不得创建这些控件。
 
 ### 4.2 工作台顶部
 
@@ -290,15 +293,36 @@ UI 使用隐藏的 `<input type="file">`：
 
 ### 7.4 智能生成封面
 
-智能封面继续复用现有 OpenAI 兼容图片适配器。用户所说“模型K”在本规格中明确解释为“图片模型 + 图片 API Key”，不新增名为 `K` 的字段。
+智能封面改为协议化自定义接入。用户所说“模型K”在本规格中明确解释为“服务协议 + 服务地址 + 服务 API Key + 已选择模型”，不新增名为 `K` 的字段。
 
 配置来源：
 
+- `imageApiProtocol`：普通插件设置，取值为 `openai-compatible` 或 `anthropic`。
 - `imageApiBaseUrl`：普通插件设置。
 - `imageApiModel`：普通插件设置。
 - `imageApiKey`：Obsidian `SecretStorage`。
 
-封面弹窗不再提供第二套模型选择。每次点击智能生成时读取最新配置，避免设置页与弹窗状态漂移。
+`schemaVersion: 3` 从旧设置迁移时，已有 `imageApiBaseUrl`、`imageApiModel` 和 `imageApiKey` 默认解释为 `openai-compatible`，不移动或回填密钥。
+
+设置页提供“获取模型”显式动作：
+
+1. 设置页打开、输入变化和被动重绘不得自动联网。
+2. 点击后使用当前表单中的协议、服务地址和新输入的 API Key；只有协议和规范化地址均未变化时，才允许复用 SecretStorage 中已保存的 Key。
+3. `OpenAI 兼容`使用 Bearer 鉴权并读取兼容的 `GET /v1/models`。
+4. `Anthropic`使用 `x-api-key`、固定 `anthropic-version` 请求头并读取 `GET /v1/models`。
+5. 返回模型 ID 去重、排序并限制为最多 500 个；单个 ID 最长 200 个 Unicode 字符。模型列表只驻留当前设置会话，不写入 `data.json`。
+6. 用户从下拉列表选择一个模型并保存；手工输入模型名称不再是默认交互。
+7. 刷新失败保留已保存模型，不清空现有配置，不显示原始响应、请求头、Key 或堆栈。
+
+模型列表端点只能证明“服务声明了这些模型”，不能证明模型具有图片输出能力。OpenAI 兼容服务的模型在首次真实生成时完成能力验证；不根据名称猜测能力。
+
+Anthropic 官方当前提供图像理解而非图片输出。因此本轮对 Anthropic 的支持边界是：自定义地址、鉴权、连接验证、实时模型发现和明确的能力诊断；Anthropic 模型显示为“封面策划”，不得伪装成图片生成模型。只配置 Anthropic 时，“智能生成封面”保持不可执行并提示还需选择具有图片输出能力的服务。不得为了表面满足“支持 Anthropic”而把文本或 SVG 输出冒充生成的封面图片。
+
+协议或规范化服务地址变化时，旧模型立即失效。保存新服务地址时必须同时输入并保存新的 API Key，禁止把旧服务的密钥自动发送到新主机。
+
+所有自定义服务继续经过 `PinnedNodeHttpTransport` 和 `NetworkPolicy`：只允许无用户名、密码、查询参数和片段的公共 HTTPS 地址；阻止 localhost、回环、私网和链路本地目标。响应大小、连接、读取和总超时继续受限；不跟随模型列表重定向。
+
+封面弹窗不再提供第二套模型选择。每次点击智能生成时读取最新已保存配置，避免设置页与弹窗状态漂移。
 
 缺少任一配置时：
 
@@ -306,7 +330,7 @@ UI 使用隐藏的 `<input type="file">`：
 - 弹窗直接列出缺少的配置项。
 - 本地上传和文章首图继续可用。
 
-调用前仍必须展示：服务地址、模型、标题、摘要、正文摘录、可能费用。只有用户确认后才能发起网络请求。AI 失败不得清除现有封面或阻断其他封面来源。
+调用前仍必须展示：接口协议、服务地址、模型、标题、摘要、正文摘录、可能费用。只有用户确认后才能发起网络请求。AI 失败不得清除现有封面或阻断其他封面来源。
 
 ## 8. Obsidian 主题与排版
 
@@ -338,7 +362,28 @@ UI 使用隐藏的 `<input type="file">`：
 
 - `AccountConnectionService`：保存账号配置、触发 Token 验证、记录安全状态、断开本地连接。
 - `ExternalBrowserPort`：打开固定公众号后台地址，隔离 Electron API。
+- `AiModelCatalogService`：按协议验证自定义服务、显式读取模型列表、限制和脱敏响应；不负责生成图片。
 - `PublishCoverResolverPort`：为发布事务准备最终封面字节，隔离来源解析、受控下载、裁剪和存储。
+
+```ts
+export type AiProviderProtocol = 'openai-compatible' | 'anthropic';
+
+export interface AiModelCatalogRequest {
+  protocol: AiProviderProtocol;
+  baseUrl: string;
+  apiKey: string;
+  signal?: AbortSignal;
+}
+
+export interface AiModelOption {
+  id: string;
+  capability: 'IMAGE_UNVERIFIED' | 'PROMPT_PLANNING_ONLY';
+}
+
+export interface AiModelCatalogPort {
+  list(request: Readonly<AiModelCatalogRequest>): Promise<readonly Readonly<AiModelOption>[]>;
+}
+```
 
 ```ts
 export interface PreparedPublishCover {
@@ -359,7 +404,7 @@ export interface PublishCoverResolverPort {
 
 ### 9.2 调整组件
 
-- `WeChatWorkbenchSettingTab`：只渲染公众号与智能封面设置，转发保存、验证、断开动作。
+- `WeChatWorkbenchSettingTab`：只渲染公众号与智能封面设置，转发保存、验证、断开和显式模型刷新动作。
 - `SettingsStore`：安全解析新增账号展示名和验证记录，兼容旧设置。
 - `WeChatWorkbenchView`：将顶部账号按钮替换为外部后台入口。
 - `workbench-publish-settings`：移除原文链接控件，保留旧数据。
@@ -418,9 +463,9 @@ RenderArtifact.assets
 ### 10.4 智能生成
 
 ```text
-当前 RenderArtifact + 最新图片服务配置
+当前 RenderArtifact + 最新已保存图片服务配置
   -> 外发确认
-  -> OpenAI 兼容图片 API
+  -> IMAGE_UNVERIFIED 模型的 OpenAI 兼容图片 API
   -> 输出校验、下载或 base64 解码
   -> 2.35:1 PNG
   -> 插件 Vault 封面目录
@@ -439,22 +484,28 @@ RenderArtifact.assets
 - 本地图片不支持或过大：保留当前封面，提示重新选择。
 - 远程首图失败：保留当前封面，允许上传或 AI；不得自动绕过 SSRF 策略。
 - AI 配置缺失或生成失败：文章首图和本地上传保持可用。
+- 模型列表失败：显示脱敏分类，保留已保存模型；不把“列表获取失败”误报为“服务不支持图片”。
+- Anthropic 模型：显示“仅支持封面策划，未提供图片输出”，智能生成按钮保持不可执行。
+- 协议或地址变化但未输入新 Key：本地阻断保存和模型刷新，不把旧 Key 发送到新主机。
 - 用户确认封面前文章发生变化：继续使用现有上下文哈希阻断，要求重新准备。
 
 ## 12. 安全与隐私
 
-- AppSecret、Access Token、图片 API Key 不进入 `data.json`、Frontmatter、日志、错误详情、测试快照或仓库。
+- AppSecret、Access Token、服务 API Key 不进入 `data.json`、Frontmatter、日志、错误详情、测试快照或仓库。
 - 验证状态不保存原始微信响应和完整 `errmsg`。
 - 外部浏览器只打开固定 HTTPS 地址。
 - 文件选择器不保存本机绝对路径。
 - 上传文件按魔数校验，不能只信扩展名、浏览器 MIME 或文件名。
 - 远程首图继续执行现有 SSRF、重定向、DNS、大小和 MIME 限制。
 - 智能封面调用前继续展示外发字段、服务、模型和费用。
+- 模型列表只能由用户点击“获取模型”触发；设置页打开和字段输入不联网。
+- 自定义 AI 服务请求不得访问 localhost、回环、私网或链路本地地址，不得跟随重定向。
 - 所有测试凭据只存在固定测试 Vault 的 SecretStorage，不写入测试文件和验证文档。
 
 ## 13. 兼容与迁移
 
 - 设置模型升级为 `schemaVersion: 3`；版本 1、2 缺失新字段时回退为空展示名和无验证记录。
+- 版本 1、2 的图片服务配置迁移为 `imageApiProtocol: 'openai-compatible'`；已保存 SecretStorage Key 原地复用，不写入普通设置。
 - 旧 `defaultCoverStrategy`、`globalDefaultCoverPath`、`defaultSourceUrl` 在本轮保留解析，停止从新 UI 写入。
 - 旧文章 `content_source_url` 保留并继续参与旧数据解析；发布设置保存其他字段时不得删除它。
 - 旧文章 `cover` 继续视为显式封面；用户选择“文章首图（默认）”后才清除该覆盖。
@@ -476,7 +527,11 @@ RenderArtifact.assets
 - 发布设置 DOM 不存在 `settings-source-url`，保存时保留旧原文链接。
 - 首张本地图片、首张远程图片、无图片和生成资产排除规则。
 - 文件上传取消、空文件、伪造扩展名、超限、解码失败、裁剪和安全保存。
-- AI 配置缺失提示、读取最新模型、确认前不发请求、失败不影响其他来源。
+- AI 协议迁移、地址规范化、协议或地址变化使旧模型失效且要求新 Key。
+- 设置页打开和字段输入不请求模型；用户点击后才按 OpenAI/Anthropic 鉴权读取、去重、排序和限制模型列表。
+- 模型列表错误脱敏，不覆盖已保存模型，不把 API Key、请求头或响应体写入 DOM。
+- Anthropic 模型标记为 `PROMPT_PLANNING_ONLY` 并阻断图片生成；OpenAI 兼容模型不靠名称猜测能力。
+- AI 配置缺失提示、读取最新已保存模型、确认前不发生成请求、失败不影响其他来源。
 - CSS 契约不再优先 `--color-green`，标签与分区字号使用指定变量。
 
 ### 14.2 集成与对抗测试
@@ -485,7 +540,8 @@ RenderArtifact.assets
 - 远程首图经过受控下载，阻止 localhost、私网、重定向和伪 MIME。
 - 上传文件名包含路径分隔符、控制字符、超长 Unicode 时不影响安全存储路径。
 - 文章切换或修改后，旧封面准备结果不能写入新上下文。
-- AppSecret、Token、图片 API Key 不出现在 DOM、快照、错误、构建产物扫描结果中。
+- AppSecret、Token、服务 API Key 不出现在 DOM、快照、错误、构建产物扫描结果中。
+- 自定义模型列表请求阻止 localhost、私网、DNS 重绑定、超限响应和重定向；错误不泄露 Key。
 - 520px、640px、720px 无横向溢出、遮挡或不可点击主操作。
 
 ### 14.3 自动化门禁
@@ -514,10 +570,13 @@ WECHAT_WORKBENCH_TEST_VAULT=$HOME/workspace/Github/wechat-workbench-test-vault n
 6. 使用含首张本地图片的文章，确认默认封面、裁剪预览和草稿准备一致。
 7. 使用远程首图文章，确认被动预览不联网，显式准备时才受控加载。
 8. 点击“上传本地图片”，确认系统文件管理器打开；选择 Vault 外图片后完成处理、预览、确认和 Vault 内保存。
-9. 使用已配置图片服务验证智能生成确认、生成、失败恢复和最终保存。
-10. 在浅色、深色和非绿色 Obsidian 强调色下检查标签、分区标题、按钮和卡片。
-11. 在 520px、640px、720px 宽度重复检查布局。
-12. 使用专用测试账号执行真实草稿创建、更新、无变化跳过及公众号后台视觉核对。
+9. 选择 OpenAI 兼容协议，输入公共 HTTPS 自定义地址和测试 Key，点击“获取模型”，确认下拉列表来自当前服务且刷新前不联网。
+10. 切换到 Anthropic，确认地址、鉴权和模型列表适配正确，并明确显示“只支持封面策划，未提供图片输出”。
+11. 更改协议或服务地址，确认旧模型失效，未输入新 Key 时不会把旧 Key 发送到新主机。
+12. 使用已配置且真实支持图片输出的兼容服务，验证智能生成确认、生成、失败恢复和最终保存。
+13. 在浅色、深色和非绿色 Obsidian 强调色下检查标签、分区标题、按钮和卡片；确认原型审查控制器未进入插件。
+14. 在 520px、640px、720px 宽度重复检查布局。
+15. 使用专用测试账号执行真实草稿创建、更新、无变化跳过及公众号后台视觉核对。
 
 实机截图必须同时包含中央 Markdown 编辑器和右侧工作台。账号、Secret、Token、完整 AppID、内部媒体 ID 和其他敏感数据必须遮挡。
 
@@ -528,9 +587,10 @@ WECHAT_WORKBENCH_TEST_VAULT=$HOME/workspace/Github/wechat-workbench-test-vault n
 实施顺序固定为：
 
 1. 账号配置、验证状态和测试。
-2. 顶部后台入口、原文链接移除、Obsidian 主题适配和测试。
-3. 三来源封面、受控远程首图、系统文件选择器和测试。
-4. 全量自动化门禁、固定 Vault 真实验收和证据归档。
+2. AI 协议设置、密钥隔离、显式模型发现和测试。
+3. 顶部后台入口、原文链接移除、Obsidian 主题适配和测试。
+4. 三来源封面、受控远程首图、系统文件选择器和测试。
+5. 全量自动化门禁、固定 Vault 真实验收和证据归档。
 
 下一步只生成详细实施计划，不直接开始编码。实施计划必须列出准确文件、接口、失败测试、最小实现、验证命令和提交边界。
 
@@ -545,6 +605,9 @@ WECHAT_WORKBENCH_TEST_VAULT=$HOME/workspace/Github/wechat-workbench-test-vault n
 - 本地上传通过系统文件选择器完成，不要求路径输入。
 - 自动首图支持本地与显式加载的远程普通图片，排除生成资产。
 - AI 使用最新服务地址、模型和 SecretStorage API Key，并保留调用前确认。
+- OpenAI 兼容和 Anthropic 均可使用自定义公共 HTTPS 地址显式获取模型列表；设置页被动显示不联网。
+- Anthropic 不被误报为图片生成模型；只配置 Anthropic 时智能生成保持阻断并给出准确原因。
+- 协议或地址变化不会把旧服务 API Key 发送给新主机。
 - 标签和分区标题字号增大，不再固定使用绿色，适配当前 Obsidian 强调色。
 - 所有真实改动和验证只进入固定测试 Vault，`commit_note` 主 Vault 不加载开发插件。
 - 自动化、实机和真实微信验证证据分别记录，不以部分证据替代完整验收。
