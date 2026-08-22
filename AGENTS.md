@@ -16,7 +16,7 @@
 - 当前从 Foundation 阶段开始；每项生产行为必须先有失败测试，再写最小实现。
 - 开发新功能或调整行为前，先更新对应设计或计划，不能先写代码再补规则。
 - AppID、AppSecret 等真实公众号信息只在 Publishing 阶段真实联调时读取，并只注入隔离测试 Vault 的 SecretStorage。
-- 用户已授权开发完成后操作本机 Obsidian，在独立测试 Vault 安装插件并执行端到端验收；禁止把开发插件加载到 `commit_note` 主 Vault。
+- 用户已授权开发完成后操作本机 Obsidian；后续所有开发插件安装、功能改动和真实端到端验收固定使用 `$HOME/workspace/Github/wechat-workbench-test-vault`，禁止把开发插件加载到 `commit_note` 主 Vault。
 
 ## 权威文档顺序
 
