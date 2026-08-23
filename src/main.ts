@@ -23,8 +23,9 @@ import { hashContent } from './render/canonicalize';
 import { BrowserMermaidEngine, DiagramRenderer, ElectronSvgRasterizer } from './render/diagram-renderer';
 import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
+import { ArticleTextGenerationService } from './ai/article-text-service';
+import { OpenAiTextGenerator } from './ai/openai-text-generator';
 import { accountHashForAppId } from './settings/account';
-import { AiModelCatalogService } from './cover/ai-model-catalog';
 import { AiServiceSettingsService } from './settings/ai-service-settings';
 import { ArticleSettingsService } from './settings/article-settings';
 import { AccountConnectionService } from './settings/account-connection-service';
@@ -175,12 +176,16 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       },
       tokens,
     );
-    const aiCatalog = new AiModelCatalogService(providerHttp);
     const aiService = new AiServiceSettingsService(settingsAccess, {
       get: kind => secretStore.get(kind),
       set: (kind, value) => secretStore.set(kind, value),
       clear: kind => secretStore.clear(kind),
-    }, aiCatalog);
+    });
+    const articleText = new ArticleTextGenerationService(
+      { get: () => ({ textApiEndpoint: currentSettings().textApiEndpoint, textApiModel: currentSettings().textApiModel }) },
+      { get: () => secretStore.get('textApiKey') },
+      new OpenAiTextGenerator(providerHttp),
+    );
     const mediaCacheData: AssetCacheDataPort = {
       get entries() { return currentSettings().mediaCache; },
       save: async entries => { await updateSettings({ mediaCache: entries }); },
@@ -287,6 +292,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
           covers,
           articleSettings,
           styleWorkflow,
+          articleText,
         ));
         return view;
       },

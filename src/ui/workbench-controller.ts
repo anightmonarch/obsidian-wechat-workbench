@@ -1,4 +1,4 @@
-import type { EditableArticleSettings, NoteSnapshot } from '../domain/article';
+import type { ArticleDraftValues, EditableArticleSettings, NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
 import type { VaultFileRef } from '../domain/ports';
 import type { ArticleStyleConfig } from '../domain/style';
@@ -116,6 +116,19 @@ export interface WorkbenchArticleSettingsPort {
   ): Promise<void>;
 }
 
+export interface WorkbenchAiTextPort {
+  generateTitles(input: Readonly<{
+    snapshot: Readonly<NoteSnapshot>;
+    artifact: Readonly<RenderArtifact>;
+    draft: Readonly<ArticleDraftValues>;
+  }>): Promise<readonly string[]>;
+  generateDigest(input: Readonly<{
+    snapshot: Readonly<NoteSnapshot>;
+    artifact: Readonly<RenderArtifact>;
+    draft: Readonly<ArticleDraftValues>;
+  }>): Promise<string>;
+}
+
 export class WorkbenchActionError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
@@ -156,6 +169,7 @@ export class WorkbenchController {
     private readonly covers?: WorkbenchCoverPort,
     private readonly articleSettings?: WorkbenchArticleSettingsPort,
     private readonly styles?: WorkbenchStylePort,
+    private readonly aiText?: WorkbenchAiTextPort,
   ) {}
 
   start(): void {
@@ -194,19 +208,24 @@ export class WorkbenchController {
     this.generation += 1;
     const requestedGeneration = this.generation;
     this.styleBuildPending = _reason === 'style';
-    if (!this.styleBuildPending) {
-      this.artifact = null;
-      this.report = null;
-      this.snapshot = null;
-      this.style = null;
-    }
     const pendingFile = this.source.currentMarkdown();
+    const preserveExistingView = this.artifact !== null
+      && this.snapshot?.vaultPath === pendingFile?.path
+      && (_reason === 'article-settings' || _reason === 'modified');
+    if (!this.styleBuildPending) {
+      if (!preserveExistingView) {
+        this.artifact = null;
+        this.report = null;
+        this.snapshot = null;
+        this.style = null;
+      }
+    }
     if (pendingFile === null) this.view.showEmpty();
-    else if (!this.styleBuildPending) this.view.showLoading(pendingFile.path);
+    else if (!this.styleBuildPending && !preserveExistingView) this.view.showLoading(pendingFile.path);
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       this.timer = null;
-      void this.buildCurrent(requestedGeneration, this.styleBuildPending);
+      void this.buildCurrent(requestedGeneration, this.styleBuildPending, preserveExistingView);
     }, this.debounceMs);
   }
 
@@ -423,7 +442,26 @@ export class WorkbenchController {
     this.rebuild('article-settings');
   }
 
+  async generateTitles(draft: Readonly<ArticleDraftValues>): Promise<readonly string[]> {
+    if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
+    const current = this.articleContext();
+    return this.aiText.generateTitles({ ...current, draft });
+  }
+
+  async generateDigest(draft: Readonly<ArticleDraftValues>): Promise<string> {
+    if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
+    const current = this.articleContext();
+    return this.aiText.generateDigest({ ...current, draft });
+  }
+
   private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {
+    if (this.snapshot === null || this.artifact === null) {
+      throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
+    }
+    return Object.freeze({ snapshot: this.snapshot, artifact: this.artifact });
+  }
+
+  private articleContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {
     if (this.snapshot === null || this.artifact === null) {
       throw new WorkbenchActionError('ARTICLE_NOT_READY', '当前文章尚未完成渲染。');
     }
@@ -439,13 +477,17 @@ export class WorkbenchController {
     if (subscription.hostEvent !== undefined) this.registerHostEvent(subscription.hostEvent);
   }
 
-  private async buildCurrent(requestedGeneration: number, styleOnly = false): Promise<void> {
+  private async buildCurrent(
+    requestedGeneration: number,
+    styleOnly = false,
+    preserveExistingView = false,
+  ): Promise<void> {
     const file = this.source.currentMarkdown();
     if (file === null) {
       if (this.isCurrent(requestedGeneration)) this.view.showEmpty();
       return;
     }
-    if (!styleOnly) this.view.showLoading(file.path);
+    if (!styleOnly && !preserveExistingView) this.view.showLoading(file.path);
 
     try {
       const snapshot = await this.snapshots.snapshot(file);

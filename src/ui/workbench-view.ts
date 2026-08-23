@@ -8,7 +8,7 @@ import {
 export { WECHAT_OFFICIAL_CONSOLE_URL } from './external-browser';
 
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
-import type { EditableArticleSettings } from '../domain/article';
+import type { ArticleDraftValues, EditableArticleSettings } from '../domain/article';
 import type { VaultFileRef } from '../domain/ports';
 import type { CoverPickerModel, CoverPickerOption, PreparedCover } from '../cover/cover-workflow';
 import type { PreparedPublish } from '../publish/publish-workflow';
@@ -56,6 +56,8 @@ interface WorkbenchControllerBinding {
     file: VaultFileRef,
     settings: Readonly<EditableArticleSettings>,
   ): Promise<void>;
+  generateTitles?(draft: Readonly<ArticleDraftValues>): Promise<readonly string[]>;
+  generateDigest?(draft: Readonly<ArticleDraftValues>): Promise<string>;
 }
 
 let workbenchViewCounter = 0;
@@ -375,6 +377,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     renderPublishSettings(this.settingsEl, state, {
       chooseCover: () => this.openCoverPicker(),
       saveArticle: settings => this.saveArticleSettings(file, settings),
+      generateTitles: draft => this.controller?.generateTitles?.(draft)
+        ?? Promise.reject(new Error('文本生成服务不可用。')),
+      generateDigest: draft => this.controller?.generateDigest?.(draft)
+        ?? Promise.reject(new Error('文本生成服务不可用。')),
     });
   }
 

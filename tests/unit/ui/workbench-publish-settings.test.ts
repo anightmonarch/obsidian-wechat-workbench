@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../../mocks/obsidian';
 import { renderState } from '../../fixtures/workbench-render-state';
@@ -6,7 +6,10 @@ import { renderPublishSettings } from '../../../src/ui/workbench-publish-setting
 import { publishPayloadHash } from '../../../src/publish/publish-content';
 
 describe('publish settings', () => {
-  it('shows article, cover, and sync sections without internal identifiers', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('shows article, cover, and sync sections without internal identifiers and autosaves edits', async () => {
     const host = document.createElement('section');
     const chooseCover = vi.fn();
     const saveArticle = vi.fn(async () => undefined);
@@ -27,6 +30,7 @@ describe('publish settings', () => {
       .toBe('当前：Author');
     expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value)
       .toBe('');
+    expect(host.querySelector('[data-testid="settings-save"]')).toBeNull();
     expect(host.querySelector('[data-testid="settings-source-url"]')).toBeNull();
     expect(host.textContent).not.toContain('原文链接');
 
@@ -42,14 +46,89 @@ describe('publish settings', () => {
     title.value = 'Updated title';
     author.value = 'wbs';
     digest.value = 'Updated digest';
-    host.querySelector<HTMLButtonElement>('[data-testid="settings-save"]')?.click();
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    author.dispatchEvent(new Event('input', { bubbles: true }));
+    digest.dispatchEvent(new Event('input', { bubbles: true }));
 
+    expect(saveArticle).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(saveArticle).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
     expect(saveArticle).toHaveBeenCalledWith({
       title: 'Updated title',
       author: 'wbs',
       digest: 'Updated digest',
       contentSourceUrl: '',
     });
+    await vi.runAllTimersAsync();
+    expect(host.querySelector('[data-testid="settings-save-status"]')?.textContent).toBe('已保存');
+  });
+
+  it('keeps the same fields and AI candidates when the render state refreshes', async () => {
+    const host = document.createElement('section');
+    const generateTitles = vi.fn(async () => ['标题一', '标题二', '标题三'] as const);
+    const generateDigest = vi.fn(async () => '摘要候选');
+    const saveArticle = vi.fn(async () => undefined);
+    const actions = { chooseCover: vi.fn(), saveArticle, generateTitles, generateDigest };
+    renderPublishSettings(host, renderState, actions);
+
+    const title = host.querySelector<HTMLInputElement>('[data-testid="settings-title"]');
+    const titleButton = host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
+    if (title === null || titleButton === null) throw new Error('Title controls are missing.');
+    title.value = '本地编辑中的标题';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    titleButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(host.querySelector('[data-title-candidate="标题二"]')).not.toBeNull();
+    const refreshed = Object.freeze({
+      ...renderState,
+      snapshot: Object.freeze({
+        ...renderState.snapshot,
+        frontmatter: Object.freeze({ title: 'Article title from disk' }),
+      }),
+    });
+    renderPublishSettings(host, refreshed, actions);
+
+    expect(host.querySelector<HTMLInputElement>('[data-testid="settings-title"]')).toBe(title);
+    expect(title.value).toBe('本地编辑中的标题');
+    expect(host.querySelectorAll('[data-title-candidate]')).toHaveLength(3);
+    expect(generateTitles).toHaveBeenCalledOnce();
+    expect(generateDigest).not.toHaveBeenCalled();
+  });
+
+  it('allows adopting and regenerating title and digest candidates in the current session', async () => {
+    const host = document.createElement('section');
+    const generateTitles = vi.fn()
+      .mockResolvedValueOnce(['标题一', '标题二', '标题三'] as const)
+      .mockResolvedValueOnce(['新标题一', '新标题二', '新标题三'] as const);
+    const generateDigest = vi.fn(async () => '摘要候选');
+    const saveArticle = vi.fn(async () => undefined);
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(), saveArticle, generateTitles, generateDigest,
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    host.querySelector<HTMLButtonElement>('[data-title-candidate="标题二"]')?.click();
+    expect(host.querySelector<HTMLInputElement>('[data-testid="settings-title"]')?.value).toBe('标题二');
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-regenerate"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.querySelector('[data-title-candidate="标题一"]')).toBeNull();
+    expect(host.querySelector('[data-title-candidate="新标题一"]')).not.toBeNull();
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    host.querySelector<HTMLButtonElement>('[data-digest-candidate]')?.click();
+    expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value).toBe('摘要候选');
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(saveArticle).toHaveBeenCalled();
   });
 
   it('edits explicit frontmatter values without materializing inherited defaults', () => {

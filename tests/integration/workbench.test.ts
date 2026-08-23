@@ -8,6 +8,7 @@ import type { ThemeDefinition } from '../../src/domain/theme';
 import type { PreflightReport } from '../../src/preflight/preflight-engine';
 import {
   WorkbenchController,
+  type WorkbenchAiTextPort,
   type WorkbenchArticleSettingsPort,
   type WorkbenchClipboardPort,
   type WorkbenchEventHandle,
@@ -84,10 +85,11 @@ class FakeView implements WorkbenchViewPort {
   rendered: string[] = [];
   styles: string[] = [];
   emptyCount = 0;
+  loadingCount = 0;
   errors: string[] = [];
 
   showEmpty(): void { this.emptyCount += 1; }
-  showLoading(): void {}
+  showLoading(): void { this.loadingCount += 1; }
   showError(message: string): void { this.errors.push(message); }
   showArtifact(state: { artifact: Readonly<RenderArtifact>; style?: Readonly<ResolvedArticleStyle> }): void {
     this.rendered.push(state.artifact.source.vaultPath);
@@ -114,6 +116,7 @@ function controller(
     info: Object.freeze([]),
   }),
   publisher?: WorkbenchPublishPort,
+  aiText?: WorkbenchAiTextPort,
 ) {
   const registered: unknown[] = [];
   return {
@@ -132,6 +135,8 @@ function controller(
       publisher,
       undefined,
       articleSettings,
+      undefined,
+      aiText,
     ),
   };
 }
@@ -409,6 +414,53 @@ describe('WorkbenchController', () => {
       digest: 'Updated digest',
       contentSourceUrl: 'https://example.com/source',
     });
+  });
+
+  it('persists article metadata without showing a loading state or replacing the active artifact', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const update = vi.fn(async () => undefined);
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      undefined,
+      { update },
+    );
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+    const completed = harness.instance.currentArtifact();
+    const loadingBefore = view.loadingCount;
+
+    await harness.instance.saveArticleSettings(file('active.md'), {
+      title: 'Updated title', author: 'wbs', digest: 'Updated digest', contentSourceUrl: '',
+    });
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(view.loadingCount).toBe(loadingBefore);
+    expect(harness.instance.currentArtifact()).not.toBeNull();
+    expect(harness.instance.currentArtifact()?.canonicalHtml).toBe(completed?.canonicalHtml);
+  });
+
+  it('delegates current article metadata to the AI text candidate service', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const generateTitles = vi.fn(async (_input: Parameters<WorkbenchAiTextPort['generateTitles']>[0]) => ['标题一', '标题二', '标题三'] as const);
+    const generateDigest = vi.fn(async (_input: Parameters<WorkbenchAiTextPort['generateDigest']>[0]) => '摘要候选');
+    const aiText: WorkbenchAiTextPort = { generateTitles, generateDigest };
+    const harness = controller(source, view, async input => artifactFor(input), undefined, undefined, undefined, undefined, aiText);
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await expect(harness.instance.generateTitles({ title: '当前标题', author: '作者', digest: '' }))
+      .resolves.toEqual(['标题一', '标题二', '标题三']);
+    await expect(harness.instance.generateDigest({ title: '当前标题', author: '作者', digest: '' }))
+      .resolves.toBe('摘要候选');
+    expect(generateTitles).toHaveBeenCalledOnce();
+    expect(generateDigest).toHaveBeenCalledOnce();
+    expect(generateTitles.mock.calls[0]?.[0]?.draft.title).toBe('当前标题');
   });
 
   it('rejects a settings form that belongs to a note that is no longer active', async () => {
