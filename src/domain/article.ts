@@ -6,10 +6,13 @@ export interface ArticleMetadata {
   contentSourceUrl: string;
 }
 
-export interface EditableArticleSettings {
+export interface ArticleDraftValues {
   title: string;
   author: string;
   digest: string;
+}
+
+export interface EditableArticleSettings extends ArticleDraftValues {
   contentSourceUrl: string;
 }
 
