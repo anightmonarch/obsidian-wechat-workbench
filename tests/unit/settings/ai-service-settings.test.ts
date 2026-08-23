@@ -7,89 +7,121 @@ function createService() {
   const settings = {
     current: {
       ...DEFAULT_SETTINGS,
-      imageApiBaseUrl: 'https://images.example.test/v1',
+      textApiEndpoint: 'https://text.example.test/v1/chat',
+      textApiModel: 'saved-text-model',
+      imageApiEndpoint: 'https://images.example.test/v1/images',
       imageApiModel: 'saved-image-model',
-    },
+    } as PluginSettings,
     update: vi.fn(async (patch: Partial<PluginSettings>) => {
       settings.current = { ...settings.current, ...patch };
       return settings.current;
     }),
   };
+  const values = new Map<string, string>([
+    ['textApiKey', 'stored-text-key'],
+    ['imageApiKey', 'stored-image-key'],
+  ]);
   const secrets = {
-    get: vi.fn((kind: string) => kind === 'imageApiKey' ? 'synthetic-stored-key' : null),
-    set: vi.fn(),
-    clear: vi.fn(),
-  };
-  const catalog = {
-    list: vi.fn(async () => [Object.freeze({
-      id: 'image-model',
-      capability: 'IMAGE_UNVERIFIED' as const,
-    })]),
+    get: vi.fn((kind: 'textApiKey' | 'imageApiKey') => values.get(kind) ?? null),
+    set: vi.fn((kind: 'textApiKey' | 'imageApiKey', value: string) => values.set(kind, value)),
+    clear: vi.fn((kind: 'textApiKey' | 'imageApiKey') => values.delete(kind)),
   };
   const service = new AiServiceSettingsService(
     { get: () => settings.current, update: settings.update },
     secrets,
-    catalog,
   );
-  return { service, settings, secrets, catalog };
+  return { service, settings, secrets, values };
 }
 
 describe('AiServiceSettingsService', () => {
-  it('reuses the stored key only for the unchanged protocol and normalized URL', async () => {
-    const { service, catalog } = createService();
+  it('saves text configuration without a network dependency', async () => {
+    const current = createService();
 
-    await service.refreshModels({
-      protocol: 'openai-compatible',
-      baseUrl: 'https://images.example.test/v1/',
-      apiKey: '',
+    await current.service.saveText({
+      endpoint: 'https://text.example.test/v1/chat/completions',
+      model: 'text-model',
+      apiKey: 'new-text-key',
     });
 
-    expect(catalog.list).toHaveBeenCalledWith(expect.objectContaining({
-      protocol: 'openai-compatible',
-      baseUrl: 'https://images.example.test/v1',
-      apiKey: 'synthetic-stored-key',
-    }));
+    expect(current.settings.current.textApiEndpoint)
+      .toBe('https://text.example.test/v1/chat/completions');
+    expect(current.settings.current.textApiModel).toBe('text-model');
+    expect(current.secrets.set).toHaveBeenCalledWith('textApiKey', 'new-text-key');
   });
 
-  it('never sends an old key to a changed protocol or host', async () => {
-    const { service, catalog } = createService();
+  it('saves image configuration independently from text configuration', async () => {
+    const current = createService();
 
-    await expect(service.refreshModels({
-      protocol: 'anthropic',
-      baseUrl: 'https://api.anthropic.com',
-      apiKey: '',
-    })).rejects.toMatchObject({ code: 'AI_PROVIDER_NEW_KEY_REQUIRED' });
-    expect(catalog.list).not.toHaveBeenCalled();
-  });
-
-  it('does not save a model list fetched from a different provider endpoint', async () => {
-    const { service, settings } = createService();
-
-    await service.refreshModels({
-      protocol: 'openai-compatible',
-      baseUrl: 'https://images.example.test/v1',
-      apiKey: 'synthetic-new-key',
-    });
-
-    await expect(service.save({
-      protocol: 'openai-compatible',
-      baseUrl: 'https://other-images.example.test/v1',
+    await current.service.saveImage({
+      endpoint: 'https://images.example.test/v1/images/generations',
       model: 'image-model',
-      apiKey: 'synthetic-other-key',
-    })).rejects.toMatchObject({ code: 'AI_MODEL_NOT_REFRESHED' });
-    expect(settings.current.imageApiBaseUrl).toBe('https://images.example.test/v1');
+      apiKey: 'new-image-key',
+    });
+
+    expect(current.settings.current.imageApiEndpoint)
+      .toBe('https://images.example.test/v1/images/generations');
+    expect(current.settings.current.textApiEndpoint).toBe('https://text.example.test/v1/chat');
+    expect(current.secrets.set).toHaveBeenCalledWith('imageApiKey', 'new-image-key');
   });
 
-  it('keeps the saved model when refresh fails', async () => {
-    const { service, settings, secrets, catalog } = createService();
-    catalog.list.mockRejectedValueOnce(new Error('synthetic provider failure'));
+  it('retains a stored key for a same-origin path change when the field is empty', async () => {
+    const current = createService();
 
-    await expect(service.refreshModels({
-      protocol: 'openai-compatible',
-      baseUrl: 'https://images.example.test/v1',
-      apiKey: 'synthetic-new-key',
-    })).rejects.toBeDefined();
-    expect(settings.current.imageApiModel).toBe('saved-image-model');
-    expect(secrets.set).not.toHaveBeenCalled();
+    await current.service.saveImage({
+      endpoint: 'https://images.example.test/custom/generate',
+      model: 'new-image-model',
+      apiKey: '',
+    });
+
+    expect(current.values.get('imageApiKey')).toBe('stored-image-key');
+    expect(current.secrets.set).not.toHaveBeenCalled();
+  });
+
+  it('replaces a stored key when a non-empty key is supplied on the same origin', async () => {
+    const current = createService();
+    const replacementImage = ['replacement', 'image', 'credential'].join('-');
+
+    await current.service.saveImage({
+      endpoint: 'https://images.example.test/custom/generate',
+      model: 'new-image-model',
+      apiKey: replacementImage,
+    });
+
+    expect(current.values.get('imageApiKey')).toBe(replacementImage);
+  });
+
+  it('requires a new key when the endpoint origin changes', async () => {
+    const current = createService();
+
+    await expect(current.service.saveImage({
+      endpoint: 'https://new-images.example.test/v1/images',
+      model: 'image-model',
+      apiKey: '',
+    })).rejects.toMatchObject({ code: 'AI_ENDPOINT_NEW_KEY_REQUIRED' });
+    expect(current.settings.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a root endpoint path before any secret mutation', async () => {
+    const current = createService();
+
+    await expect(current.service.saveText({
+      endpoint: 'https://text.example.test',
+      model: 'text-model',
+      apiKey: 'new-key',
+    })).rejects.toMatchObject({ code: 'AI_ENDPOINT_PATH_MISSING' });
+    expect(current.secrets.set).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a replaced key when settings persistence fails', async () => {
+    const current = createService();
+    const replacementText = ['replacement', 'text', 'credential'].join('-');
+    current.settings.update.mockRejectedValueOnce(new Error('synthetic save failure'));
+
+    await expect(current.service.saveText({
+      endpoint: 'https://text.example.test/v1/chat',
+      model: 'text-model',
+      apiKey: replacementText,
+    })).rejects.toThrow('synthetic save failure');
+    expect(current.values.get('textApiKey')).toBe('stored-text-key');
   });
 });

@@ -3,41 +3,36 @@ import type { PluginSettings } from './model';
 
 export class AiServiceSettingsError extends Error {
   constructor(readonly code:
-    | 'AI_PROVIDER_URL_INVALID'
-    | 'AI_PROVIDER_NEW_KEY_REQUIRED'
-    | 'AI_MODEL_NOT_REFRESHED', message: string) {
+    | 'AI_ENDPOINT_INVALID'
+    | 'AI_ENDPOINT_PATH_MISSING'
+    | 'AI_ENDPOINT_NEW_KEY_REQUIRED'
+    | 'AI_MODEL_MISSING'
+    | 'AI_MODEL_DISCOVERY_REMOVED', message: string) {
     super(message);
     this.name = 'AiServiceSettingsError';
   }
 }
 
-function normalizedUrl(value: string): string {
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== 'https:' || url.username.length > 0 || url.password.length > 0
-      || url.search.length > 0 || url.hash.length > 0) {
-      throw new AiServiceSettingsError('AI_PROVIDER_URL_INVALID', 'Provider URL is not a public HTTPS endpoint.');
-    }
-    return url.toString().replace(/\/$/u, '');
-  } catch (error) {
-    if (error instanceof AiServiceSettingsError) throw error;
-    throw new AiServiceSettingsError('AI_PROVIDER_URL_INVALID', 'Provider URL is invalid.');
-  }
+export interface AiServiceInput {
+  endpoint: string;
+  model: string;
+  apiKey: string;
 }
 
-export interface AiServiceInput {
+interface LegacyAiServiceInput {
   protocol: AiProviderProtocol;
   baseUrl: string;
   model: string;
   apiKey: string;
 }
 
-type ImageSecretKind = 'imageApiKey';
+type AiServiceKind = 'text' | 'image';
+type AiSecretKind = 'textApiKey' | 'imageApiKey';
 
-interface ImageSecretPort {
-  get(kind: ImageSecretKind): string | null;
-  set(kind: ImageSecretKind, value: string): void;
-  clear(kind: ImageSecretKind): void;
+interface AiSecretPort {
+  get(kind: AiSecretKind): string | null;
+  set(kind: AiSecretKind, value: string): void;
+  clear(kind: AiSecretKind): void;
 }
 
 interface SettingsPort {
@@ -45,87 +40,111 @@ interface SettingsPort {
   update(patch: Partial<PluginSettings>): Promise<Readonly<PluginSettings>>;
 }
 
-const AI_PROTOCOLS: readonly AiProviderProtocol[] = ['openai-compatible', 'anthropic'];
+function isLiteralPrivateHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/gu, '').toLowerCase();
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
+  if (host.includes(':')) {
+    return host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe8')
+      || host.startsWith('fe9') || host.startsWith('fea') || host.startsWith('feb');
+  }
+  const parts = host.split('.');
+  if (parts.length !== 4 || parts.some(part => !/^\d{1,3}$/u.test(part))) return false;
+  const octets = parts.map(Number);
+  if (octets.some(value => value > 255)) return false;
+  const first = octets[0] ?? -1;
+  const second = octets[1] ?? -1;
+  return first === 10 || first === 127 || first === 169 && second === 254
+    || first === 172 && second >= 16 && second <= 31
+    || first === 192 && second === 168;
+}
 
-function isProtocol(value: unknown): value is AiProviderProtocol {
-  return typeof value === 'string' && AI_PROTOCOLS.includes(value as AiProviderProtocol);
+function normalizedEndpoint(value: string): string {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || url.username.length > 0 || url.password.length > 0
+      || url.search.length > 0 || url.hash.length > 0 || isLiteralPrivateHost(url.hostname)) {
+      throw new AiServiceSettingsError('AI_ENDPOINT_INVALID', 'Endpoint URL is not a public HTTPS endpoint.');
+    }
+    if (url.pathname === '' || url.pathname === '/') {
+      throw new AiServiceSettingsError('AI_ENDPOINT_PATH_MISSING', 'Endpoint URL must include the complete API path.');
+    }
+    return url.toString().replace(/\/$/u, '');
+  } catch (error) {
+    if (error instanceof AiServiceSettingsError) throw error;
+    throw new AiServiceSettingsError('AI_ENDPOINT_INVALID', 'Endpoint URL is invalid.');
+  }
+}
+
+function endpointOrigin(value: string): string | null {
+  if (value.trim().length === 0) return null;
+  return new URL(value).origin;
 }
 
 export class AiServiceSettingsService {
-  private latestModels: readonly Readonly<AiModelOption>[] = [];
-  private latestCatalogEndpoint: string | null = null;
-
   constructor(
     private readonly settings: SettingsPort,
-    private readonly secrets: ImageSecretPort,
-    private readonly catalog: AiModelCatalogPort,
+    private readonly secrets: AiSecretPort,
+    private readonly legacyCatalog?: AiModelCatalogPort,
   ) {}
 
-  async refreshModels(
-    input: Readonly<Omit<AiServiceInput, 'model'>>,
-  ): Promise<readonly Readonly<AiModelOption>[]> {
-    const baseUrl = normalizedUrl(input.baseUrl);
-    const current = this.settings.get();
-    let apiKey = input.apiKey.trim();
-    const sameEndpoint = input.protocol === current.imageApiProtocol
-      && baseUrl === current.imageApiBaseUrl;
-    if (apiKey.length === 0) {
-      if (!sameEndpoint) {
-        throw new AiServiceSettingsError('AI_PROVIDER_NEW_KEY_REQUIRED', 'Changing protocol or service address requires a new API key.');
-      }
-      apiKey = this.secrets.get('imageApiKey') ?? '';
-    }
-    const models = Object.freeze(await this.catalog.list({
-      protocol: input.protocol,
-      baseUrl,
-      apiKey,
-    }));
-    this.latestModels = models;
-    this.latestCatalogEndpoint = endpointKey(input.protocol, baseUrl);
-    return this.latestModels;
+  async saveText(input: Readonly<AiServiceInput>): Promise<Readonly<PluginSettings>> {
+    return this.saveService('text', input);
   }
 
-  async save(input: Readonly<AiServiceInput>): Promise<Readonly<PluginSettings>> {
-    const protocol = isProtocol(input.protocol) ? input.protocol : currentProtocol(this.settings.get());
-    const baseUrl = normalizedUrl(input.baseUrl);
+  async saveImage(input: Readonly<AiServiceInput>): Promise<Readonly<PluginSettings>> {
+    return this.saveService('image', input);
+  }
+
+  private async saveService(
+    kind: AiServiceKind,
+    input: Readonly<AiServiceInput>,
+  ): Promise<Readonly<PluginSettings>> {
+    const endpoint = normalizedEndpoint(input.endpoint);
     const model = input.model.trim();
+    if (model.length === 0) {
+      throw new AiServiceSettingsError('AI_MODEL_MISSING', 'Model name is required.');
+    }
     const current = this.settings.get();
-    const sameEndpoint = protocol === current.imageApiProtocol && baseUrl === current.imageApiBaseUrl;
-    const allowed = this.latestCatalogEndpoint === endpointKey(protocol, baseUrl)
-      && this.latestModels.some(option => option.id === model)
-      || sameEndpoint && model === current.imageApiModel;
-    if (!allowed) {
-      throw new AiServiceSettingsError('AI_MODEL_NOT_REFRESHED', 'Select a model after refreshing the provider list.');
+    const endpointField = kind === 'text' ? 'textApiEndpoint' : 'imageApiEndpoint';
+    const secretKind: AiSecretKind = kind === 'text' ? 'textApiKey' : 'imageApiKey';
+    const previousKey = this.secrets.get(secretKind);
+    const originChanged = endpointOrigin(current[endpointField]) !== endpointOrigin(endpoint);
+    const suppliedKey = input.apiKey.trim();
+    if (originChanged && suppliedKey.length === 0) {
+      throw new AiServiceSettingsError(
+        'AI_ENDPOINT_NEW_KEY_REQUIRED',
+        'Changing service origin requires a new API key.',
+      );
     }
-    let previousKey = this.secrets.get('imageApiKey');
-    if (!sameEndpoint) {
-      if (input.apiKey.trim().length === 0) {
-        throw new AiServiceSettingsError('AI_PROVIDER_NEW_KEY_REQUIRED', 'Changing protocol or service address requires a new API key.');
-      }
-      this.secrets.set('imageApiKey', input.apiKey.trim());
-    }
+    if (suppliedKey.length > 0) this.secrets.set(secretKind, suppliedKey);
     try {
-      return await this.settings.update({
-        imageApiProtocol: protocol,
-        imageApiBaseUrl: baseUrl,
-        imageApiModel: model,
-      });
+      const patch: Partial<PluginSettings> = kind === 'text'
+        ? { textApiEndpoint: endpoint, textApiModel: model }
+        : { imageApiEndpoint: endpoint, imageApiModel: model };
+      return await this.settings.update(patch);
     } catch (error) {
-      if (!sameEndpoint) {
-        if (previousKey === null) this.secrets.clear('imageApiKey');
-        else this.secrets.set('imageApiKey', previousKey);
+      if (suppliedKey.length > 0) {
+        if (previousKey === null) this.secrets.clear(secretKind);
+        else this.secrets.set(secretKind, previousKey);
       }
       throw error;
-    } finally {
-      previousKey = null;
     }
   }
-}
 
-function endpointKey(protocol: AiProviderProtocol, baseUrl: string): string {
-  return `${protocol}\n${baseUrl}`;
-}
+  /** Transitional API removed when the settings UI migrates to saveImage(). */
+  async refreshModels(
+    _input: Readonly<{ protocol: AiProviderProtocol; baseUrl: string; apiKey: string }>,
+  ): Promise<readonly Readonly<AiModelOption>[]> {
+    void this.legacyCatalog;
+    throw new AiServiceSettingsError(
+      'AI_MODEL_DISCOVERY_REMOVED',
+      'Model discovery is not supported; enter the model name manually.',
+    );
+  }
 
-function currentProtocol(settings: Readonly<PluginSettings>): AiProviderProtocol {
-  return settings.imageApiProtocol;
+  /** Transitional API removed when the settings UI migrates to saveImage(). */
+  async save(input: Readonly<LegacyAiServiceInput>): Promise<Readonly<PluginSettings>> {
+    return this.saveImage({ endpoint: input.baseUrl, model: input.model, apiKey: input.apiKey });
+  }
+
 }
