@@ -38,7 +38,7 @@ export interface RecoveryReceiptRecord {
 }
 
 export interface PluginSettings {
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 4;
   appId: string;
   defaultThemeId: string;
   defaultStyle: Readonly<ArticleStyleConfig>;
@@ -50,6 +50,9 @@ export interface PluginSettings {
   globalDefaultCoverPath: string;
   accountDisplayName: string;
   accountVerification: Readonly<AccountVerificationRecord> | null;
+  textApiEndpoint: string;
+  textApiModel: string;
+  imageApiEndpoint: string;
   imageApiBaseUrl: string;
   imageApiProtocol: AiProviderProtocol;
   imageApiModel: string;
@@ -60,7 +63,7 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
-  schemaVersion: 3,
+  schemaVersion: 4,
   appId: '',
   defaultThemeId: 'native',
   defaultStyle: Object.freeze({
@@ -90,6 +93,9 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   globalDefaultCoverPath: '',
   accountDisplayName: '',
   accountVerification: null,
+  textApiEndpoint: '',
+  textApiModel: '',
+  imageApiEndpoint: '',
   imageApiBaseUrl: '',
   imageApiProtocol: 'openai-compatible',
   imageApiModel: '',

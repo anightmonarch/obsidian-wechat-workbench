@@ -21,11 +21,13 @@ describe('SecretStore', () => {
 
     secrets.set('appSecret', 'synthetic-secret');
     secrets.set('accessToken', 'synthetic-token');
+    secrets.set('textApiKey', 'synthetic-text-key');
     secrets.set('imageApiKey', 'synthetic-key');
 
     expect(storage.values).toEqual(new Map([
       ['wechat-workbench-app-secret', 'synthetic-secret'],
       ['wechat-workbench-access-token', 'synthetic-token'],
+      ['wechat-workbench-text-api-key', 'synthetic-text-key'],
       ['wechat-workbench-image-api-key', 'synthetic-key'],
     ]));
   });
@@ -38,6 +40,7 @@ describe('SecretStore', () => {
     expect(secrets.status()).toEqual({
       appSecret: true,
       accessToken: false,
+      textApiKey: false,
       imageApiKey: false,
     });
   });

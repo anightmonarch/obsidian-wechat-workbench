@@ -28,7 +28,7 @@ describe('SettingsStore', () => {
       recoveryReceipts: [],
     })).load();
 
-    expect(settings.schemaVersion).toBe(3);
+    expect(settings.schemaVersion).toBe(4);
     expect(settings.appId).toBe('wx-public-id');
     expect(settings.defaultThemeId).toBe('technical');
     expect(settings.defaultStyle).toEqual(DEFAULT_ARTICLE_STYLE);
@@ -37,7 +37,7 @@ describe('SettingsStore', () => {
     expect(settings.recentStyles).toEqual({});
   });
 
-  it('migrates v2 account and image settings into schema v3', async () => {
+  it('migrates v2 account and image settings into schema v4', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
       schemaVersion: 2,
       appId: 'wx-public-id',
@@ -46,12 +46,32 @@ describe('SettingsStore', () => {
     })).load();
 
     expect(settings).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       accountDisplayName: '',
       accountVerification: null,
       imageApiProtocol: 'openai-compatible',
       imageApiBaseUrl: 'https://images.example.test/v1',
+      imageApiEndpoint: 'https://images.example.test/v1',
       imageApiModel: 'image-model',
+    });
+  });
+
+  it('migrates a v3 image URL without appending a provider path', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 3,
+      imageApiProtocol: 'openai-compatible',
+      imageApiBaseUrl: 'https://images.example.test/custom/generate',
+      imageApiModel: 'saved-image-model',
+    })).load();
+
+    expect(settings).toMatchObject({
+      schemaVersion: 4,
+      textApiEndpoint: '',
+      textApiModel: '',
+      imageApiEndpoint: 'https://images.example.test/custom/generate',
+      imageApiModel: 'saved-image-model',
+      imageApiBaseUrl: 'https://images.example.test/custom/generate',
+      imageApiProtocol: 'openai-compatible',
     });
   });
 
@@ -125,6 +145,16 @@ describe('SettingsStore', () => {
     expect(adapter.saved).not.toHaveProperty('imageApiKey');
   });
 
+  it('never serializes text or image API keys', async () => {
+    const adapter = new MemoryPluginData();
+    const store = new SettingsStore(adapter);
+
+    await store.save({ ...DEFAULT_SETTINGS, textApiEndpoint: 'https://text.example.test/v1/chat' });
+
+    expect(adapter.saved).not.toHaveProperty('textApiKey');
+    expect(adapter.saved).not.toHaveProperty('imageApiKey');
+  });
+
   it('sanitizes recovery receipts and drops article or credential-shaped extras', async () => {
     const store = new SettingsStore(new MemoryPluginData({
       schemaVersion: 1,
@@ -151,5 +181,6 @@ describe('SettingsStore', () => {
     }));
 
     expect((await store.load()).imageApiBaseUrl).toBe('');
+    expect((await store.load()).imageApiEndpoint).toBe('');
   });
 });

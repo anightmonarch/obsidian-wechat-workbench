@@ -91,6 +91,7 @@ describe('buildSettingsPresentation', () => {
     const presentation = buildSettingsPresentation(DEFAULT_SETTINGS, {
       appSecret: true,
       accessToken: true,
+      textApiKey: false,
       imageApiKey: false,
     });
 

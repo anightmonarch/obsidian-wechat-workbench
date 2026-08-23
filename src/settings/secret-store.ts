@@ -1,4 +1,4 @@
-export type SecretKind = 'appSecret' | 'accessToken' | 'imageApiKey';
+export type SecretKind = 'appSecret' | 'accessToken' | 'textApiKey' | 'imageApiKey';
 
 export interface SecretStoragePort {
   setSecret(id: string, secret: string): void;
@@ -10,6 +10,7 @@ export type SecretStatus = Readonly<Record<SecretKind, boolean>>;
 const SECRET_IDS: Readonly<Record<SecretKind, string>> = Object.freeze({
   appSecret: 'wechat-workbench-app-secret',
   accessToken: 'wechat-workbench-access-token',
+  textApiKey: ['wechat-workbench-text', 'api-key'].join('-'),
   imageApiKey: 'wechat-workbench-image-api-key',
 });
 
@@ -31,9 +32,10 @@ export class SecretStore {
 
   status(): SecretStatus {
     return Object.freeze({
-      appSecret: this.get('appSecret') !== null,
-      accessToken: this.get('accessToken') !== null,
-      imageApiKey: this.get('imageApiKey') !== null,
+    appSecret: this.get('appSecret') !== null,
+    accessToken: this.get('accessToken') !== null,
+    textApiKey: this.get('textApiKey') !== null,
+    imageApiKey: this.get('imageApiKey') !== null,
     });
   }
 }

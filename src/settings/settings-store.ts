@@ -164,15 +164,20 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
 }
 
 function sanitizeSettings(value: unknown): PluginSettings {
-  const schemaVersion = isRecord(value) && (value.schemaVersion === 1 || value.schemaVersion === 2 || value.schemaVersion === 3)
+  const schemaVersion = isRecord(value) && (
+    value.schemaVersion === 1 || value.schemaVersion === 2
+    || value.schemaVersion === 3 || value.schemaVersion === 4
+  )
     ? value.schemaVersion
     : 0;
-  const stored = isRecord(value) && (schemaVersion === 1 || schemaVersion === 2 || schemaVersion === 3)
+  const stored = isRecord(value) && (schemaVersion === 1 || schemaVersion === 2
+    || schemaVersion === 3 || schemaVersion === 4)
     ? value
     : {};
+  const legacyImageEndpoint = providerBaseUrl(stored.imageApiBaseUrl);
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
     defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
@@ -193,7 +198,16 @@ function sanitizeSettings(value: unknown): PluginSettings {
       DEFAULT_SETTINGS.accountDisplayName,
     ),
     accountVerification: schemaVersion >= 3 ? accountVerification(stored.accountVerification) : null,
-    imageApiBaseUrl: providerBaseUrl(stored.imageApiBaseUrl),
+    textApiEndpoint: schemaVersion >= 4
+      ? providerBaseUrl(stored.textApiEndpoint)
+      : DEFAULT_SETTINGS.textApiEndpoint,
+    textApiModel: schemaVersion >= 4
+      ? stringValue(stored.textApiModel, DEFAULT_SETTINGS.textApiModel)
+      : DEFAULT_SETTINGS.textApiModel,
+    imageApiEndpoint: schemaVersion >= 4
+      ? providerBaseUrl(stored.imageApiEndpoint)
+      : legacyImageEndpoint,
+    imageApiBaseUrl: legacyImageEndpoint,
     imageApiProtocol: aiProtocol(stored.imageApiProtocol),
     imageApiModel: stringValue(stored.imageApiModel, DEFAULT_SETTINGS.imageApiModel),
     accessTokenExpiresAt: nullableNumber(
