@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeChat Workbench · AI 内容生成交互原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ww-bg: #ffffff;
+      --ww-bg-secondary: #f6f6f7;
+      --ww-bg-tertiary: #eeeeef;
+      --ww-surface: #ffffff;
+      --ww-surface-soft: #fafafa;
+      --ww-text: #252525;
+      --ww-muted: #77777b;
+      --ww-faint: #a7a7ab;
+      --ww-border: #dedee2;
+      --ww-border-strong: #c9c9ce;
+      --ww-accent: #8b5cf6;
+      --ww-accent-hover: #7c4ee7;
+      --ww-accent-soft: #f2ecff;
+      --ww-success: #16834a;
+      --ww-warning: #a76000;
+      --ww-danger: #c23939;
+      --ww-shadow: 0 14px 44px rgba(0, 0, 0, .16);
+      --ww-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-width: 1040px; min-height: 720px; margin: 0; }
+    body { overflow: hidden; color: var(--ww-text); background: #d9d9dc; font-family: var(--ww-font); }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    svg { display: block; }
+
+    .prototype-controls {
+      position: fixed;
+      z-index: 100;
+      top: 11px;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 38px;
+      padding: 4px;
+      border: 1px solid rgba(0, 0, 0, .12);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .13);
+      transform: translateX(-50%);
+      backdrop-filter: blur(14px);
+    }
+    .prototype-controls button,
+    .prototype-controls select {
+      height: 28px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #3d3d42;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .prototype-controls button { padding: 0 12px; }
+    .prototype-controls button.is-active { background: #29292c; color: #fff; }
+    .prototype-controls select { padding: 0 24px 0 8px; }
+    .prototype-label { padding-left: 5px; color: #89898f; font-size: 11px; }
+
+    .screen { display: none; width: 100vw; height: 100vh; }
+    .screen.is-active { display: block; }
+
+    .mac-window {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border: 1px solid #c9c9cc;
+      border-radius: 16px;
+      background: var(--ww-bg);
+    }
+    .mac-titlebar {
+      position: relative;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid var(--ww-border);
+      background: rgba(250, 250, 250, .96);
+      font-weight: 650;
+      font-size: 18px;
+      letter-spacing: -.2px;
+    }
+    .traffic-lights { position: absolute; left: 20px; display: flex; gap: 13px; }
+    .traffic-lights i { width: 18px; height: 18px; border-radius: 50%; background: #ff5f57; border: 1px solid rgba(0,0,0,.08); }
+    .traffic-lights i:nth-child(2) { background: #febc2e; }
+    .traffic-lights i:nth-child(3) { background: #28c840; }
+
+    .icon-button {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--ww-muted);
+      cursor: pointer;
+    }
+    .icon-button:hover { background: var(--ww-bg-tertiary); color: var(--ww-text); }
+    .icon-button.ai-action { color: var(--ww-accent); }
+    .icon-button.ai-action:hover { background: var(--ww-accent-soft); }
+    .icon-button svg { width: 18px; height: 18px; }
+
+    .primary-button,
+    .secondary-button,
+    .ghost-button,
+    .candidate-adopt {
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-weight: 560;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .primary-button { border: 1px solid var(--ww-accent); background: var(--ww-accent); color: #fff; }
+    .primary-button:hover { background: var(--ww-accent-hover); }
+    .secondary-button { border: 1px solid var(--ww-border); background: var(--ww-bg-tertiary); }
+    .secondary-button:hover { background: #e4e4e6; }
+    .ghost-button { border: 1px solid transparent; background: transparent; color: var(--ww-muted); }
+    .ghost-button:hover { background: var(--ww-bg-tertiary); color: var(--ww-text); }
+    .candidate-adopt { min-height: 30px; border: 1px solid var(--ww-accent); background: var(--ww-bg); color: var(--ww-accent); }
+    .candidate-adopt:hover { background: var(--ww-accent-soft); }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--ww-border);
+      border-radius: 8px;
+      outline: none;
+      background: var(--ww-bg);
+      color: var(--ww-text);
+      transition: border-color .12s, box-shadow .12s;
+    }
+    input { height: 38px; padding: 0 11px; }
+    textarea { min-height: 92px; padding: 9px 11px; line-height: 1.55; resize: vertical; }
+    input:focus, textarea:focus { border-color: var(--ww-accent); box-shadow: 0 0 0 2px rgba(139, 92, 246, .13); }
+    input::placeholder, textarea::placeholder { color: var(--ww-faint); }
+
+    /* Settings */
+    .settings-layout { display: grid; grid-template-columns: 330px minmax(680px, 1fr); height: calc(100% - 60px); }
+    .settings-nav { overflow: hidden; border-right: 1px solid var(--ww-border); background: var(--ww-surface-soft); padding: 23px 18px; }
+    .settings-search { position: relative; margin-bottom: 20px; }
+    .settings-search input { height: 42px; padding-left: 43px; border-radius: 22px; font-size: 16px; }
+    .settings-search svg { position: absolute; top: 11px; left: 14px; width: 20px; height: 20px; color: var(--ww-muted); }
+    .settings-nav h4 { margin: 30px 12px 11px; color: var(--ww-faint); font-size: 13px; }
+    .settings-nav-item { height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 13px; border-radius: 8px; color: #404044; font-size: 15px; }
+    .settings-nav-item svg { width: 18px; height: 18px; color: #6d6d71; }
+    .settings-nav-item.is-selected { background: #e8e8ea; color: #232326; }
+    .settings-content { overflow-y: auto; background: var(--ww-bg); padding: 42px clamp(44px, 6vw, 92px) 90px; }
+    .settings-content-inner { width: min(100%, 1040px); margin: 0 auto; }
+    .settings-heading { margin: 0 0 8px; font-size: 28px; letter-spacing: -.5px; }
+    .settings-intro { margin: 0 0 28px; color: var(--ww-muted); font-size: 14px; }
+    .settings-section { margin-top: 34px; }
+    .settings-section-title { margin: 0 0 6px; font-size: 18px; }
+    .settings-section-desc { margin: 0 0 16px; color: var(--ww-muted); font-size: 13px; line-height: 1.6; }
+    .setting-row {
+      min-height: 76px;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(300px, 480px);
+      align-items: center;
+      gap: 24px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--ww-border);
+      background: var(--ww-surface-soft);
+    }
+    .setting-row:first-child { border-radius: 11px 11px 0 0; }
+    .setting-row:last-child { border-bottom: 0; border-radius: 0 0 11px 11px; }
+    .setting-row:only-child { border-radius: 11px; }
+    .setting-name { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+    .setting-description { display: block; color: var(--ww-muted); font-size: 12px; line-height: 1.45; }
+    .settings-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .connection-status { margin-left: auto; color: var(--ww-muted); font-size: 12px; }
+    .connection-status.is-saved { color: var(--ww-success); }
+    .ai-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .ai-config-card { overflow: hidden; border: 1px solid var(--ww-border); border-radius: 12px; background: var(--ww-surface-soft); }
+    .ai-config-head { display: flex; align-items: flex-start; gap: 11px; padding: 18px 18px 14px; border-bottom: 1px solid var(--ww-border); }
+    .service-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 9px; background: var(--ww-accent-soft); color: var(--ww-accent); }
+    .service-icon svg { width: 19px; height: 19px; }
+    .ai-config-head h3 { margin: 0 0 4px; font-size: 16px; }
+    .ai-config-head p { margin: 0; color: var(--ww-muted); font-size: 12px; line-height: 1.45; }
+    .ai-config-body { padding: 16px 18px 18px; }
+    .config-field { margin-bottom: 14px; }
+    .config-field label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; font-weight: 580; }
+    .config-hint { color: var(--ww-muted); font-size: 11px; font-weight: 400; }
+    .secret-input { position: relative; }
+    .secret-input input { padding-right: 38px; }
+    .secret-input .icon-button { position: absolute; top: 4px; right: 4px; }
+    .config-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .config-status { margin-left: auto; color: var(--ww-muted); font-size: 11px; }
+    .config-status.saved { color: var(--ww-success); }
+    .privacy-note { display: flex; gap: 9px; margin-top: 14px; padding: 12px 14px; border: 1px solid #ddd3fa; border-radius: 9px; background: #faf7ff; color: #65597d; font-size: 12px; line-height: 1.55; }
+    .privacy-note svg { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 1px; }
+
+    /* Workbench */
+    .obsidian-shell { display: grid; grid-template-rows: 52px minmax(0, 1fr); height: 100%; background: var(--ww-bg); }
+    .obsidian-topbar { display: grid; grid-template-columns: 460px minmax(480px, 1fr) 700px; border-bottom: 1px solid var(--ww-border); background: #fafafa; }
+    .top-zone { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 0 18px; border-right: 1px solid var(--ww-border); color: var(--ww-muted); }
+    .top-zone:last-child { border-right: 0; justify-content: flex-end; }
+    .top-tab { display: flex; align-items: center; gap: 9px; height: 42px; max-width: 270px; padding: 0 14px; border: 1px solid var(--ww-border); border-bottom-color: #fafafa; border-radius: 9px 9px 0 0; background: var(--ww-bg); color: var(--ww-text); font-size: 13px; }
+    .top-tab span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .obsidian-body { display: grid; grid-template-columns: 56px 404px minmax(480px, 1fr) 700px; min-height: 0; }
+    .ribbon { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 15px 0; border-right: 1px solid var(--ww-border); background: #f7f7f8; color: var(--ww-muted); }
+    .ribbon .icon-button { width: 34px; height: 34px; }
+    .ribbon-spacer { flex: 1; }
+    .file-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--ww-border); background: #f7f7f8; }
+    .file-toolbar { height: 50px; display: flex; align-items: center; justify-content: flex-end; gap: 5px; padding: 0 14px; }
+    .file-list { padding: 12px 16px; }
+    .file-item { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 13px; border-radius: 7px; color: #535358; font-size: 13px; }
+    .file-item.is-selected { background: #e3e3e5; color: #2b2b2f; }
+    .file-pane-footer { margin-top: auto; display: flex; align-items: center; gap: 8px; height: 45px; padding: 0 16px; border-top: 1px solid var(--ww-border); font-size: 12px; font-weight: 600; }
+    .editor-pane { min-width: 0; overflow: auto; background: var(--ww-bg); }
+    .editor-head { position: sticky; top: 0; z-index: 2; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(255,255,255,.94); color: var(--ww-muted); font-size: 12px; backdrop-filter: blur(8px); }
+    .document { width: min(100% - 70px, 720px); margin: 0 auto; padding: 32px 0 90px; }
+    .document h1 { margin: 0 0 25px; font-size: 29px; }
+    .document h2 { margin: 34px 0 16px; font-size: 23px; }
+    .document p { margin: 0 0 18px; font-size: 15px; line-height: 1.85; }
+    .article-visual { position: relative; aspect-ratio: 2.12 / 1; overflow: hidden; margin: 25px 0; border-radius: 5px; background: radial-gradient(circle at 72% 30%, rgba(120,92,255,.8), transparent 30%), linear-gradient(135deg,#101322 0%,#242149 48%,#436ad0 100%); }
+    .article-visual::before { content: ""; position: absolute; inset: 10% 7%; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; box-shadow: inset 0 0 60px rgba(0,0,0,.25); }
+    .article-visual .code-stack { position: absolute; left: 8%; top: 16%; width: 48%; color: rgba(255,255,255,.75); font: 11px/1.75 Menlo, monospace; }
+    .article-visual .visual-title { position: absolute; right: 8%; bottom: 15%; color: #fff; text-align: right; }
+    .article-visual .visual-title strong { display: block; font-size: clamp(18px,2vw,28px); }
+    .article-visual .visual-title small { opacity: .72; letter-spacing: .15em; }
+
+    .workbench-pane { display: grid; grid-template-rows: 62px 48px minmax(0, 1fr); min-width: 0; border-left: 1px solid var(--ww-border); background: var(--ww-bg-secondary); }
+    .workbench-title { display: flex; align-items: center; gap: 11px; padding: 0 24px; border-bottom: 1px solid var(--ww-border); background: var(--ww-bg); font-weight: 700; }
+    .paper-plane { width: 21px; height: 21px; color: var(--ww-accent); transform: rotate(-8deg); }
+    .workbench-title .icon-button { margin-left: auto; }
+    .workbench-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 0 20px; border-bottom: 1px solid var(--ww-border); background: var(--ww-bg); }
+    .workbench-tab { border: 0; border-bottom: 2px solid transparent; background: transparent; color: #55555a; cursor: pointer; }
+    .workbench-tab.is-selected { border-bottom-color: var(--ww-accent); color: var(--ww-accent); font-weight: 650; }
+    .workbench-scroll { overflow-y: auto; padding: 18px 18px 90px; }
+    .workbench-card { margin-bottom: 14px; padding: 18px 19px; border: 1px solid var(--ww-border); border-radius: 11px; background: var(--ww-surface); }
+    .card-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+    .card-title-row h2 { margin: 0; color: var(--ww-accent); font-size: 19px; }
+    .save-state { display: flex; align-items: center; gap: 6px; color: var(--ww-muted); font-size: 11px; }
+    .save-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #9b9ba0; }
+    .save-state.is-saving::before { background: var(--ww-warning); animation: pulse 1s infinite; }
+    .save-state.is-saved::before { background: var(--ww-success); }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .publish-field { margin-bottom: 14px; }
+    .publish-field:last-child { margin-bottom: 0; }
+    .publish-label { display: flex; align-items: center; justify-content: space-between; min-height: 30px; margin-bottom: 4px; font-size: 13px; }
+    .publish-field textarea { min-height: 86px; }
+
+    .ai-results { display: none; margin-top: 9px; padding: 10px; border: 1px solid #ded3ff; border-radius: 9px; background: #faf8ff; }
+    .ai-results.is-visible { display: block; }
+    .ai-results-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .ai-results-head strong { color: #65509c; font-size: 12px; }
+    .ai-results-actions { display: flex; gap: 2px; }
+    .candidate-list { display: grid; gap: 7px; }
+    .candidate-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid #e7e1f7; border-radius: 8px; background: var(--ww-bg); }
+    .candidate-item p { margin: 0; font-size: 13px; line-height: 1.5; }
+    .result-loading { display: none; align-items: center; gap: 8px; padding: 8px 2px; color: var(--ww-muted); font-size: 12px; }
+    .ai-results.is-loading .candidate-list { display: none; }
+    .ai-results.is-loading .result-loading { display: flex; }
+    .spinner { width: 14px; height: 14px; border: 2px solid #ddd2fa; border-top-color: var(--ww-accent); border-radius: 50%; animation: spin .75s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .cover-layout { display: grid; grid-template-columns: 174px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .cover-thumb { position: relative; aspect-ratio: 2.35 / 1; overflow: hidden; border: 1px solid var(--ww-border); border-radius: 7px; background: #f1f1f3; }
+    .cover-art { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 9px; background: radial-gradient(circle at 28% 32%, rgba(125,97,255,.9), transparent 28%), linear-gradient(135deg,#111526,#25254e 52%,#406fdb); color: #fff; }
+    .cover-art::after { content: "WECHAT WORKBENCH"; font-size: 7px; letter-spacing: .15em; opacity: .65; }
+    .cover-art.ai-generated { background: radial-gradient(circle at 72% 28%, #d8b0ff, transparent 25%), radial-gradient(circle at 25% 74%, #4f7cf7, transparent 34%), linear-gradient(135deg,#120f2f,#4b2e83 52%,#2c73a8); }
+    .cover-art.local-cover { background: linear-gradient(135deg,#eca86e,#d15b75 52%,#754f91); }
+    .cover-empty { position: absolute; inset: 0; display: none; place-items: center; color: var(--ww-muted); font-size: 11px; }
+    .cover-thumb.is-empty .cover-art { display: none; }
+    .cover-thumb.is-empty .cover-empty { display: grid; }
+    .cover-meta strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .cover-meta p { margin: 0 0 11px; color: var(--ww-muted); font-size: 12px; line-height: 1.5; }
+    .cover-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .cover-actions .primary-button,
+    .cover-actions .secondary-button,
+    .cover-actions .ghost-button { min-height: 31px; padding: 0 11px; font-size: 12px; }
+    .publish-status-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .publish-status-table th, .publish-status-table td { padding: 9px 0; border-bottom: 1px solid var(--ww-border); text-align: left; }
+    .publish-status-table tr:last-child th, .publish-status-table tr:last-child td { border-bottom: 0; }
+    .publish-status-table th { width: 120px; font-weight: 400; }
+    .publish-status-table td { font-weight: 600; }
+
+    .modal-backdrop { position: fixed; z-index: 80; inset: 0; display: none; place-items: center; background: rgba(20,20,23,.42); backdrop-filter: blur(2px); }
+    .modal-backdrop.is-visible { display: grid; }
+    .cover-modal { width: min(690px, calc(100vw - 50px)); max-height: calc(100vh - 90px); overflow: auto; border: 1px solid var(--ww-border); border-radius: 14px; background: var(--ww-bg); box-shadow: var(--ww-shadow); }
+    .modal-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 16px; border-bottom: 1px solid var(--ww-border); }
+    .modal-head h2 { margin: 0 0 4px; font-size: 20px; }
+    .modal-head p { margin: 0; color: var(--ww-muted); font-size: 12px; line-height: 1.5; }
+    .modal-head .icon-button { margin-left: auto; }
+    .modal-body { padding: 18px 22px; }
+    .disclosure { display: grid; grid-template-columns: 110px 1fr; gap: 7px 14px; margin-bottom: 16px; padding: 13px 14px; border: 1px solid var(--ww-border); border-radius: 9px; background: var(--ww-surface-soft); font-size: 12px; }
+    .disclosure dt { color: var(--ww-muted); }
+    .disclosure dd { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .modal-field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 600; }
+    .modal-field small { display: block; margin-top: 6px; color: var(--ww-muted); font-size: 11px; line-height: 1.5; }
+    .generation-preview { display: none; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ww-border); }
+    .generation-preview.is-visible { display: grid; }
+    .generated-cover { position: relative; aspect-ratio: 2.35 / 1; overflow: hidden; border-radius: 8px; background: radial-gradient(circle at 72% 28%, #d8b0ff, transparent 25%), radial-gradient(circle at 25% 74%, #4f7cf7, transparent 34%), linear-gradient(135deg,#120f2f,#4b2e83 52%,#2c73a8); }
+    .generated-cover::before { content: "把内容变成作品"; position: absolute; left: 18px; bottom: 18px; color: #fff; font-size: 19px; font-weight: 750; text-shadow: 0 2px 12px rgba(0,0,0,.35); }
+    .generated-cover.variant-2 { background: radial-gradient(circle at 28% 30%, #ffe17a, transparent 24%), radial-gradient(circle at 70% 70%, #ff7a9f, transparent 30%), linear-gradient(135deg,#302360,#645ad1 55%,#3268a8); }
+    .preview-meta strong { display: block; margin-bottom: 5px; }
+    .preview-meta p { margin: 0; color: var(--ww-muted); font-size: 12px; line-height: 1.55; }
+    .generation-progress { display: none; align-items: center; gap: 9px; margin-top: 16px; padding: 14px; border-radius: 9px; background: var(--ww-accent-soft); color: #625182; font-size: 12px; }
+    .generation-progress.is-visible { display: flex; }
+    .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 18px; border-top: 1px solid var(--ww-border); }
+    #adopt-cover, #regenerate-cover { display: none; }
+    #adopt-cover.is-visible, #regenerate-cover.is-visible { display: inline-flex; align-items: center; }
+
+    .toast { position: fixed; z-index: 120; left: 50%; bottom: 28px; min-width: 260px; padding: 11px 16px; border-radius: 9px; background: rgba(34,34,38,.94); color: #fff; text-align: center; font-size: 12px; opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: .2s; }
+    .toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1320px) {
+      .obsidian-topbar { grid-template-columns: 330px minmax(400px, 1fr) 560px; }
+      .obsidian-body { grid-template-columns: 50px 280px minmax(400px, 1fr) 560px; }
+      .workbench-scroll { padding-inline: 13px; }
+      .cover-layout { grid-template-columns: 142px 1fr; }
+      .ai-settings-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="prototype-controls" aria-label="原型视图控制">
+    <span class="prototype-label">原型视图</span>
+    <button type="button" data-screen="settings" class="is-active">插件设置</button>
+    <button type="button" data-screen="workbench">发布设置</button>
+    <select id="cover-scenario" aria-label="封面状态">
+      <option value="first">文章首图</option>
+      <option value="empty">文章无图</option>
+      <option value="ai">已采用 AI 封面</option>
+      <option value="local">已选择本地封面</option>
+    </select>
+  </div>
+
+  <section id="settings-screen" class="screen is-active" aria-label="Obsidian 插件设置页原型">
+    <div class="mac-window">
+      <header class="mac-titlebar">
+        <div class="traffic-lights"><i></i><i></i><i></i></div>
+        设置 - wechat-workbench-test-vault - Obsidian 1.13.7
+      </header>
+      <div class="settings-layout">
+        <aside class="settings-nav">
+          <div class="settings-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+            <input aria-label="搜索设置" placeholder="搜索设置…">
+          </div>
+          <div class="settings-nav-item">◫ <span>外观</span></div>
+          <div class="settings-nav-item">⌁ <span>编辑器</span></div>
+          <div class="settings-nav-item">▱ <span>文件与链接</span></div>
+          <div class="settings-nav-item">⌘ <span>快捷键</span></div>
+          <div class="settings-nav-item">⌕ <span>钥匙串</span></div>
+          <div class="settings-nav-item">▣ <span>核心插件</span></div>
+          <div class="settings-nav-item">✣ <span>第三方插件</span></div>
+          <h4>核心插件</h4>
+          <div class="settings-nav-item">▦ <span>白板</span></div>
+          <div class="settings-nav-item">⌁ <span>笔记重组</span></div>
+          <div class="settings-nav-item">↪ <span>反向链接</span></div>
+          <div class="settings-nav-item">▧ <span>快速切换</span></div>
+          <div class="settings-nav-item">〉_ <span>命令面板</span></div>
+          <div class="settings-nav-item">▱ <span>模板</span></div>
+          <div class="settings-nav-item">□ <span>日记</span></div>
+          <h4>第三方插件</h4>
+          <div class="settings-nav-item is-selected"><span>WeChat Workbench</span></div>
+          <div class="settings-nav-item"><span>WeSight</span></div>
+        </aside>
+
+        <main class="settings-content">
+          <div class="settings-content-inner">
+            <h1 class="settings-heading">WeChat Workbench</h1>
+            <p class="settings-intro">配置微信公众号连接与 AI 内容生成服务。所有配置仅保存在当前设备。</p>
+
+            <section class="settings-section">
+              <h2 class="settings-section-title">公众号账号</h2>
+              <p class="settings-section-desc">插件只创建或更新草稿，不会执行正式群发。</p>
+              <div class="setting-group">
+                <div class="setting-row">
+                  <div><span class="setting-name">AppID</span><span class="setting-description">微信公众号开发者 AppID</span></div>
+                  <input value="wx_example_app_id" aria-label="AppID">
+                </div>
+                <div class="setting-row">
+                  <div><span class="setting-name">AppSecret</span><span class="setting-description">密钥保存在 Obsidian SecretStorage</span></div>
+                  <input type="password" placeholder="已保存 · 输入新值以替换" aria-label="AppSecret">
+                </div>
+              </div>
+              <div class="settings-actions">
+                <button type="button" class="secondary-button">保存账号配置</button>
+                <button type="button" class="secondary-button">重新验证</button>
+                <button type="button" class="ghost-button">断开连接</button>
+                <span class="connection-status">连接状态：验证失败 · 2026/8/23 20:55</span>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h2 class="settings-section-title">AI 内容生成</h2>
+              <p class="settings-section-desc">文本与图片服务相互独立。完整 Endpoint URL、API Key、模型名称均由用户填写；保存配置时不联网，第一次实际生成时验证。</p>
+              <div class="ai-settings-grid">
+                <article class="ai-config-card">
+                  <header class="ai-config-head">
+                    <div class="service-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v12H8l-3 3V4Z"></path><path d="M8 8h8M8 12h5"></path></svg>
+                    </div>
+                    <div><h3>文本生成服务</h3><p>用于生成 3 个标题候选和 1 个摘要候选</p></div>
+                  </header>
+                  <div class="ai-config-body">
+                    <div class="config-field">
+                      <label for="text-endpoint">完整 Endpoint URL <span class="config-hint">OpenAI compatible</span></label>
+                      <input id="text-endpoint" placeholder="https://api.example.com/v1/chat/completions">
+                    </div>
+                    <div class="config-field">
+                      <label for="text-key">API Key <span class="config-hint">SecretStorage</span></label>
+                      <div class="secret-input"><input id="text-key" type="password" placeholder="已保存 · 输入新值以替换"><button type="button" class="icon-button reveal-secret" aria-label="显示或隐藏文本 API Key">◉</button></div>
+                    </div>
+                    <div class="config-field">
+                      <label for="text-model">模型名称 <span class="config-hint">手动填写</span></label>
+                      <input id="text-model" placeholder="your-text-model">
+                    </div>
+                    <div class="config-foot">
+                      <button type="button" class="primary-button save-ai-config" data-kind="text">保存文本配置</button>
+                      <span id="text-config-status" class="config-status">尚未修改</span>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="ai-config-card">
+                  <header class="ai-config-head">
+                    <div class="service-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m4 17 5-5 4 4 2-2 5 5"></path></svg>
+                    </div>
+                    <div><h3>图片生成服务</h3><p>用于一次生成 1 张公众号封面候选</p></div>
+                  </header>
+                  <div class="ai-config-body">
+                    <div class="config-field">
+                      <label for="image-endpoint">完整 Endpoint URL <span class="config-hint">OpenAI compatible</span></label>
+                      <input id="image-endpoint" placeholder="https://api.example.com/v1/images/generations">
+                    </div>
+                    <div class="config-field">
+                      <label for="image-key">API Key <span class="config-hint">SecretStorage</span></label>
+                      <div class="secret-input"><input id="image-key" type="password" placeholder="已保存 · 输入新值以替换"><button type="button" class="icon-button reveal-secret" aria-label="显示或隐藏图片 API Key">◉</button></div>
+                    </div>
+                    <div class="config-field">
+                      <label for="image-model">模型名称 <span class="config-hint">手动填写</span></label>
+                      <input id="image-model" placeholder="your-image-model">
+                    </div>
+                    <div class="config-foot">
+                      <button type="button" class="primary-button save-ai-config" data-kind="image">保存图片配置</button>
+                      <span id="image-config-status" class="config-status">尚未修改</span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <div class="privacy-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6l-8-3Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                <span>API Key 不写入 data.json、Frontmatter 或日志。实际生成前会展示服务地址、模型、将发送的文章摘要和可能成本，并要求用户确认。</span>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <section id="workbench-screen" class="screen" aria-label="WeChat Workbench 发布设置原型">
+    <div class="mac-window">
+      <div class="obsidian-shell">
+        <header class="obsidian-topbar">
+          <div class="top-zone"><div class="traffic-lights" style="position:static"><i></i><i></i><i></i></div><span>▱</span><span>⌕</span><span>▣</span></div>
+          <div class="top-zone"><div class="top-tab"><span>Workbench copy smoke</span><b>×</b></div><span>＋</span></div>
+          <div class="top-zone"><span>⌁</span><span>⌁</span><span>◇</span><span>▤</span><span>☷</span><span>▣</span><span>✦</span></div>
+        </header>
+        <div class="obsidian-body">
+          <aside class="ribbon">
+            <button type="button" class="icon-button">▧</button><button type="button" class="icon-button">⌘</button><button type="button" class="icon-button">▦</button><button type="button" class="icon-button">□</button><button type="button" class="icon-button">▱</button><button type="button" class="icon-button">〉_</button><button type="button" class="icon-button">☷</button><button type="button" class="icon-button">▣</button><button type="button" class="icon-button">✣</button>
+            <div class="ribbon-spacer"></div><button type="button" class="icon-button">?</button><button type="button" class="icon-button">⚙</button>
+          </aside>
+          <aside class="file-pane">
+            <div class="file-toolbar"><span>⌑</span><span>□＋</span><span>⇅</span><span>▤</span></div>
+            <div class="file-list">
+              <div class="file-item">未命名</div><div class="file-item">Clipboard result smoke</div><div class="file-item">Foundation smoke test</div><div class="file-item">Pasted image 20260820092749</div><div class="file-item">Pasted image 20260822133136</div><div class="file-item is-selected">Workbench copy smoke</div><div class="file-item">Workbench rich smoke</div>
+            </div>
+            <div class="file-pane-footer">⌃ <span>wechat-workbench-test-vault</span></div>
+          </aside>
+
+          <main class="editor-pane">
+            <div class="editor-head"><span>‹　›</span><span>Workbench copy smoke</span><span>⚙　⌁　▱　···</span></div>
+            <article class="document">
+              <h1>复制实机验证</h1>
+              <p>这是一篇只用于隔离测试 Vault 的合成文章。</p>
+              <p>这是一篇只用于隔离测试 Vault 的合成文章。这是一篇只用于隔离测试 Vault 的合成文章。</p>
+              <div class="article-visual">
+                <div class="code-stack">src/components/Dashboard.tsx<br>src/hooks/useDashboardData.ts<br>src/types/dashboard.ts<br><br>✓ rendering current article<br>✓ local images resolved<br>✓ immutable artifact ready</div>
+                <div class="visual-title"><strong>WeChat Workbench</strong><small>FROM NOTE TO DRAFT</small></div>
+              </div>
+              <h2>复制结果</h2>
+              <p>正文、标题与本地图片应一起写入剪贴板。</p>
+              <p>更新验证：第二版内容。</p>
+            </article>
+          </main>
+
+          <aside class="workbench-pane">
+            <header class="workbench-title">
+              <svg class="paper-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m21 3-7 18-4-8-8-4 19-6Z"></path><path d="m10 13 5-5"></path></svg>
+              <span>WeChat Workbench</span>
+              <button type="button" class="icon-button">↗</button>
+            </header>
+            <nav class="workbench-tabs"><button type="button" class="workbench-tab">文章预览</button><button type="button" class="workbench-tab is-selected">发布设置</button></nav>
+            <div class="workbench-scroll">
+              <section class="workbench-card">
+                <div class="card-title-row"><h2>文章信息</h2><span id="autosave-state" class="save-state is-saved">已自动保存</span></div>
+                <div class="publish-field">
+                  <div class="publish-label"><label for="article-title">标题</label><button type="button" id="generate-title" class="icon-button ai-action" aria-label="AI 生成标题候选" title="AI 生成标题候选"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3Z"></path><path d="m19 14 .7 2.3L22 17.5l-2.3 1.2L19 21l-.7-2.3-2.3-1.2 2.3-1.2L19 14Z"></path></svg></button></div>
+                  <input id="article-title" value="复制实机验证">
+                  <div id="title-results" class="ai-results">
+                    <div class="ai-results-head"><strong>AI 标题候选 · 不会自动覆盖</strong><div class="ai-results-actions"><button type="button" class="icon-button regenerate-text" data-target="title" title="重新生成">↻</button><button type="button" class="icon-button close-results" data-target="title" title="关闭">×</button></div></div>
+                    <div class="result-loading"><span class="spinner"></span><span>正在根据文章内容生成 3 个标题…</span></div>
+                    <div class="candidate-list" id="title-candidates"></div>
+                  </div>
+                </div>
+                <div class="publish-field">
+                  <div class="publish-label"><label for="article-author">作者</label></div>
+                  <input id="article-author" value="实机验证">
+                </div>
+                <div class="publish-field">
+                  <div class="publish-label"><label for="article-digest">摘要</label><button type="button" id="generate-digest" class="icon-button ai-action" aria-label="AI 生成摘要候选" title="AI 生成摘要候选"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3Z"></path><path d="m19 14 .7 2.3L22 17.5l-2.3 1.2L19 21l-.7-2.3-2.3-1.2 2.3-1.2L19 14Z"></path></svg></button></div>
+                  <textarea id="article-digest">验证正文和本地图片可以复制为公众号富文本。</textarea>
+                  <div id="digest-results" class="ai-results">
+                    <div class="ai-results-head"><strong>AI 摘要候选 · 不会自动覆盖</strong><div class="ai-results-actions"><button type="button" class="icon-button regenerate-text" data-target="digest" title="重新生成">↻</button><button type="button" class="icon-button close-results" data-target="digest" title="关闭">×</button></div></div>
+                    <div class="result-loading"><span class="spinner"></span><span>正在根据文章内容生成摘要…</span></div>
+                    <div class="candidate-list" id="digest-candidates"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="workbench-card">
+                <div class="card-title-row"><h2>文章封面</h2></div>
+                <div class="cover-layout">
+                  <div id="cover-thumb" class="cover-thumb"><div id="cover-art" class="cover-art"></div><div class="cover-empty">文章中没有可用图片</div></div>
+                  <div class="cover-meta">
+                    <strong id="cover-title">自动使用文章首图</strong>
+                    <p id="cover-description">正文图片变化时自动跟随；推荐尺寸 2.35:1</p>
+                    <div class="cover-actions">
+                      <button type="button" id="open-cover-modal" class="primary-button">AI 生成封面</button>
+                      <button type="button" id="choose-local-cover" class="secondary-button">选择本地图片</button>
+                      <button type="button" id="restore-first-cover" class="ghost-button" hidden>恢复文章首图</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="workbench-card">
+                <div class="card-title-row"><h2>发布状态</h2></div>
+                <table class="publish-status-table"><tr><th>草稿关联</th><td>已关联</td></tr><tr><th>同步状态</th><td>有未同步修改</td></tr><tr><th>最近同步</th><td>2026-08-20 13:14</td></tr></table>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="cover-modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="cover-modal-title">
+    <section class="cover-modal">
+      <header class="modal-head">
+        <div class="service-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 1.2 4.1L17 9l-3.8 1.9L12 15l-1.2-4.1L7 9l3.8-1.9L12 3Z"></path></svg></div>
+        <div><h2 id="cover-modal-title">AI 生成公众号封面</h2><p>一次生成一张候选图，确认采用前不会替换当前封面。</p></div>
+        <button type="button" id="close-cover-modal" class="icon-button" aria-label="关闭">×</button>
+      </header>
+      <div class="modal-body">
+        <dl class="disclosure">
+          <dt>服务地址</dt><dd>https://api.example.com/v1/images/generations</dd>
+          <dt>模型</dt><dd>your-image-model</dd>
+          <dt>发送内容</dt><dd>标题、摘要、正文截断摘要，以及下方补充描述</dd>
+          <dt>隐私与费用</dt><dd>请求将发送到你配置的第三方服务；实际费用由服务商决定</dd>
+        </dl>
+        <div class="modal-field">
+          <label for="cover-prompt">补充封面要求（可选）</label>
+          <textarea id="cover-prompt" placeholder="例如：科技感、极简、暖色调、不要人物。留空则完全基于文章内容生成。"></textarea>
+          <small>内容仅在当前弹窗会话中保留，重新生成可复用；关闭弹窗后清空，不会写入文章。</small>
+        </div>
+        <div id="generation-progress" class="generation-progress"><span class="spinner"></span><span>正在生成 2.35:1 封面候选，请稍候…</span></div>
+        <div id="generation-preview" class="generation-preview">
+          <div id="generated-cover" class="generated-cover"></div>
+          <div class="preview-meta"><strong>封面候选已生成</strong><p>当前仅为候选。点击“采用此封面”后才会替换当前封面；仍可恢复为文章首图。</p></div>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button type="button" id="cancel-cover-modal" class="ghost-button">取消</button>
+        <button type="button" id="regenerate-cover" class="secondary-button">重新生成</button>
+        <button type="button" id="generate-cover" class="primary-button">确认并生成</button>
+        <button type="button" id="adopt-cover" class="primary-button">采用此封面</button>
+      </footer>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script>
+    (() => {
+      const $ = (selector, root = document) => root.querySelector(selector);
+      const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+      let autosaveTimer = null;
+      let generationVariant = 1;
+      let titleGeneration = 0;
+      let digestGeneration = 0;
+
+      const titleSets = [
+        ["从 Obsidian 到公众号草稿箱：一次真实链路验证", "公众号排版复制到底稳不稳？我做了一次实机测试", "一篇笔记如何无损变成公众号草稿"],
+        ["不用来回复制：Obsidian 文章直达公众号的实测结果", "图片、标题、正文一次带走：公众号工作流验证", "写完即发布？这套 Obsidian 工作流先过了实机测试"]
+      ];
+      const digestSets = [
+        ["实测 Obsidian 文章的标题、正文与本地图片能否稳定转换并复制为公众号富文本。"],
+        ["记录一条从 Obsidian 笔记到微信公众号草稿的完整验证链路，以及复制与图片处理结果。"]
+      ];
+
+      function showToast(message) {
+        const toast = $("#toast");
+        toast.textContent = message;
+        toast.classList.add("is-visible");
+        window.clearTimeout(showToast.timer);
+        showToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 1800);
+      }
+
+      function setScreen(name) {
+        $$(".screen").forEach(screen => screen.classList.toggle("is-active", screen.id === `${name}-screen`));
+        $$('[data-screen]').forEach(button => button.classList.toggle("is-active", button.dataset.screen === name));
+        $("#cover-scenario").style.display = name === "workbench" ? "block" : "none";
+      }
+      $$('[data-screen]').forEach(button => button.addEventListener("click", () => setScreen(button.dataset.screen)));
+      $("#cover-scenario").style.display = "none";
+
+      $$(".reveal-secret").forEach(button => button.addEventListener("click", () => {
+        const input = button.previousElementSibling;
+        input.type = input.type === "password" ? "text" : "password";
+        button.textContent = input.type === "password" ? "◉" : "⊘";
+      }));
+
+      $$(".save-ai-config").forEach(button => button.addEventListener("click", () => {
+        const kind = button.dataset.kind;
+        const status = $(`#${kind}-config-status`);
+        status.textContent = "已保存到本机 · 尚未联网验证";
+        status.classList.add("saved");
+        showToast(`${kind === "text" ? "文本" : "图片"}配置已保存，本次未发起网络请求`);
+      }));
+
+      function scheduleAutosave() {
+        const state = $("#autosave-state");
+        state.textContent = "等待自动保存";
+        state.className = "save-state is-saving";
+        window.clearTimeout(autosaveTimer);
+        autosaveTimer = window.setTimeout(() => {
+          state.textContent = "已自动保存";
+          state.className = "save-state is-saved";
+        }, 600);
+      }
+      ["#article-title", "#article-author", "#article-digest"].forEach(selector => {
+        const input = $(selector);
+        input.addEventListener("input", scheduleAutosave);
+        input.addEventListener("blur", () => {
+          window.clearTimeout(autosaveTimer);
+          const state = $("#autosave-state");
+          state.textContent = "已自动保存";
+          state.className = "save-state is-saved";
+        });
+      });
+
+      function renderCandidates(target, texts) {
+        const container = $(`#${target}-candidates`);
+        container.innerHTML = "";
+        texts.forEach(text => {
+          const item = document.createElement("div");
+          item.className = "candidate-item";
+          const copy = document.createElement("p");
+          copy.textContent = text;
+          const adopt = document.createElement("button");
+          adopt.type = "button";
+          adopt.className = "candidate-adopt";
+          adopt.textContent = "采用";
+          adopt.addEventListener("click", () => {
+            $(`#article-${target}`).value = text;
+            $(`#${target}-results`).classList.remove("is-visible");
+            scheduleAutosave();
+            showToast(`${target === "title" ? "标题" : "摘要"}候选已采用`);
+          });
+          item.append(copy, adopt);
+          container.append(item);
+        });
+      }
+
+      function generateText(target) {
+        const panel = $(`#${target}-results`);
+        panel.classList.add("is-visible", "is-loading");
+        window.setTimeout(() => {
+          if (target === "title") {
+            renderCandidates(target, titleSets[titleGeneration % titleSets.length]);
+            titleGeneration += 1;
+          } else {
+            renderCandidates(target, digestSets[digestGeneration % digestSets.length]);
+            digestGeneration += 1;
+          }
+          panel.classList.remove("is-loading");
+        }, 650);
+      }
+      $("#generate-title").addEventListener("click", () => generateText("title"));
+      $("#generate-digest").addEventListener("click", () => generateText("digest"));
+      $$(".regenerate-text").forEach(button => button.addEventListener("click", () => generateText(button.dataset.target)));
+      $$(".close-results").forEach(button => button.addEventListener("click", () => $(`#${button.dataset.target}-results`).classList.remove("is-visible")));
+
+      const coverModal = $("#cover-modal-backdrop");
+      function openCoverModal() {
+        coverModal.classList.add("is-visible");
+        $("#generation-preview").classList.remove("is-visible");
+        $("#generation-progress").classList.remove("is-visible");
+        $("#generate-cover").style.display = "inline-flex";
+        $("#adopt-cover").classList.remove("is-visible");
+        $("#regenerate-cover").classList.remove("is-visible");
+      }
+      function closeCoverModal() {
+        coverModal.classList.remove("is-visible");
+        $("#cover-prompt").value = "";
+      }
+      $("#open-cover-modal").addEventListener("click", openCoverModal);
+      $("#close-cover-modal").addEventListener("click", closeCoverModal);
+      $("#cancel-cover-modal").addEventListener("click", closeCoverModal);
+      coverModal.addEventListener("click", event => { if (event.target === coverModal) closeCoverModal(); });
+
+      function generateCover() {
+        $("#generation-preview").classList.remove("is-visible");
+        $("#generation-progress").classList.add("is-visible");
+        $("#generate-cover").style.display = "none";
+        $("#adopt-cover").classList.remove("is-visible");
+        $("#regenerate-cover").classList.remove("is-visible");
+        window.setTimeout(() => {
+          generationVariant += 1;
+          $("#generated-cover").classList.toggle("variant-2", generationVariant % 2 === 0);
+          $("#generation-progress").classList.remove("is-visible");
+          $("#generation-preview").classList.add("is-visible");
+          $("#adopt-cover").classList.add("is-visible");
+          $("#regenerate-cover").classList.add("is-visible");
+        }, 850);
+      }
+      $("#generate-cover").addEventListener("click", generateCover);
+      $("#regenerate-cover").addEventListener("click", generateCover);
+
+      function setCoverState(state) {
+        const thumb = $("#cover-thumb");
+        const art = $("#cover-art");
+        const title = $("#cover-title");
+        const description = $("#cover-description");
+        const restore = $("#restore-first-cover");
+        thumb.classList.toggle("is-empty", state === "empty");
+        art.className = "cover-art";
+        restore.hidden = state === "first" || state === "empty";
+        if (state === "first") {
+          title.textContent = "自动使用文章首图";
+          description.textContent = "正文图片变化时自动跟随；推荐尺寸 2.35:1";
+        } else if (state === "empty") {
+          title.textContent = "暂未设置封面";
+          description.textContent = "文章中没有可用图片，可选择本地图片或使用 AI 生成";
+        } else if (state === "ai") {
+          art.classList.add("ai-generated");
+          title.textContent = "已采用 AI 生成封面";
+          description.textContent = "已保存为当前文章的显式封面，可恢复文章首图";
+        } else {
+          art.classList.add("local-cover");
+          title.textContent = "已选择本地封面";
+          description.textContent = "已保存为当前文章的显式封面，可恢复文章首图";
+        }
+        $("#cover-scenario").value = state;
+      }
+      $("#cover-scenario").addEventListener("change", event => setCoverState(event.target.value));
+      $("#choose-local-cover").addEventListener("click", () => { setCoverState("local"); showToast("原型：已选择本地封面"); });
+      $("#restore-first-cover").addEventListener("click", () => { setCoverState("first"); showToast("已取消显式封面，恢复文章首图"); });
+      $("#adopt-cover").addEventListener("click", () => {
+        setCoverState("ai");
+        closeCoverModal();
+        showToast("AI 封面已采用，仍可恢复文章首图");
+      });
+
+      document.addEventListener("keydown", event => { if (event.key === "Escape" && coverModal.classList.contains("is-visible")) closeCoverModal(); });
+      setCoverState("first");
+    })();
+  </script>
+</body>
+</html>

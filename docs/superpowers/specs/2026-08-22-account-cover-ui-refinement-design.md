@@ -5,6 +5,7 @@
 - 适用版本：`0.1.x`
 - 验收 Vault：`$HOME/workspace/Github/wechat-workbench-test-vault`
 - 依据：用户于 2026-08-22 提供的七张真实 Obsidian 截图、逐项反馈及已确认动态交互原型
+- 后续增量：AI 文本生成、双 Endpoint 配置、文章信息自动保存和新版封面会话由 [`2026-08-23-ai-content-generation-design.md`](./2026-08-23-ai-content-generation-design.md) 覆盖
 
 ## 1. 结论
 
