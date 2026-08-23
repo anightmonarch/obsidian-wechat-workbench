@@ -34,6 +34,17 @@
 
 四个阶段必须按顺序执行。后续阶段只能依赖前序计划列出的公开接口，不得绕过接口直接读取其他模块内部状态。
 
+### 已批准的增量计划
+
+下列增量计划在对应基础阶段完成后、最终发布候选验收前执行：
+
+| 顺序 | 计划 | 前置条件 | 验收门槛 |
+| --- | --- | --- | --- |
+| 1 | [Account, Cover, and UI Refinement](./2026-08-22-account-cover-ui-refinement-plan.md) | Foundation、Rendering、Publishing 生产骨架完成 | 账号设置、三来源封面和 Obsidian 原生 UI 门禁通过 |
+| 2 | [AI Content Generation](./2026-08-23-ai-content-generation-plan.md) | 上一增量计划已落地；AI 内容生成设计已批准 | 双 Endpoint、文本候选、无闪烁自动保存、封面候选会话与固定 Vault 验收通过 |
+
+增量计划只覆盖其规格明确列出的行为，不得降低四阶段路线中的发布事务、安全、跨平台和公开发布门槛。
+
 ## Design Coverage
 
 | 设计章节 | 实施计划 |

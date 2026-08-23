@@ -5,6 +5,7 @@
 - 适用版本：`0.1.x`
 - 验收 Vault：`$HOME/workspace/Github/wechat-workbench-test-vault`
 - 已确认原型：[`docs/prototypes/ai-content-generation-workbench.html`](../../prototypes/ai-content-generation-workbench.html)
+- 详细实施计划：[`2026-08-23-ai-content-generation-plan.md`](../plans/2026-08-23-ai-content-generation-plan.md)
 - 依据：用户于 2026-08-23 对插件设置页、发布设置页、候选采用、自动保存、AI 配置和封面会话规则的逐项确认
 
 ## 1. 结论
