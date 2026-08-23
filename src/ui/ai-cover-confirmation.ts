@@ -10,13 +10,13 @@ export interface AiCoverSource {
 
 export interface AiCoverProviderSettings {
   imageApiProtocol: AiProviderProtocol;
-  imageApiBaseUrl: string;
+  imageApiEndpoint: string;
   imageApiModel: string;
 }
 
 export interface AiCoverDisclosure {
   protocol: string;
-  baseUrl: string;
+  endpoint: string;
   model: string;
   sentFields: readonly ['title', 'digest', 'bodyExcerpt'];
   payload: Readonly<{ title: string; digest: string; bodyExcerpt: string }>;
@@ -41,7 +41,7 @@ export function buildAiCoverDisclosure(
 ): Readonly<AiCoverDisclosure> {
   return Object.freeze({
     protocol: settings.imageApiProtocol === 'anthropic' ? 'Anthropic' : 'OpenAI 兼容',
-    baseUrl: settings.imageApiBaseUrl.trim(),
+    endpoint: settings.imageApiEndpoint.trim(),
     model: settings.imageApiModel.trim(),
     sentFields: Object.freeze(['title', 'digest', 'bodyExcerpt'] as const),
     payload: Object.freeze({
@@ -68,7 +68,7 @@ export class AiCoverConfirmationModal extends Modal {
     this.titleEl.textContent = '确认生成智能封面';
     const rows: Array<[string, string]> = [
       ['接口协议', this.disclosure.protocol],
-      ['服务地址', this.disclosure.baseUrl],
+      ['接口地址', this.disclosure.endpoint],
       ['模型', this.disclosure.model],
       ['标题', this.disclosure.payload.title],
       ['摘要', this.disclosure.payload.digest || '空'],

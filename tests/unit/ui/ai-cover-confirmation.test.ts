@@ -13,13 +13,13 @@ describe('AI cover disclosure', () => {
       plainText: `Body text ${'字'.repeat(2_000)}`,
     }, {
       imageApiProtocol: 'openai-compatible',
-      imageApiBaseUrl: 'https://images.example.test',
+      imageApiEndpoint: 'https://images.example.test/v1/images/generations',
       imageApiModel: 'synthetic-image-model',
     });
 
     expect(disclosure).toMatchObject({
       protocol: 'OpenAI 兼容',
-      baseUrl: 'https://images.example.test',
+      endpoint: 'https://images.example.test/v1/images/generations',
       model: 'synthetic-image-model',
       sentFields: ['title', 'digest', 'bodyExcerpt'],
     });
@@ -33,12 +33,12 @@ describe('AI cover disclosure', () => {
       title: 'Title', digest: '', plainText: 'Body',
     }, {
       imageApiProtocol: 'openai-compatible',
-      imageApiBaseUrl: 'https://images.example.test', imageApiModel: 'synthetic-image-model',
+      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
     }), confirm);
 
     modal.open();
     expect(confirm).not.toHaveBeenCalled();
-    expect(modal.contentEl.textContent).toContain('https://images.example.test');
+    expect(modal.contentEl.textContent).toContain('https://images.example.test/v1/images/generations');
     expect(modal.contentEl.textContent).toContain('可能产生第三方费用');
 
     const generate = [...modal.contentEl.querySelectorAll('button')]

@@ -3,7 +3,7 @@ import type { AiProviderProtocol } from './ai-provider';
 
 export interface AiCoverGenerationRequest {
   protocol: AiProviderProtocol;
-  baseUrl: string;
+  endpoint: string;
   model: string;
   apiKey: string;
   title: string;

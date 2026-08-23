@@ -122,6 +122,30 @@ describe('cover picker session', () => {
     expect(confirm).toHaveBeenCalledWith(prepared);
   });
 
+  it('keeps generated candidates in the modal session until adoption and can restore the article first image', async () => {
+    const generated = Object.freeze({ ...prepared, source: 'ai-generated' as const });
+    const firstImage = Object.freeze({ ...prepared, source: 'dynamic-first-image' as const, persistence: 'CLEAR_EXPLICIT_COVER' as const, vaultPath: null });
+    const confirm = vi.fn(async () => undefined);
+    const prepareSelection = vi.fn(async (option: Readonly<{ kind: string }>) => option.kind === 'first-image' ? firstImage : generated);
+    const generateAi = vi.fn(async () => generated);
+    const session = new CoverPickerSession(model, {
+      prepareSelection,
+      prepareUpload: vi.fn(async () => generated),
+      generateAi,
+      confirm,
+    });
+
+    await session.generateAi();
+    expect(session.selected).toBe(generated);
+    await session.selectLocal('first-image');
+    expect(session.selected).toBe(firstImage);
+    await session.confirm();
+
+    expect(generateAi).toHaveBeenCalledOnce();
+    expect(prepareSelection).toHaveBeenCalledWith(expect.objectContaining({ kind: 'first-image' }));
+    expect(confirm).toHaveBeenCalledWith(firstImage);
+  });
+
   it('shows the prepared cover without exposing the internal vault path', async () => {
     const session = new CoverPickerSession(model, {
       prepareSelection: vi.fn(async () => prepared),

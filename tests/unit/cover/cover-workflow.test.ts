@@ -50,7 +50,7 @@ function harness() {
     { save },
     { generate },
     { processFrontmatter },
-    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', imageApiProtocol: 'openai-compatible' as const, imageApiBaseUrl: 'https://images.example.test', imageApiModel: 'model' }) },
+    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', imageApiProtocol: 'openai-compatible' as const, imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'model' }) },
     { get: vi.fn(() => credential), has: vi.fn(() => true) },
     { fetch: remoteFetch },
   );
@@ -62,7 +62,7 @@ function anthropicHarness() {
   const settings = { get: () => ({
     globalDefaultCoverPath: 'assets/default.png',
     imageApiProtocol: 'anthropic' as const,
-    imageApiBaseUrl: 'https://api.anthropic.test',
+    imageApiEndpoint: 'https://api.anthropic.test/v1/images/generations',
     imageApiModel: 'claude-model',
   }) };
   const workflow = new CoverWorkflow(
@@ -117,7 +117,8 @@ describe('CoverWorkflow', () => {
 
     const cancelled = await current.workflow.prepareUpload(file, processed, publishPayloadHash(artifact));
     expect(cancelled.source).toBe('local-upload');
-    expect(cancelled.vaultPath).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
+    expect(cancelled.vaultPath).toBeNull();
+    expect(current.save).not.toHaveBeenCalled();
     expect(current.processFrontmatter).not.toHaveBeenCalled();
   });
 
@@ -127,9 +128,11 @@ describe('CoverWorkflow', () => {
     const prepared = await current.workflow.prepareUpload(file, processed, publishPayloadHash(artifact));
 
     expect(prepared.persistence).toBe('SET_EXPLICIT_COVER');
-    expect(prepared.vaultPath).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
+    expect(prepared.vaultPath).toBeNull();
+    expect(current.save).not.toHaveBeenCalled();
     await current.workflow.confirm(file, prepared);
     expect(current.frontmatter.cover).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
+    expect(current.save).toHaveBeenCalledOnce();
   });
 
   it('gets the image credential only when AI generation is explicitly requested', async () => {
@@ -144,7 +147,9 @@ describe('CoverWorkflow', () => {
     expect(generated.source).toBe('ai-generated');
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Article', bodyExcerpt: 'Body', apiKey: credential,
+      endpoint: 'https://images.example.test/v1/images/generations',
     }));
+    expect(current.save).not.toHaveBeenCalled();
   });
 
   it('disables Anthropic image generation without invoking the image generator', async () => {

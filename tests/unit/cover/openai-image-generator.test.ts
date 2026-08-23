@@ -11,7 +11,7 @@ const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const credential = ['SYNTHETIC', 'IMAGE', 'KEY'].join('_');
 const request: Readonly<AiCoverGenerationRequest> = Object.freeze({
   protocol: 'openai-compatible',
-  baseUrl: 'https://images.example.test/openai',
+  endpoint: 'https://images.example.test/openai/v1/images/generations',
   model: 'synthetic-image-model',
   apiKey: credential,
   title: 'Article title',
@@ -38,7 +38,7 @@ describe('OpenAiImageGenerator', () => {
     await expect(generator.generate(request)).resolves.toMatchObject({ mimeType: 'image/png' });
 
     expect(current.requests).toHaveLength(1);
-    expect(current.requests[0]?.url).toBe('https://images.example.test/openai/v1/images/generations');
+    expect(current.requests[0]?.url).toBe(request.endpoint);
     expect(current.requests[0]?.headers).toEqual({
       Authorization: `Bearer ${credential}`,
       'Content-Type': 'application/json',
@@ -55,7 +55,7 @@ describe('OpenAiImageGenerator', () => {
     const current = transport({ data: [{ b64_json: Buffer.from('not an image').toString('base64') }] });
     const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
 
-    await expect(generator.generate({ ...request, baseUrl: 'http://images.example.test' }))
+    await expect(generator.generate({ ...request, endpoint: 'http://images.example.test/v1/images/generations' }))
       .rejects.toMatchObject({ code: 'IMAGE_PROVIDER_URL_INVALID' });
     await expect(generator.generate(request))
       .rejects.toMatchObject({ code: 'IMAGE_PROVIDER_OUTPUT_INVALID' });

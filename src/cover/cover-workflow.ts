@@ -28,6 +28,7 @@ export interface PreparedCover {
   mimeType: 'image/png';
   contentHash: string;
   previewDataUrl: string;
+  bytes?: Uint8Array;
 }
 
 export interface CoverPickerOption {
@@ -55,7 +56,7 @@ export interface GeneratedCoverStoragePort {
 export interface CoverWorkflowSettings {
   imageApiProtocol: AiProviderProtocol;
   globalDefaultCoverPath: string;
-  imageApiBaseUrl: string;
+  imageApiEndpoint: string;
   imageApiModel: string;
 }
 
@@ -140,7 +141,7 @@ export class CoverWorkflow {
   const settings = this.settings.get();
   const anthropicOnly = settings.imageApiProtocol === 'anthropic';
     const firstImage = this.sources.firstImage(artifact)?.source ?? null;
-    const baseConfigured = settings.imageApiBaseUrl.trim().length > 0;
+    const baseConfigured = settings.imageApiEndpoint.trim().length > 0;
     const modelConfigured = settings.imageApiModel.trim().length > 0;
     const keyConfigured = this.secret.has();
   const aiEnabled = !anthropicOnly && baseConfigured && modelConfigured && keyConfigured;
@@ -238,15 +239,21 @@ export class CoverWorkflow {
         mimeType: 'image/png' as const,
         contentHash,
         previewDataUrl: imageDataUrl(processed, 'image/png'),
+        bytes: Uint8Array.from(processed),
       });
     }
-    const stored = await this.processAndStore(file, bytes, source);
+    const processed = this.images.process(bytes);
+    const contentHash = createHash('sha256').update(processed).digest('hex');
     return Object.freeze({
-      ...stored,
+      source,
       persistence,
       notePath: file.path,
       contextHash,
-      vaultPath: stored.vaultPath,
+      vaultPath: null,
+      mimeType: 'image/png' as const,
+      contentHash,
+      previewDataUrl: imageDataUrl(processed, 'image/png'),
+      bytes: Uint8Array.from(processed),
     });
   }
 
@@ -265,7 +272,7 @@ export class CoverWorkflow {
     const settings = this.settings.get();
     const generated = await this.generator.generate({
       protocol: settings.imageApiProtocol,
-      baseUrl: settings.imageApiBaseUrl,
+      endpoint: settings.imageApiEndpoint,
       model: settings.imageApiModel,
       apiKey,
       title: artifact.metadata.title,
@@ -280,9 +287,16 @@ export class CoverWorkflow {
     if (prepared.notePath !== file.path) {
       throw new CoverPathError('COVER_NOTE_CHANGED', 'Prepared cover belongs to a different note.');
     }
+    let vaultPath = prepared.vaultPath;
+    if (prepared.persistence === 'SET_EXPLICIT_COVER' && vaultPath === null) {
+      if (prepared.bytes === undefined || prepared.bytes.byteLength === 0) {
+        throw new CoverPathError('COVER_BYTES_MISSING', '确认封面缺少图片内容。');
+      }
+      vaultPath = await this.storage.save(file.path, prepared.bytes);
+    }
     await this.frontmatter.processFrontmatter(file, value => {
       if (prepared.persistence === 'CLEAR_EXPLICIT_COVER') delete value.cover;
-      else if (prepared.vaultPath !== null) value.cover = prepared.vaultPath;
+      else if (vaultPath !== null) value.cover = vaultPath;
       else throw new CoverPathError('COVER_PATH_MISSING', '确认封面缺少 Vault 路径。');
     });
   }
@@ -340,23 +354,4 @@ export class CoverWorkflow {
     });
   }
 
-  private async processAndStore(
-    file: VaultFileRef,
-    bytes: Uint8Array,
-    source: PreparedCoverSource,
-  ): Promise<Readonly<PreparedCover>> {
-    const processed = this.images.process(bytes);
-    const contentHash = createHash('sha256').update(processed).digest('hex');
-    const vaultPath = await this.storage.save(file.path, processed);
-    return Object.freeze({
-      source,
-      persistence: 'SET_EXPLICIT_COVER' as const,
-      notePath: file.path,
-      contextHash: '',
-      vaultPath,
-      mimeType: 'image/png' as const,
-      contentHash,
-      previewDataUrl: imageDataUrl(processed, 'image/png'),
-    });
-  }
 }

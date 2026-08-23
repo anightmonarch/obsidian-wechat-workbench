@@ -233,7 +233,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         get: () => ({
           globalDefaultCoverPath: this.pluginSettings.globalDefaultCoverPath,
           imageApiProtocol: this.pluginSettings.imageApiProtocol,
-          imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
+          imageApiEndpoint: this.pluginSettings.imageApiEndpoint,
           imageApiModel: this.pluginSettings.imageApiModel,
         }),
       },
@@ -268,7 +268,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         plainText: artifact.plainText,
       }, {
         imageApiProtocol: this.pluginSettings.imageApiProtocol,
-        imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
+        imageApiEndpoint: this.pluginSettings.imageApiEndpoint,
         imageApiModel: this.pluginSettings.imageApiModel,
       }),
     };

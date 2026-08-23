@@ -31,9 +31,9 @@ function failure(code: string, message: string): CoverGenerationError {
   return new CoverGenerationError(code, message);
 }
 
-function providerUrl(rawBaseUrl: string): string {
+function providerUrl(rawEndpoint: string): string {
   let url: URL;
-  try { url = new URL(rawBaseUrl.trim()); } catch { throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL is invalid.'); }
+  try { url = new URL(rawEndpoint.trim()); } catch { throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL is invalid.'); }
   if (url.protocol !== 'https:') {
     throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider must use HTTPS.');
   }
@@ -43,11 +43,7 @@ function providerUrl(rawBaseUrl: string): string {
   if (url.search.length > 0 || url.hash.length > 0) {
     throw failure('IMAGE_PROVIDER_URL_INVALID', 'Image provider URL must not contain query parameters or fragments.');
   }
-  const path = url.pathname.replace(/\/+$/u, '');
-  url.pathname = path.endsWith('/v1') ? `${path}/images/generations` : `${path}/v1/images/generations`;
-  url.search = '';
-  url.hash = '';
-  return url.toString();
+  return rawEndpoint.trim();
 }
 
 function cleanText(value: string, limit: number): string {
@@ -105,7 +101,7 @@ export class OpenAiImageGenerator implements CoverGenerator {
     }
     if (request.model.trim().length === 0) throw failure('IMAGE_PROVIDER_MODEL_MISSING', 'Image provider model is not configured.');
     if (request.apiKey.length === 0) throw failure('IMAGE_PROVIDER_KEY_MISSING', 'Image provider API key is not configured.');
-    const url = providerUrl(request.baseUrl);
+    const url = providerUrl(request.endpoint);
     let response: Readonly<HttpResponse<unknown>>;
     try {
       response = await this.requestWithBoundary({
