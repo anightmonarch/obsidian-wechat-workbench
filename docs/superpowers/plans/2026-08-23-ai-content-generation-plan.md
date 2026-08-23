@@ -1280,7 +1280,7 @@ git add src/ui/ai-text-candidates.ts tests/unit/ui/ai-text-candidates.test.ts \
 git commit -m "feat(workbench): add stable ai article controls"
 ```
 
-## Task 9: Send Image Requests to the Exact Endpoint with Minimal Fields
+## Task 9: Send Agnes-compatible Image Requests to the Exact Endpoint
 
 **Files:**
 
@@ -1301,17 +1301,21 @@ const request: Readonly<AiCoverGenerationRequest> = Object.freeze({
   supplementalPrompt: '',
 });
 
-it('posts to the exact endpoint without optional provider fields', async () => {
+it('posts to the exact endpoint with the fixed 2K landscape contract', async () => {
   const current = transport({ data: [{ b64_json: Buffer.from(png).toString('base64') }] });
   const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
 
   await generator.generate(request);
 
   expect(current.requests[0]?.url).toBe('https://images.example.test/custom/generate');
-  expect(current.requests[0]?.json).toMatchObject({ model: 'synthetic-image-model', n: 1 });
-  expect(current.requests[0]?.json).not.toHaveProperty('size');
+  expect(current.requests[0]?.json).toMatchObject({
+    model: 'synthetic-image-model',
+    size: '2K',
+    ratio: '16:9',
+    return_base64: true,
+  });
+  expect(current.requests[0]?.json).not.toHaveProperty('n');
   expect(current.requests[0]?.json).not.toHaveProperty('response_format');
-  expect(current.requests[0]?.json).not.toHaveProperty('return_base64');
 });
 ```
 
@@ -1323,7 +1327,7 @@ Run:
 npx vitest run tests/unit/cover/openai-image-generator.test.ts tests/integration/cover-provider.test.ts
 ```
 
-Expected: FAIL because current code appends `/v1/images/generations` and sends `size`.
+Expected: FAIL because current code still sends the previous `n`/`1536x1024` contract.
 
 - [ ] **Step 3: Update the request contract and prompt**
 
@@ -1340,7 +1344,7 @@ export interface AiCoverGenerationRequest {
 }
 ```
 
-Use the endpoint unchanged:
+Use the endpoint unchanged and send the fixed Agnes-compatible landscape contract:
 
 ```ts
 response = await this.requestWithBoundary({
@@ -1353,7 +1357,9 @@ response = await this.requestWithBoundary({
   json: {
     model: request.model.trim(),
     prompt: prompt(request),
-    n: 1,
+    size: '2K',
+    ratio: '16:9',
+    return_base64: true,
   },
 }, request.signal);
 ```

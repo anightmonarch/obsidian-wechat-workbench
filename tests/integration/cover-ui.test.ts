@@ -92,6 +92,22 @@ describe('cover picker session', () => {
     expect(session.selected).toBeNull();
   });
 
+  it('does not turn an explicit AI generation cancellation into a provider failure', async () => {
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
+      generateAi: vi.fn(async () => {
+        throw new CoverPickerError('AI_COVER_CANCELLED', '已取消生成智能封面。');
+      }),
+      confirm: vi.fn(),
+    });
+
+    await session.generateAi();
+
+    expect(session.errorMessage).toBeNull();
+    expect(session.selected).toBeNull();
+  });
+
   it('does not confirm an unselected or failed generated cover', async () => {
     const confirm = vi.fn(async () => undefined);
     const session = new CoverPickerSession(model, {
@@ -177,5 +193,24 @@ describe('cover picker session', () => {
 
     expect(generateAi).toHaveBeenCalledOnce();
     expect(session.selected).toBe(prepared);
+  });
+
+  it('reuses the current-session prompt when regenerating an AI cover', async () => {
+    const generated = Object.freeze({ ...prepared, source: 'ai-generated' as const });
+    const generateAi = vi.fn(async (prompt: string) => {
+      expect(prompt).toBe('蓝色调、留白');
+      return generated;
+    });
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared), generateAi, confirm: vi.fn(),
+    });
+
+    session.setSupplementalPrompt('蓝色调、留白');
+    await session.generateAi();
+    await session.generateAi();
+
+    expect(generateAi).toHaveBeenCalledTimes(2);
+    expect(session.selected).toBe(generated);
   });
 });

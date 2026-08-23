@@ -10,7 +10,7 @@ describe('AI cover disclosure', () => {
     const disclosure = buildAiCoverDisclosure({
       title: 'Article title',
       digest: 'Article digest',
-      plainText: `Body text ${'字'.repeat(2_000)}`,
+      plainText: `Body text ${'字'.repeat(4_000)}`,
     }, {
       imageApiProtocol: 'openai-compatible',
       imageApiEndpoint: 'https://images.example.test/v1/images/generations',
@@ -22,8 +22,9 @@ describe('AI cover disclosure', () => {
       endpoint: 'https://images.example.test/v1/images/generations',
       model: 'synthetic-image-model',
       sentFields: ['title', 'digest', 'bodyExcerpt'],
+      payload: { supplementalPrompt: '' },
     });
-    expect([...disclosure.payload.bodyExcerpt]).toHaveLength(1_500);
+    expect([...disclosure.payload.bodyExcerpt]).toHaveLength(3_000);
     expect(JSON.stringify(disclosure)).not.toMatch(/vaultPath|wechat-account|appid|appsecret/iu);
   });
 
@@ -44,6 +45,36 @@ describe('AI cover disclosure', () => {
     const generate = [...modal.contentEl.querySelectorAll('button')]
       .find(button => button.textContent === '确认并生成');
     generate?.click();
-    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm).toHaveBeenCalledWith('');
+  });
+
+  it('keeps the optional prompt in the modal session and passes it only on confirmation', () => {
+    const confirm = vi.fn();
+    const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
+      title: 'Title', digest: '', plainText: 'Body', supplementalPrompt: '暖色、留白、编辑感',
+    }, {
+      imageApiProtocol: 'openai-compatible',
+      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
+    }), confirm);
+
+    modal.open();
+    const prompt = modal.contentEl.querySelector<HTMLTextAreaElement>('[data-testid="ai-cover-supplemental-prompt"]');
+    expect(prompt?.value).toBe('暖色、留白、编辑感');
+    prompt!.value = '电影感、蓝色调';
+    prompt!.dispatchEvent(new Event('input'));
+    modal.contentEl.querySelector<HTMLButtonElement>('button.mod-cta')?.click();
+
+    expect(confirm).toHaveBeenCalledWith('电影感、蓝色调');
+  });
+
+  it('discloses the supplemental field only when it will be sent', () => {
+    const disclosure = buildAiCoverDisclosure({
+      title: 'Title', digest: '', plainText: 'Body', supplementalPrompt: '蓝色调',
+    }, {
+      imageApiProtocol: 'openai-compatible',
+      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
+    });
+
+    expect(disclosure.sentFields).toContain('supplementalPrompt');
   });
 });

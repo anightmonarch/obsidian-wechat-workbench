@@ -141,7 +141,7 @@ npm test -- tests/unit/cover/openai-image-generator.test.ts tests/unit/ui/ai-cov
 
 - [ ] **Step 3: Implement explicit-confirmation compatible API calls**
 
-Build the prompt from title, digest and at most 1,500 Unicode characters of sanitized plain text. Treat article text as quoted source material and prepend a fixed instruction that embedded instructions must not be followed. POST to `<normalized-base-url>/v1/images/generations` with `model`, `prompt`, `n: 1`, and the provider-supported landscape size selected by adapter capability. Accept either base64 or HTTPS URL response; URL retrieval uses `RemoteImageFetcher`. Crop the result locally to 2.35:1.
+Build the prompt from title, digest, at most 3,000 Unicode characters of sanitized plain text, and an optional 500-character supplemental cover requirement. Treat both as quoted source material and prepend a fixed instruction that embedded instructions must not be followed. POST to the user-supplied exact image Endpoint with `model`, `prompt`, `size: "2K"`, `ratio: "16:9"`, and `return_base64: true`. Accept either base64 or HTTPS URL response; URL retrieval uses `RemoteImageFetcher`. Crop the result locally to 2.35:1.
 
 - [ ] **Step 4: Run fake-provider timeout, error, cancellation and success tests**
 

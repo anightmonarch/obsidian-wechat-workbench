@@ -6,6 +6,7 @@ export interface AiCoverSource {
   title: string;
   digest: string;
   plainText: string;
+  supplementalPrompt?: string;
 }
 
 export interface AiCoverProviderSettings {
@@ -18,8 +19,8 @@ export interface AiCoverDisclosure {
   protocol: string;
   endpoint: string;
   model: string;
-  sentFields: readonly ['title', 'digest', 'bodyExcerpt'];
-  payload: Readonly<{ title: string; digest: string; bodyExcerpt: string }>;
+  sentFields: readonly string[];
+  payload: Readonly<{ title: string; digest: string; bodyExcerpt: string; supplementalPrompt: string }>;
   costNotice: string;
 }
 
@@ -31,23 +32,38 @@ function excerpt(value: string): string {
       : character;
   }).join('').trim();
   return [...sanitized]
-    .slice(0, 1_500)
+    .slice(0, 3_000)
     .join('');
+}
+
+function supplemental(value: string | undefined): string {
+  const sanitized = [...(value ?? '')].map(character => {
+    const code = character.codePointAt(0) ?? 0;
+    return code <= 8 || code === 11 || code === 12 || code >= 14 && code <= 31 || code === 127
+      ? ' '
+      : character;
+  }).join('').trim();
+  return [...sanitized].slice(0, 500).join('');
 }
 
 export function buildAiCoverDisclosure(
   source: Readonly<AiCoverSource>,
   settings: Readonly<AiCoverProviderSettings>,
 ): Readonly<AiCoverDisclosure> {
+  const supplementalPrompt = supplemental(source.supplementalPrompt);
   return Object.freeze({
     protocol: settings.imageApiProtocol === 'anthropic' ? 'Anthropic' : 'OpenAI 兼容',
     endpoint: settings.imageApiEndpoint.trim(),
     model: settings.imageApiModel.trim(),
-    sentFields: Object.freeze(['title', 'digest', 'bodyExcerpt'] as const),
+    sentFields: Object.freeze([
+      'title', 'digest', 'bodyExcerpt',
+      ...(supplementalPrompt.length > 0 ? ['supplementalPrompt'] : []),
+    ]),
     payload: Object.freeze({
       title: source.title,
       digest: source.digest,
       bodyExcerpt: excerpt(source.plainText),
+      supplementalPrompt,
     }),
     costNotice: '此次请求将发送给第三方图片服务，可能产生第三方费用。',
   });
@@ -59,7 +75,7 @@ export class AiCoverConfirmationModal extends Modal {
   constructor(
     app: App,
     private readonly disclosure: Readonly<AiCoverDisclosure>,
-    private readonly confirm: () => void,
+    private readonly confirm: (supplementalPrompt: string) => void,
     private readonly cancel: () => void = () => undefined,
   ) { super(app); }
 
@@ -79,6 +95,15 @@ export class AiCoverConfirmationModal extends Modal {
       row.append(createEl('strong', { text: `${label}：` }), document.createTextNode(value));
       this.contentEl.append(row);
     }
+    const promptLabel = createEl('label', { text: '补充封面要求（可选）' });
+    promptLabel.className = 'wechat-workbench__cover-prompt-label';
+    const prompt = createEl('textarea');
+    prompt.dataset.testid = 'ai-cover-supplemental-prompt';
+    prompt.placeholder = '例如：科技感、极简、暖色调；留空则完全依据文章内容生成';
+    prompt.maxLength = 500;
+    prompt.value = this.disclosure.payload.supplementalPrompt;
+    promptLabel.append(prompt);
+    this.contentEl.append(promptLabel);
     this.contentEl.append(createEl('p', {
       cls: 'wechat-workbench__publish-warning',
       text: this.disclosure.costNotice,
@@ -94,7 +119,7 @@ export class AiCoverConfirmationModal extends Modal {
     generate.addEventListener('click', () => {
       this.decided = true;
       this.close();
-      this.confirm();
+      this.confirm(supplemental(prompt.value));
     });
     actions.append(cancel, generate);
     this.contentEl.append(actions);

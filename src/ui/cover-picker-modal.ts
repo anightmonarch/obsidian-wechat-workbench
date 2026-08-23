@@ -11,7 +11,7 @@ export type { CoverPickerModel } from '../cover/cover-workflow';
 export interface CoverPickerPorts {
   prepareSelection(option: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
   prepareUpload(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
-  generateAi(): Promise<Readonly<PreparedCover>>;
+  generateAi(supplementalPrompt: string): Promise<Readonly<PreparedCover>>;
   confirm(prepared: Readonly<PreparedCover>): Promise<void>;
 }
 
@@ -28,6 +28,7 @@ export class CoverPickerSession {
   errorCode: string | null = null;
   errorMessage: string | null = null;
   busy = false;
+  private supplementalPrompt = '';
 
   constructor(
     readonly model: Readonly<CoverPickerModel>,
@@ -41,22 +42,30 @@ export class CoverPickerSession {
     if (option === undefined || !option.enabled) {
       throw new CoverPickerError('COVER_SOURCE_UNAVAILABLE', '这个封面来源暂时不可用。');
     }
+    this.supplementalPrompt = '';
     await this.runPrepare(() => this.ports.prepareSelection(option));
   }
 
   async selectUpload(bytes: Uint8Array | null): Promise<void> {
     if (bytes === null) return;
+    this.supplementalPrompt = '';
     await this.runPrepare(() => this.ports.prepareUpload(bytes));
   }
 
-  async generateAi(): Promise<void> {
+  setSupplementalPrompt(value: string): void {
+    this.supplementalPrompt = value.trim();
+  }
+
+  async generateAi(prompt = this.supplementalPrompt): Promise<void> {
     if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', '封面正在处理中，请稍候。');
     this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
     try {
-      this.selected = await this.ports.generateAi();
-    } catch {
+      this.supplementalPrompt = prompt.trim();
+      this.selected = await this.ports.generateAi(this.supplementalPrompt);
+    } catch (error) {
+      if (error instanceof CoverPickerError && error.code === 'AI_COVER_CANCELLED') return;
       this.selected = null;
       this.errorCode = 'AI_COVER_GENERATION_FAILED';
       this.errorMessage = '智能封面生成失败，请检查图片服务设置后再试。';
@@ -141,6 +150,14 @@ export class CoverPickerModal extends Modal {
       preview.src = this.session.selected.previewDataUrl;
       preview.alt = '2.35:1 封面裁剪预览';
       this.contentEl.append(preview, createEl('p', { text: '封面预览已准备' }));
+      if (this.session.selected.source === 'ai-generated') {
+        const regenerate = createEl('button', { text: '重新生成' });
+        regenerate.disabled = this.session.busy;
+        regenerate.addEventListener('click', () => void this.run(async () => {
+          await this.session.generateAi();
+        }));
+        this.contentEl.append(regenerate);
+      }
     }
     if (this.session.errorMessage !== null) {
       this.contentEl.append(createEl('p', { cls: 'wechat-workbench__error', text: this.session.errorMessage }));

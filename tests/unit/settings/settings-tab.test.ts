@@ -208,6 +208,8 @@ describe('buildSettingsPresentation', () => {
       expect(input(tab.containerEl, 'image-ai-endpoint')).toBeTruthy();
       expect(input(tab.containerEl, 'text-ai-model')).toBeTruthy();
       expect(input(tab.containerEl, 'image-ai-model')).toBeTruthy();
+      expect(input(tab.containerEl, 'image-ai-endpoint').placeholder)
+        .toBe('https://api.example.com/v1/images/generations');
     });
 
     it('saves text configuration locally without making a network request', async () => {

@@ -262,10 +262,11 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       prepareUpload: coverWorkflow.prepareUpload.bind(coverWorkflow),
       prepareAi: coverWorkflow.prepareAi.bind(coverWorkflow),
       confirm: coverWorkflow.confirm.bind(coverWorkflow),
-      disclosure: (artifact: Readonly<RenderArtifact>) => buildAiCoverDisclosure({
+      disclosure: (artifact: Readonly<RenderArtifact>, supplementalPrompt = '') => buildAiCoverDisclosure({
         title: artifact.metadata.title,
         digest: artifact.metadata.digest,
         plainText: artifact.plainText,
+        supplementalPrompt,
       }, {
         imageApiProtocol: this.pluginSettings.imageApiProtocol,
         imageApiEndpoint: this.pluginSettings.imageApiEndpoint,

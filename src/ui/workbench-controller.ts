@@ -97,7 +97,7 @@ export interface WorkbenchPublishPort {
 
 export interface WorkbenchCoverPort {
   model(snapshot: Readonly<NoteSnapshot>, artifact: Readonly<RenderArtifact>): Readonly<CoverPickerModel>;
-  disclosure(artifact: Readonly<RenderArtifact>): Readonly<AiCoverDisclosure>;
+  disclosure(artifact: Readonly<RenderArtifact>, supplementalPrompt?: string): Readonly<AiCoverDisclosure>;
   prepareSelection(
     file: VaultFileRef,
     snapshot: Readonly<NoteSnapshot>,
@@ -105,7 +105,7 @@ export interface WorkbenchCoverPort {
     kind: CoverPickerOption['kind'],
   ): Promise<Readonly<PreparedCover>>;
   prepareUpload(file: VaultFileRef, bytes: Uint8Array, contextHash: string): Promise<Readonly<PreparedCover>>;
-  prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedCover>>;
+  prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>, supplementalPrompt?: string): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
 }
 
@@ -388,10 +388,10 @@ export class WorkbenchController {
       };
   }
 
-  aiCoverDisclosure(): Readonly<AiCoverDisclosure> {
+  aiCoverDisclosure(supplementalPrompt = ''): Readonly<AiCoverDisclosure> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
-    return this.covers.disclosure(current.artifact);
+    return this.covers.disclosure(current.artifact, supplementalPrompt);
   }
 
   async prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>> {
@@ -411,10 +411,10 @@ export class WorkbenchController {
     );
   }
 
-  async generateAiCover(): Promise<Readonly<PreparedCover>> {
+  async generateAiCover(supplementalPrompt = ''): Promise<Readonly<PreparedCover>> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
-    return this.covers.prepareAi(this.currentFile(current.snapshot), current.artifact);
+    return this.covers.prepareAi(this.currentFile(current.snapshot), current.artifact, supplementalPrompt);
   }
 
   async confirmCover(prepared: Readonly<PreparedCover>): Promise<void> {

@@ -276,7 +276,9 @@ function appendAiServiceCard(
     .addText(text => {
       text.setValue(endpoint).onChange(value => { endpoint = value; });
       text.inputEl.dataset.testid = `${options.kind}-ai-endpoint`;
-      text.inputEl.placeholder = 'https://api.example.com/v1/chat/completions';
+      text.inputEl.placeholder = options.kind === 'text'
+        ? 'https://api.example.com/v1/chat/completions'
+        : 'https://api.example.com/v1/images/generations';
     });
   endpointSetting.settingEl.dataset.testid = `${options.kind}-ai-endpoint-setting`;
   new Setting(card)

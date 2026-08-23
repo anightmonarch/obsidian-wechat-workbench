@@ -47,10 +47,10 @@ interface WorkbenchControllerBinding {
   ): Promise<Readonly<PublishOutcome>>;
   unlinkPublishAssociation(association: Readonly<DraftAssociationRef>): Promise<void>;
   coverPickerModel(): Readonly<CoverPickerModel>;
-  aiCoverDisclosure(): Readonly<AiCoverDisclosure>;
+  aiCoverDisclosure(supplementalPrompt?: string): Readonly<AiCoverDisclosure>;
   prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
   prepareUploadCover(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
-  generateAiCover(): Promise<Readonly<PreparedCover>>;
+  generateAiCover(supplementalPrompt?: string): Promise<Readonly<PreparedCover>>;
   confirmCover(prepared: Readonly<PreparedCover>): Promise<void>;
   saveArticleSettings(
     file: VaultFileRef,
@@ -561,12 +561,16 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private openCoverPicker(): void {
     if (this.controller === null) return;
     try {
-      const session = new CoverPickerSession(this.controller.coverPickerModel(), {
+      let session: CoverPickerSession;
+      session = new CoverPickerSession(this.controller.coverPickerModel(), {
         prepareSelection: input => this.controller?.prepareCover(input)
           ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
         prepareUpload: bytes => this.controller?.prepareUploadCover(bytes)
           ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
-        generateAi: () => this.generateAiCoverWithConsent(),
+        generateAi: prompt => this.generateAiCoverWithConsent(
+          prompt,
+          value => session.setSupplementalPrompt(value),
+        ),
         confirm: async prepared => {
           await this.controller?.confirmCover(prepared);
           new Notice('文章封面已更新');
@@ -578,17 +582,21 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     }
   }
 
-  private generateAiCoverWithConsent(): Promise<Readonly<PreparedCover>> {
+  private generateAiCoverWithConsent(
+    supplementalPrompt: string,
+    rememberPrompt: (value: string) => void,
+  ): Promise<Readonly<PreparedCover>> {
     if (this.controller === null) {
       return Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。'));
     }
-    const disclosure = this.controller.aiCoverDisclosure();
+    const disclosure = this.controller.aiCoverDisclosure(supplementalPrompt);
     return new Promise((resolve, reject) => {
       new AiCoverConfirmationModal(
         this.app,
         disclosure,
-        () => {
-          void this.controller?.generateAiCover().then(resolve, reject);
+        value => {
+          rememberPrompt(value);
+          void this.controller?.generateAiCover(value).then(resolve, reject);
         },
         () => reject(new CoverPickerError('AI_COVER_CANCELLED', '已取消生成智能封面。')),
       ).open();

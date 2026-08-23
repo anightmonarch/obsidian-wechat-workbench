@@ -260,6 +260,7 @@ export class CoverWorkflow {
   async prepareAi(
     file: VaultFileRef,
     artifact: Readonly<RenderArtifact>,
+    supplementalPrompt = '',
     signal?: AbortSignal,
   ): Promise<Readonly<PreparedCover>> {
     const apiKey = this.secret.get();
@@ -278,6 +279,7 @@ export class CoverWorkflow {
       title: artifact.metadata.title,
       digest: artifact.metadata.digest,
       bodyExcerpt: artifact.plainText,
+      supplementalPrompt,
       ...(signal === undefined ? {} : { signal }),
     });
     return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));

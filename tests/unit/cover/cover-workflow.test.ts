@@ -148,8 +148,19 @@ describe('CoverWorkflow', () => {
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Article', bodyExcerpt: 'Body', apiKey: credential,
       endpoint: 'https://images.example.test/v1/images/generations',
+      supplementalPrompt: '',
     }));
     expect(current.save).not.toHaveBeenCalled();
+  });
+
+  it('passes the optional prompt only for the current generation session', async () => {
+    const current = harness();
+
+    await current.workflow.prepareAi(file, artifact, '电影感、蓝色调');
+
+    expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
+      supplementalPrompt: '电影感、蓝色调',
+    }));
   });
 
   it('disables Anthropic image generation without invoking the image generator', async () => {
