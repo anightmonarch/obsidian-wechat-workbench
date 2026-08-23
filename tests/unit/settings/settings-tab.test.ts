@@ -19,7 +19,7 @@ function createHarness() {
     }),
   };
   const secrets = {
-    status: vi.fn(() => ({ appSecret: true, accessToken: false, imageApiKey: false })),
+    status: vi.fn(() => ({ appSecret: true, accessToken: false, textApiKey: false, imageApiKey: false })),
   };
   const connection = {
     snapshot: vi.fn<() => ReturnType<AccountConnectionService['snapshot']>>(() => ({
@@ -46,11 +46,8 @@ function createHarness() {
     disconnect: vi.fn(async () => undefined),
   };
   const ai = {
-    refreshModels: vi.fn(async () => [Object.freeze({
-      id: 'image-model',
-      capability: 'IMAGE_UNVERIFIED' as const,
-    })]),
-    save: vi.fn(async () => settings.current),
+    saveText: vi.fn(async () => settings.current),
+    saveImage: vi.fn(async () => settings.current),
   };
   const copyIp = vi.fn();
   const openConsole = vi.fn(async () => undefined);
@@ -80,12 +77,6 @@ function input(host: HTMLElement, testId: string): HTMLInputElement {
   return element;
 }
 
-function select(host: HTMLElement, testId: string): HTMLSelectElement {
-  const element = host.querySelector<HTMLSelectElement>(`[data-testid="${testId}"]`);
-  if (element === null) throw new Error(`Missing select ${testId}`);
-  return element;
-}
-
 describe('buildSettingsPresentation', () => {
   it('shows configuration status without exposing stored secret values', () => {
     const presentation = buildSettingsPresentation(DEFAULT_SETTINGS, {
@@ -96,9 +87,15 @@ describe('buildSettingsPresentation', () => {
     });
 
     expect(presentation.appIdValue).toBe('');
-    expect(presentation).toMatchObject({ imageApiBaseUrl: '', imageApiModel: '' });
+    expect(presentation).toMatchObject({
+      textApiEndpoint: '',
+      textApiModel: '',
+      imageApiEndpoint: '',
+      imageApiModel: '',
+    });
     expect(presentation.secretRows).toEqual([
       { kind: 'appSecret', label: 'AppSecret', status: '已配置', inputValue: '' },
+      { kind: 'textApiKey', label: '文本 API Key', status: '未配置', inputValue: '' },
       { kind: 'imageApiKey', label: '图片 API Key', status: '未配置', inputValue: '' },
     ]);
     expect(JSON.stringify(presentation)).not.toContain('accessToken');
@@ -193,65 +190,59 @@ describe('buildSettingsPresentation', () => {
       document.body.replaceChildren();
     });
 
-    it('does not fetch models until the user clicks 获取模型', async () => {
-      const { tab, ai } = createHarness();
+    it('renders two independent cards without protocol or model discovery controls', () => {
+      const { tab } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
 
-      expect(tab.containerEl.textContent).toContain('接口协议');
-      expect(tab.containerEl.textContent).toContain('服务地址');
-      expect(tab.containerEl.textContent).toContain('可用模型');
-      expect(ai.refreshModels).not.toHaveBeenCalled();
-      input(tab.containerEl, 'ai-base-url').value = 'https://images.example.test/v1';
-      input(tab.containerEl, 'ai-base-url').dispatchEvent(new Event('change'));
-      await Promise.resolve();
-      expect(ai.refreshModels).not.toHaveBeenCalled();
+      expect(tab.containerEl.textContent).toContain('AI 内容生成');
+      expect(tab.containerEl.textContent).toContain('文本生成服务');
+      expect(tab.containerEl.textContent).toContain('图片生成服务');
+      expect(tab.containerEl.textContent).toContain('完整 Endpoint URL');
+      expect(tab.containerEl.textContent).toContain('OpenAI compatible');
+      expect(tab.containerEl.textContent).not.toContain('Anthropic');
+      expect(tab.containerEl.textContent).not.toContain('获取模型');
+      expect(tab.containerEl.textContent).not.toContain('可用模型');
+      expect(tab.containerEl.querySelector('select')).toBeNull();
+      expect(input(tab.containerEl, 'text-ai-endpoint')).toBeTruthy();
+      expect(input(tab.containerEl, 'image-ai-endpoint')).toBeTruthy();
+      expect(input(tab.containerEl, 'text-ai-model')).toBeTruthy();
+      expect(input(tab.containerEl, 'image-ai-model')).toBeTruthy();
     });
 
-    it('renders refreshed models and saves the selected model explicitly', async () => {
+    it('saves text configuration locally without making a network request', async () => {
       const { tab, ai } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
+      input(tab.containerEl, 'text-ai-endpoint').value = 'https://text.example.test/v1/chat';
+      input(tab.containerEl, 'text-ai-model').value = 'text-model';
+      input(tab.containerEl, 'text-ai-key').value = 'synthetic-text-key';
 
-      button(tab.containerEl, 'ai-refresh-models').click();
-      input(tab.containerEl, 'ai-base-url').value = 'https://images.example.test/v1';
-      input(tab.containerEl, 'ai-base-url').dispatchEvent(new Event('change'));
-      await vi.waitFor(() => expect(select(tab.containerEl, 'ai-model').options.length).toBe(1));
-      expect(select(tab.containerEl, 'ai-model').value).toBe('image-model');
-      select(tab.containerEl, 'ai-model').value = 'image-model';
-      select(tab.containerEl, 'ai-model').dispatchEvent(new Event('change'));
-      button(tab.containerEl, 'ai-save').click();
-      await vi.waitFor(() => expect(ai.save).toHaveBeenCalledWith({
-        protocol: 'openai-compatible',
-        baseUrl: 'https://images.example.test/v1',
+      button(tab.containerEl, 'save-text-ai').click();
+
+      await vi.waitFor(() => expect(ai.saveText).toHaveBeenCalledWith({
+        endpoint: 'https://text.example.test/v1/chat',
+        model: 'text-model',
+        apiKey: 'synthetic-text-key',
+      }));
+      expect(tab.containerEl.textContent).toContain('已保存到本机 · 尚未联网验证');
+      expect(input(tab.containerEl, 'text-ai-key').value).toBe('');
+    });
+
+    it('saves image configuration independently from text configuration', async () => {
+      const { tab, ai } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+      input(tab.containerEl, 'image-ai-endpoint').value = 'https://images.example.test/v1/images';
+      input(tab.containerEl, 'image-ai-model').value = 'image-model';
+      button(tab.containerEl, 'save-image-ai').click();
+
+      await vi.waitFor(() => expect(ai.saveImage).toHaveBeenCalledWith({
+        endpoint: 'https://images.example.test/v1/images',
         model: 'image-model',
         apiKey: '',
       }));
-    });
-
-    it('shows a safe action message when model discovery fails', async () => {
-      const { tab, ai } = createHarness();
-      ai.refreshModels.mockRejectedValueOnce(new Error('raw api key and stack trace'));
-      document.body.append(tab.containerEl);
-      tab.display();
-
-      button(tab.containerEl, 'ai-refresh-models').click();
-
-      await vi.waitFor(() => expect(tab.containerEl.textContent)
-        .toContain('模型列表获取失败，请检查服务地址和 API Key 后重试。'));
-      expect(tab.containerEl.textContent).not.toContain('raw api key');
-    });
-
-    it('clears the API key input after saving service configuration', async () => {
-      const { tab, ai } = createHarness();
-      document.body.append(tab.containerEl);
-      tab.display();
-      input(tab.containerEl, 'ai-api-key').value = 'synthetic-api-key';
-
-      button(tab.containerEl, 'ai-save').click();
-
-      await vi.waitFor(() => expect(ai.save).toHaveBeenCalled());
-      expect(input(tab.containerEl, 'ai-api-key').value).toBe('');
+      expect(ai.saveText).not.toHaveBeenCalled();
     });
   });
 });

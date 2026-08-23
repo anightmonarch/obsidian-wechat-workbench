@@ -2,7 +2,7 @@ import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
 import type { PluginSettings } from './model';
 import type { AccountConnectionService } from './account-connection-service';
-import type { AiServiceSettingsService } from './ai-service-settings';
+import type { AiServiceInput, AiServiceSettingsService } from './ai-service-settings';
 import type { SecretKind, SecretStatus, SecretStore } from './secret-store';
 import { AccountDisconnectModal } from '../ui/account-disconnect-modal';
 
@@ -12,7 +12,7 @@ export interface SettingsAccess {
 }
 
 export interface SecretSettingRow {
-  kind: Extract<SecretKind, 'appSecret' | 'imageApiKey'>;
+  kind: Extract<SecretKind, 'appSecret' | 'textApiKey' | 'imageApiKey'>;
   label: string;
   status: '已配置' | '未配置';
   inputValue: '';
@@ -20,9 +20,22 @@ export interface SecretSettingRow {
 
 export interface SettingsPresentation {
   appIdValue: string;
-  imageApiBaseUrl: string;
+  textApiEndpoint: string;
+  textApiModel: string;
+  imageApiEndpoint: string;
   imageApiModel: string;
+  imageApiBaseUrl: string;
   secretRows: SecretSettingRow[];
+}
+
+interface AiServiceCardOptions {
+  kind: 'text' | 'image';
+  title: string;
+  description: string;
+  endpoint: string;
+  model: string;
+  keySaved: boolean;
+  save(input: Readonly<AiServiceInput>): Promise<Readonly<PluginSettings>>;
 }
 
 export function buildSettingsPresentation(
@@ -31,13 +44,22 @@ export function buildSettingsPresentation(
 ): SettingsPresentation {
   return {
     appIdValue: settings.appId,
-    imageApiBaseUrl: settings.imageApiBaseUrl,
+    textApiEndpoint: settings.textApiEndpoint,
+    textApiModel: settings.textApiModel,
+    imageApiEndpoint: settings.imageApiEndpoint,
     imageApiModel: settings.imageApiModel,
+    imageApiBaseUrl: settings.imageApiBaseUrl,
     secretRows: [
       {
         kind: 'appSecret',
         label: 'AppSecret',
         status: status.appSecret ? '已配置' : '未配置',
+        inputValue: '',
+      },
+      {
+        kind: 'textApiKey',
+        label: '文本 API Key',
+        status: status.textApiKey ? '已配置' : '未配置',
         inputValue: '',
       },
       {
@@ -77,106 +99,33 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
 
   private renderAiServiceSection(): void {
     const current = this.settings.get();
-    let protocol = current.imageApiProtocol;
-    let baseUrl = current.imageApiBaseUrl;
-    let model = current.imageApiModel;
-    let apiKey = '';
-    const heading = createEl('h2', { text: '智能封面服务' });
+    const status = this.secrets.status();
+    const heading = createEl('h2', { text: 'AI 内容生成' });
     this.containerEl.append(heading);
-
-    const protocolSelect = createEl('select');
-    protocolSelect.dataset.testid = 'ai-protocol';
-    protocolSelect.append(new Option('OpenAI 兼容', 'openai-compatible'), new Option('Anthropic', 'anthropic'));
-    protocolSelect.value = protocol;
-    protocolSelect.addEventListener('change', () => {
-      protocol = protocolSelect.value as typeof protocol;
+    this.containerEl.append(createEl('p', {
+      cls: 'setting-item-description',
+      text: '文本和图片服务相互独立。请填写完整 Endpoint URL、API Key 和模型名称；保存配置时不联网。',
+    }));
+    const grid = createDiv('wechat-workbench-settings__ai-grid');
+    appendAiServiceCard(grid, {
+      kind: 'text',
+      title: '文本生成服务',
+      description: '用于生成标题候选和摘要候选。',
+      endpoint: current.textApiEndpoint,
+      model: current.textApiModel,
+      keySaved: status.textApiKey,
+      save: input => this.aiService.saveText(input),
     });
-    const protocolField = createDiv('wechat-workbench-settings__field');
-    protocolField.append(createSpan({ text: '接口协议' }), protocolSelect);
-    this.containerEl.append(protocolField);
-
-    const baseUrlInput = createEl('input');
-    baseUrlInput.dataset.testid = 'ai-base-url';
-    baseUrlInput.placeholder = '例如 https://api.example.com/v1';
-    baseUrlInput.value = baseUrl;
-    baseUrlInput.addEventListener('change', () => { baseUrl = baseUrlInput.value; });
-    const baseUrlField = createDiv('wechat-workbench-settings__field');
-    baseUrlField.append(createSpan({ text: '服务地址' }), baseUrlInput);
-    this.containerEl.append(baseUrlField);
-
-    new Setting(this.containerEl)
-      .setName('图片 API Key')
-      .addText(text => {
-        text.inputEl.type = 'password';
-        text.inputEl.dataset.testid = 'ai-api-key';
-        text.inputEl.placeholder = '输入新值以替换';
-        text.setValue('').onChange(value => { apiKey = value; });
-      });
-
-    const modelSelect = createEl('select');
-    modelSelect.dataset.testid = 'ai-model';
-    if (model.length > 0) modelSelect.append(new Option(model, model));
-    modelSelect.value = model;
-    modelSelect.addEventListener('change', () => { model = modelSelect.value; });
-    const modelField = createDiv('wechat-workbench-settings__field');
-    modelField.append(createSpan({ text: '可用模型' }), modelSelect);
-    this.containerEl.append(modelField);
-
-    const modelError = createEl('p', {
-      cls: 'wechat-workbench-settings__error',
-      text: '模型列表获取失败，请检查服务地址和 API Key 后重试。',
+    appendAiServiceCard(grid, {
+      kind: 'image',
+      title: '图片生成服务',
+      description: '用于一次生成一张公众号封面候选。',
+      endpoint: current.imageApiEndpoint,
+      model: current.imageApiModel,
+      keySaved: status.imageApiKey,
+      save: input => this.aiService.saveImage(input),
     });
-    modelError.hidden = true;
-    this.containerEl.append(modelError);
-
-    const refreshButton = createEl('button', { text: '获取模型' });
-    refreshButton.dataset.testid = 'ai-refresh-models';
-    refreshButton.addEventListener('click', () => {
-      void (async () => {
-        refreshButton.disabled = true;
-        modelError.hidden = true;
-        try {
-          const models = await this.aiService.refreshModels({ protocol, baseUrl, apiKey });
-          modelSelect.replaceChildren();
-          for (const option of models) {
-            const label = option.capability === 'PROMPT_PLANNING_ONLY'
-              ? `${option.id}（只支持封面策划，未提供图片输出）`
-              : option.id;
-            modelSelect.append(new Option(label, option.id));
-          }
-          model = models[0]?.id ?? '';
-          modelSelect.value = model;
-        } catch {
-          modelError.hidden = false;
-        } finally {
-          refreshButton.disabled = false;
-        }
-      })();
-    });
-
-    const saveButton = createEl('button', { text: '保存服务配置' });
-    saveButton.dataset.testid = 'ai-save';
-    saveButton.addEventListener('click', () => {
-      void (async () => {
-        try {
-          await this.aiService.save({
-            protocol,
-            baseUrl: (this.containerEl.querySelector<HTMLInputElement>('[data-testid="ai-base-url"]') ?? { value: baseUrl }).value,
-            model: (this.containerEl.querySelector<HTMLSelectElement>('[data-testid="ai-model"]') ?? { value: model }).value,
-            apiKey: (this.containerEl.querySelector<HTMLInputElement>('[data-testid="ai-api-key"]') ?? { value: apiKey }).value,
-          });
-          const apiKeyInput = this.containerEl.querySelector<HTMLInputElement>('[data-testid="ai-api-key"]');
-          if (apiKeyInput !== null) apiKeyInput.value = '';
-          apiKey = '';
-        } catch {
-          new Notice('图片服务配置保存失败，请先获取并选择可用模型。');
-        }
-      })();
-    });
-
-    const actions = createDiv('wechat-workbench-settings__actions');
-    actions.append(refreshButton, saveButton);
-    this.containerEl.append(actions);
+    this.containerEl.append(grid);
   }
 
   private renderAccountSection(): void {
@@ -306,6 +255,80 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     }
     this.containerEl.append(statusBlock);
   }
+}
+
+function appendAiServiceCard(
+  container: HTMLElement,
+  options: Readonly<AiServiceCardOptions>,
+): void {
+  const card = createDiv('wechat-workbench-settings__ai-card');
+  card.append(createEl('h3', { text: options.title }));
+  card.append(createEl('p', {
+    cls: 'setting-item-description',
+    text: options.description,
+  }));
+  let endpoint = options.endpoint;
+  let model = options.model;
+  let apiKey = '';
+  const endpointSetting = new Setting(card)
+    .setName('完整 Endpoint URL')
+    .setDesc('OpenAI compatible；请填写包含接口路径的完整 HTTPS 地址。')
+    .addText(text => {
+      text.setValue(endpoint).onChange(value => { endpoint = value; });
+      text.inputEl.dataset.testid = `${options.kind}-ai-endpoint`;
+      text.inputEl.placeholder = 'https://api.example.com/v1/chat/completions';
+    });
+  endpointSetting.settingEl.dataset.testid = `${options.kind}-ai-endpoint-setting`;
+  new Setting(card)
+    .setName('API Key')
+    .setDesc(options.keySaved ? '已安全保存；输入新值以替换。' : '保存在 Obsidian SecretStorage。')
+    .addText(text => {
+      text.inputEl.type = 'password';
+      text.inputEl.dataset.testid = `${options.kind}-ai-key`;
+      text.inputEl.placeholder = options.keySaved ? '已保存 · 输入新值以替换' : '输入 API Key';
+      text.setValue('').onChange(value => { apiKey = value; });
+    });
+  new Setting(card)
+    .setName('模型名称')
+    .setDesc('手动填写，不获取远程模型列表。')
+    .addText(text => {
+      text.setValue(model).onChange(value => { model = value; });
+      text.inputEl.dataset.testid = `${options.kind}-ai-model`;
+      text.inputEl.placeholder = 'your-model-name';
+    });
+  const actions = createDiv('wechat-workbench-settings__ai-actions');
+  const status = createSpan('wechat-workbench-settings__ai-status');
+  status.textContent = '尚未修改';
+  status.dataset.testid = `${options.kind}-ai-status`;
+  const save = createEl('button', {
+    cls: 'mod-cta',
+    text: `保存${options.kind === 'text' ? '文本' : '图片'}配置`,
+  });
+  save.type = 'button';
+  save.dataset.testid = `save-${options.kind}-ai`;
+  save.addEventListener('click', () => {
+    const endpointInput = card.querySelector<HTMLInputElement>(`[data-testid="${options.kind}-ai-endpoint"]`);
+    const modelInput = card.querySelector<HTMLInputElement>(`[data-testid="${options.kind}-ai-model"]`);
+    const keyInput = card.querySelector<HTMLInputElement>(`[data-testid="${options.kind}-ai-key"]`);
+    save.disabled = true;
+    void options.save({
+      endpoint: endpointInput?.value ?? endpoint,
+      model: modelInput?.value ?? model,
+      apiKey: keyInput?.value ?? apiKey,
+    })
+      .then(() => {
+        status.textContent = '已保存到本机 · 尚未联网验证';
+        apiKey = '';
+        if (keyInput !== null) keyInput.value = '';
+      })
+      .catch(() => {
+        status.textContent = '保存失败，请检查 Endpoint、模型名称和 API Key';
+      })
+      .finally(() => { save.disabled = false; });
+  });
+  actions.append(save, status);
+  card.append(actions);
+  container.append(card);
 }
 
 function formatLocalTime(timestamp: number): string {
