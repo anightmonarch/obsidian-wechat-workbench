@@ -24,6 +24,7 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 | AI text generation with Agnes | BLOCKED (desktop) | Settings were prepared in the isolated Vault, but the final real request was not sent because Computer Use hit macOS lock; no provider success claim is made |
 | AI intelligent-cover generation | BLOCKED (desktop) | Agnes image request contract and session flows pass automated tests; final real disclosure → generation → preview → adopt flow remains pending because Computer Use hit macOS lock |
 | AI supplemental prompt / regenerate / cancel | PASS (automated), PENDING (real UI) | 28 focused cover tests verify 500-character session-only prompt, reuse on regeneration, cancellation without false failure, and first-image reset |
+| Agnes provider contract probe | PASS (service only) | 2026-08-24 direct requests: text HTTP 200 with 3 unique titles + 1 digest; image HTTP 200 with HTTPS PNG URL, CDN HTTP 200, PNG signature and 4,736,610-byte response. This does not replace Obsidian UI acceptance |
 | Rich clipboard copy | PARTIAL | Independent real evidence is recorded in `doocs-style-workbench-parity.md`; this checkpoint's `pbpaste` readback is not accepted because Computer Use restored clipboard ownership |
 | Draft create/update/unchanged skip | BLOCKED | Previous real request reached WeChat, then was rejected by the IP whitelist; no new draft claim is made |
 | Publish transaction/recovery semantics | PASS (automated) | Unit, integration and adversarial suites cover frozen artifacts, ambiguity and recovery states |
