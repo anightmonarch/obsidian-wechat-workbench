@@ -66,7 +66,6 @@ export class CoverPickerSession {
       this.selected = await this.ports.generateAi(this.supplementalPrompt);
     } catch (error) {
       if (error instanceof CoverPickerError && error.code === 'AI_COVER_CANCELLED') return;
-      this.selected = null;
       this.errorCode = 'AI_COVER_GENERATION_FAILED';
       this.errorMessage = '智能封面生成失败，请检查图片服务设置后再试。';
     } finally {

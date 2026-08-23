@@ -108,6 +108,26 @@ describe('cover picker session', () => {
     expect(session.selected).toBeNull();
   });
 
+  it('keeps the previous AI candidate when a regeneration fails', async () => {
+    const generated = Object.freeze({ ...prepared, source: 'ai-generated' as const });
+    let calls = 0;
+    const generateAi = vi.fn(async () => {
+      calls += 1;
+      if (calls === 2) throw new Error('temporary provider failure');
+      return generated;
+    });
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared), generateAi, confirm: vi.fn(),
+    });
+
+    await session.generateAi();
+    await session.generateAi();
+
+    expect(session.selected).toBe(generated);
+    expect(session.errorCode).toBe('AI_COVER_GENERATION_FAILED');
+  });
+
   it('does not confirm an unselected or failed generated cover', async () => {
     const confirm = vi.fn(async () => undefined);
     const session = new CoverPickerSession(model, {
