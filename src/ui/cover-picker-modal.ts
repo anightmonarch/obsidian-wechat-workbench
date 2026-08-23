@@ -9,7 +9,8 @@ import type {
 export type { CoverPickerModel } from '../cover/cover-workflow';
 
 export interface CoverPickerPorts {
-  prepareLocal(option: Readonly<CoverPickerOption> | string): Promise<Readonly<PreparedCover>>;
+  prepareSelection(option: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
+  prepareUpload(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
   generateAi(): Promise<Readonly<PreparedCover>>;
   confirm(prepared: Readonly<PreparedCover>): Promise<void>;
 }
@@ -32,20 +33,20 @@ export class CoverPickerSession {
     readonly model: Readonly<CoverPickerModel>,
     private readonly ports: CoverPickerPorts,
   ) {
-    this.options = model.localOptions;
+    this.options = model.options;
   }
 
   async selectLocal(kind: CoverPickerOption['kind']): Promise<void> {
     const option = this.options.find(item => item.kind === kind);
-    if (option === undefined || !option.enabled || option.sourcePath === null) {
+    if (option === undefined || !option.enabled) {
       throw new CoverPickerError('COVER_SOURCE_UNAVAILABLE', '这个封面来源暂时不可用。');
     }
-    await this.prepare(option);
+    await this.runPrepare(() => this.ports.prepareSelection(option));
   }
 
-  async selectVaultPath(path: string): Promise<void> {
-    if (path.trim().length === 0) throw new CoverPickerError('COVER_PATH_EMPTY', '请填写 Vault 内的图片路径。');
-    await this.prepare(path.trim());
+  async selectUpload(bytes: Uint8Array | null): Promise<void> {
+    if (bytes === null) return;
+    await this.runPrepare(() => this.ports.prepareUpload(bytes));
   }
 
   async generateAi(): Promise<void> {
@@ -71,13 +72,13 @@ export class CoverPickerSession {
     await this.ports.confirm(this.selected);
   }
 
-  private async prepare(input: Readonly<CoverPickerOption> | string): Promise<void> {
+  private async runPrepare(action: () => Promise<Readonly<PreparedCover>>): Promise<void> {
     if (this.busy) throw new CoverPickerError('COVER_OPERATION_IN_PROGRESS', '封面正在处理中，请稍候。');
     this.busy = true;
     this.errorCode = null;
     this.errorMessage = null;
     try {
-      this.selected = await this.ports.prepareLocal(input);
+      this.selected = await action();
     } finally {
       this.busy = false;
     }
@@ -94,6 +95,7 @@ export class CoverPickerModal extends Modal {
     this.titleEl.textContent = '选择文章封面';
     const sources = createDiv('wechat-workbench__cover-options');
     for (const option of this.session.options) {
+      if (option.kind === 'upload' || option.kind === 'ai') continue;
       const button = createEl('button', { text: option.label });
       button.disabled = !option.enabled || this.session.busy;
       button.addEventListener('click', () => void this.run(async () => {
@@ -102,18 +104,29 @@ export class CoverPickerModal extends Modal {
       sources.append(button);
     }
 
+    const uploadOption = this.session.options.find(option => option.kind === 'upload');
     const local = createDiv('wechat-workbench__cover-local');
+    if (uploadOption !== undefined) local.append(createEl('p', { text: uploadOption.label }));
     const input = createEl('input');
-    input.type = 'text';
-    input.placeholder = 'Vault 内图片路径，例如 assets/cover.png';
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp';
+    input.multiple = false;
+    input.hidden = true;
     const choose = createEl('button', { text: '使用本地图片' });
     choose.disabled = this.session.busy;
-    choose.addEventListener('click', () => void this.run(async () => {
-      await this.session.selectVaultPath(input.value);
+    choose.addEventListener('click', () => {
+      if (!this.session.busy) input.click();
+    });
+    input.addEventListener('change', () => void this.run(async () => {
+      const selected = input.files?.[0];
+      if (selected === undefined) return;
+      const bytes = new Uint8Array(await selected.arrayBuffer());
+      await this.session.selectUpload(bytes);
     }));
     local.append(input, choose);
 
-    const ai = createEl('button', { text: '生成智能封面' });
+    const aiOption = this.session.options.find(option => option.kind === 'ai');
+    const ai = createEl('button', { text: aiOption?.label ?? '生成智能封面' });
     ai.disabled = !this.session.model.aiEnabled || this.session.busy;
     ai.title = this.session.model.aiDisabledReason ?? '';
     ai.addEventListener('click', () => void this.run(async () => {

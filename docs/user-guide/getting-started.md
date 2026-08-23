@@ -30,10 +30,10 @@ Open the test Vault, go to “设置 → 第三方插件”, disable safe mode i
 
 ## Configure one account
 
-1. Open `WeChat Workbench` from the Workbench header account button, or open “设置 → 第三方插件 → WeChat Workbench”.
+1. Open “设置 → 第三方插件 → WeChat Workbench”. The workbench header only provides a link to the official公众号后台; account credentials are configured in the plugin settings page.
 2. Enter the公众号 AppID.
 3. Enter AppSecret and click save. The field is intentionally blank after saving; the quick panel never displays the saved value.
-4. Complete the [IP whitelist](wechat-ip-whitelist.md).
+4. Complete the [IP whitelist](wechat-ip-whitelist.md), if the connection test reports an IP whitelist error.
 5. Open a Markdown note and open `WeChat Workbench` from the Ribbon or command palette.
 
 Account configuration is optional for preview, themes and copy. It is required only for draft synchronization.

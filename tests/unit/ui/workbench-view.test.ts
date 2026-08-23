@@ -7,6 +7,7 @@ import {
   copyFailureMessage,
   isMissingAccountConfiguration,
   publishPreparationMessage,
+  WECHAT_OFFICIAL_CONSOLE_URL,
   WeChatWorkbenchView,
 } from '../../../src/ui/workbench-view';
 
@@ -15,12 +16,12 @@ const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
     vaultPath: 'article.md', basename: 'article', modifiedAt: 1, markdown: '# Article',
     frontmatter: Object.freeze({}),
     metadata: Object.freeze({ title: 'Article', author: 'Author', digest: '', cover: null, contentSourceUrl: '' }),
-    selectedThemeId: 'native', sourceHash: 'source',
+    selectedThemeId: 'doocs-classic', sourceHash: 'source',
   }),
   artifact: Object.freeze({
     artifactVersion: '1', rendererVersion: '0.1.0',
     source: Object.freeze({ vaultPath: 'article.md', modifiedAt: 1, sourceHash: 'source' }),
-    theme: Object.freeze({ id: 'native', version: '1.0.0', contentHash: 'theme' }),
+    theme: Object.freeze({ id: 'doocs-classic', version: '1.0.0', contentHash: 'theme' }),
     metadata: Object.freeze({ title: 'Article', author: 'Author', digest: '', cover: null, contentSourceUrl: '' }),
     canonicalHtml: '<section class="wechat-article"><h1>Article</h1><p><img alt="remote" data-asset-id="asset:remote" data-asset-kind="remote-image"></p></section>',
     plainText: 'Article',
@@ -39,13 +40,13 @@ const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
     info: Object.freeze([]),
   }),
   themes: Object.freeze([Object.freeze({
-    manifest: Object.freeze({ id: 'native', name: '原生简约', version: '1.0.0', author: 'Test', description: '' }),
+    manifest: Object.freeze({ id: 'doocs-classic', name: '经典', version: '1.0.0', author: 'Test', description: '' }),
     css: '', contentHash: 'theme', source: 'builtin', previewPath: null,
   })]),
-  selectedThemeId: 'native',
+  selectedThemeId: 'doocs-classic',
   style: Object.freeze({
-    source: 'legacy', renderMode: 'legacy', themeId: 'native',
-    config: defaultStyleForTheme('native'), unsupportedVersion: null,
+    source: 'global', renderMode: 'legacy', themeId: 'doocs-classic',
+    config: defaultStyleForTheme('doocs-classic'), unsupportedVersion: null,
   }),
   styleSaveStatus: 'saved',
 });
@@ -72,19 +73,19 @@ describe('WeChatWorkbenchView', () => {
     ))).toBe(true);
     expect(publishPreparationMessage(new Error('A local article image is missing or unreadable.')))
       .toBe('请检查文章中的本地图片后再发文章。');
+    expect(publishPreparationMessage(new Error('The source URL is invalid.')))
+      .toBe('请检查发布设置中的标题、作者和摘要。');
   });
 
   it('renders the WeSight-style shell without login or account internals', async () => {
-    const openSettings = vi.fn();
-    const view = new WeChatWorkbenchView({} as never, undefined, openSettings);
+    const view = new WeChatWorkbenchView({} as never);
 
     await view.onOpen();
 
-    expect([...view.contentEl.children].slice(0, 4).map(node => node.className)).toEqual([
+    expect([...view.contentEl.children].slice(0, 3).map(node => node.className)).toEqual([
       'wechat-workbench__brand-header',
       'wechat-workbench__tabs',
       'wechat-workbench__action-bar',
-      'wechat-workbench__summary-row',
     ]);
     expect(view.contentEl.querySelector('[data-testid="workbench-title"]')?.textContent)
       .toBe('WeChat Workbench');
@@ -103,8 +104,14 @@ describe('WeChatWorkbenchView', () => {
     expect(view.contentEl.textContent).not.toContain('登录');
     expect(view.contentEl.querySelector('[data-testid="workbench-empty"]')?.textContent)
       .toBe('打开一篇 Markdown 笔记开始预览');
-    view.contentEl.querySelector<HTMLButtonElement>('[data-testid="account-settings"]')?.click();
-    expect(openSettings).toHaveBeenCalledOnce();
+    expect(view.contentEl.querySelector('[data-testid="account-settings"]')).toBeNull();
+
+    const consoleLink = view.contentEl.querySelector<HTMLAnchorElement>('[data-testid="wechat-console-link"]');
+    expect(consoleLink?.getAttribute('href')).toBe(WECHAT_OFFICIAL_CONSOLE_URL);
+    expect(consoleLink?.getAttribute('target')).toBe('_blank');
+    expect(consoleLink?.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(consoleLink?.getAttribute('aria-label')).toBe('跳转到公众号后台');
+    expect(consoleLink?.dataset.icon).toBe('external-link');
   });
 
   it('renders a compact ready state and opens the style workbench', async () => {
@@ -124,9 +131,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,
@@ -140,10 +148,8 @@ describe('WeChatWorkbenchView', () => {
     expect(previewTab?.textContent).toBe('文章预览');
     expect(previewTab?.textContent).not.toContain('article');
 
-    expect(view.contentEl.querySelector('[data-testid="active-article"]')?.textContent)
-      .toBe('已连接 · article');
-    expect(view.contentEl.querySelector('[data-testid="active-article"]')?.textContent)
-      .not.toContain('article.md');
+    expect(view.contentEl.querySelector('[data-testid="article-connection"]')).toBeNull();
+    expect(view.contentEl.querySelector('[data-testid="active-article"]')).toBeNull();
     expect(view.contentEl.querySelector('[data-testid="preflight-status"]')).toBeNull();
     expect(view.contentEl.querySelector('[data-testid="publish-state"]')).toBeNull();
     expect(view.contentEl.querySelector('.wechat-article h1')?.textContent).toBe('Article');
@@ -156,12 +162,21 @@ describe('WeChatWorkbenchView', () => {
     expect(view.contentEl.querySelector('[data-testid="style-trigger"]')?.textContent)
       .toBe('样式');
     expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
-    expect(view.contentEl.querySelector('[data-style-theme="native"]')?.getAttribute('aria-pressed'))
+    const styleRoot = view.contentEl.querySelector('[data-testid="style-workbench"]');
+    view.showStyleStatus('unsaved');
+    view.showStyleStatus('saving', '正在保存样式');
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).toBe(styleRoot);
+    expect(view.contentEl.textContent).not.toContain('正在保存样式');
+    expect(view.contentEl.querySelector('[data-style-theme="doocs-classic"]')?.getAttribute('aria-pressed'))
       .toBe('true');
-    view.contentEl.querySelector<HTMLButtonElement>('[data-style-theme="native"]')?.click();
-    expect(selected).toEqual(['native']);
+    view.contentEl.querySelector<HTMLButtonElement>('[data-style-theme="doocs-classic"]')?.click();
+    expect(selected).toEqual(['doocs-classic']);
 
+    const styleHost = view.contentEl.querySelector<HTMLElement>('.wechat-workbench__style-host');
+    expect(styleHost?.hidden).toBe(false);
     view.showLoading('article.md');
+    expect(styleHost?.hidden).toBe(false);
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).toBe(styleRoot);
     view.showArtifact(renderState);
     expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
 
@@ -184,9 +199,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,
@@ -226,9 +242,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,
@@ -243,10 +260,7 @@ describe('WeChatWorkbenchView', () => {
       .toBe(true);
     expect(view.contentEl.querySelector<HTMLElement>('[data-testid="preview-actions"]')?.style.display)
       .toBe('none');
-    expect(view.contentEl.querySelector<HTMLElement>('[data-testid="article-connection"]')?.hidden)
-      .toBe(true);
-    expect(view.contentEl.querySelector<HTMLElement>('[data-testid="article-connection"]')?.style.display)
-      .toBe('none');
+    expect(view.contentEl.querySelector('[data-testid="article-connection"]')).toBeNull();
     expect(view.contentEl.querySelector<HTMLElement>('.wechat-workbench__publish-settings')?.hidden)
       .toBe(false);
 
@@ -257,10 +271,7 @@ describe('WeChatWorkbenchView', () => {
       .toBe(false);
     expect(view.contentEl.querySelector<HTMLElement>('[data-testid="preview-actions"]')?.style.display)
       .toBe('');
-    expect(view.contentEl.querySelector<HTMLElement>('[data-testid="article-connection"]')?.hidden)
-      .toBe(false);
-    expect(view.contentEl.querySelector<HTMLElement>('[data-testid="article-connection"]')?.style.display)
-      .toBe('');
+    expect(view.contentEl.querySelector('[data-testid="article-connection"]')).toBeNull();
   });
 
   it('offers a safe retry after a render error without exposing raw diagnostics', async () => {
@@ -278,9 +289,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,
@@ -313,9 +325,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,
@@ -354,9 +367,10 @@ describe('WeChatWorkbenchView', () => {
       reconcilePublish: async () => { throw new Error('not used'); },
       repairLocalPublish: async () => { throw new Error('not used'); },
       unlinkPublishAssociation: async () => undefined,
-      coverPickerModel: () => ({ localOptions: [], aiEnabled: false, aiDisabledReason: 'not used' }),
+      coverPickerModel: () => ({ options: [], aiEnabled: false, aiDisabledReason: 'not used' }),
       aiCoverDisclosure: () => { throw new Error('not used'); },
       prepareCover: async () => { throw new Error('not used'); },
+      prepareUploadCover: async () => { throw new Error('not used'); },
       generateAiCover: async () => { throw new Error('not used'); },
       confirmCover: async () => undefined,
       saveArticleSettings: async () => undefined,

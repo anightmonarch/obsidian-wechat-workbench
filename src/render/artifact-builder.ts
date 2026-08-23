@@ -11,7 +11,11 @@ import { highlightCodeBlocks } from './extensions/code';
 import { renderMathExpressions } from './extensions/math';
 import { extractMermaidAssets } from './extensions/mermaid';
 import { markdownToSafeHtml } from './markdown-pipeline';
-import { applyImageCaptions } from './style-projections';
+import {
+  applyExternalLinkCitations,
+  applyImageCaptions,
+  applyReadingSummary,
+} from './style-projections';
 
 const ARTIFACT_VERSION = '1';
 const RENDERER_VERSION = '0.1.0';
@@ -84,7 +88,11 @@ export class RenderArtifactBuilder {
     const structuralRoot = parseArticleRoot(`<section class="wechat-article">${safeBody}</section>`);
     transformCallouts(structuralRoot);
     const text = plainText(structuralRoot);
-    if (style !== null) applyImageCaptions(structuralRoot, style.imageCaption);
+    if (style !== null) {
+      applyReadingSummary(structuralRoot, snapshot.markdown, style.wordCount);
+      applyExternalLinkCitations(structuralRoot, style.externalLinkCitation);
+      applyImageCaptions(structuralRoot, style.imageCaption);
+    }
     const images = await extractImageAssets(structuralRoot, snapshot.vaultPath, this.binaryFiles);
     const math = renderMathExpressions(structuralRoot);
     const diagrams = extractMermaidAssets(structuralRoot);

@@ -12,11 +12,13 @@ describe('AI cover disclosure', () => {
       digest: 'Article digest',
       plainText: `Body text ${'字'.repeat(2_000)}`,
     }, {
+      imageApiProtocol: 'openai-compatible',
       imageApiBaseUrl: 'https://images.example.test',
       imageApiModel: 'synthetic-image-model',
     });
 
     expect(disclosure).toMatchObject({
+      protocol: 'OpenAI 兼容',
       baseUrl: 'https://images.example.test',
       model: 'synthetic-image-model',
       sentFields: ['title', 'digest', 'bodyExcerpt'],
@@ -30,6 +32,7 @@ describe('AI cover disclosure', () => {
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: '', plainText: 'Body',
     }, {
+      imageApiProtocol: 'openai-compatible',
       imageApiBaseUrl: 'https://images.example.test', imageApiModel: 'synthetic-image-model',
     }), confirm);
 

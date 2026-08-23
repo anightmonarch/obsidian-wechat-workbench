@@ -21,7 +21,11 @@ export function renderPublishSettings(
   const coverTitle = createEl('h2');
   coverTitle.textContent = '文章封面';
   const coverValue = createEl('p');
-  coverValue.textContent = state.artifact.metadata.cover === null ? '尚未选择封面' : '已选择封面';
+  coverValue.textContent = state.artifact.metadata.cover === null
+    ? state.artifact.assets.some(asset => asset.kind === 'local-image' || asset.kind === 'remote-image')
+      ? '文章首图（默认）'
+      : '文章没有可用首图'
+    : '已选择封面';
   coverValue.dataset.testid = 'settings-cover-value';
   const choose = createEl('button');
   choose.type = 'button';
@@ -75,17 +79,6 @@ function appendArticleEditor(
     currentPlaceholder(state.artifact.metadata.digest),
   );
   digest.maxLength = 120;
-  const source = editableInput(
-    section,
-    '原文链接',
-    'settings-source-url',
-    frontmatterString(state, 'content_source_url'),
-    state.artifact.metadata.contentSourceUrl.length > 0
-      ? currentPlaceholder(state.artifact.metadata.contentSourceUrl)
-      : '例如：https://example.com',
-  );
-  source.type = 'url';
-
   const actionsRow = createDiv('wechat-workbench__settings-actions');
   const save = createEl('button');
   save.type = 'button';
@@ -98,7 +91,7 @@ function appendArticleEditor(
       title: title.value,
       author: author.value,
       digest: digest.value,
-      contentSourceUrl: source.value,
+      contentSourceUrl: frontmatterString(state, 'content_source_url'),
     }).finally(() => {
       save.disabled = false;
     });

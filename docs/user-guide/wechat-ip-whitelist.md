@@ -7,11 +7,13 @@ The公众号 API validates the public source IP used by the computer running Obs
 1. Sign in to the corresponding公众号后台。
 2. Open the development/basic configuration page that shows AppID and AppSecret.
 3. Find the API IP whitelist setting.
-4. Determine the current public egress IPv4 from the same network, VPN and proxy state that Obsidian will use. Compare at least two trusted IP-check services or your router/enterprise gateway record.
-5. Add the exact public IPv4 and save.
-6. Return to Obsidian settings, save AppID/AppSecret locally, then perform a draft connection test.
+4. Return to Obsidian settings, save AppID/AppSecret locally, then perform a connection test.
+5. If WeChat returns the public egress IP, copy the displayed value into the whitelist and save it in the公众号后台.
+6. Run the connection test again.
 
-Do not paste AppSecret into an IP-check website, screenshot, issue or article.
+The plugin does not call a third-party IP lookup service. It only displays an IP when it is returned by the WeChat verification response, so no AppSecret is sent to an IP-check website.
+
+Do not paste AppSecret into a screenshot, issue or article.
 
 ## Changes that invalidate the whitelist
 

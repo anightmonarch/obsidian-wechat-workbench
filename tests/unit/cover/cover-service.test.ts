@@ -38,6 +38,26 @@ const artifact: Readonly<RenderArtifact> = Object.freeze({
 });
 
 describe('CoverService', () => {
+  it('chooses the first ordinary local or remote image in artifact order', () => {
+    const service = new CoverService();
+    const generatedFirst: Readonly<RenderArtifact> = Object.freeze({
+      ...artifact,
+      assets: Object.freeze([
+        Object.freeze({
+          id: 'asset:math', kind: 'generated-math' as const,
+          source: 'math.svg', status: 'resolved' as const, contentHash: 'MATH', resolvedUrl: null,
+        }),
+        ...artifact.assets,
+      ]),
+    });
+
+    expect(service.firstImage(generatedFirst)).toEqual({
+      source: 'first-remote-image',
+      vaultPath: 'https://example.test/remote.png',
+    });
+    expect(service.firstImage(Object.freeze({ assets: [] }))).toBeNull();
+  });
+
   it.each([
     ['article', 'frontmatter-cover', 'assets/frontmatter.png'],
     ['first-image', 'first-local-image', 'assets/first.png'],

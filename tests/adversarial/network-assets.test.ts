@@ -37,12 +37,27 @@ describe('adversarial network and asset paths', () => {
       { save: vi.fn(async () => '.wechat-workbench/covers/test/cover.png') },
       { generate: vi.fn() },
       { processFrontmatter: vi.fn() },
-      { get: () => ({ globalDefaultCoverPath: '', imageApiBaseUrl: '', imageApiModel: '' }) },
+      { get: () => ({ globalDefaultCoverPath: '', imageApiProtocol: 'openai-compatible' as const, imageApiBaseUrl: '', imageApiModel: '' }) },
       { get: () => null, has: () => false },
+      { fetch: vi.fn() },
     );
     const file: VaultFileRef = { path: 'articles/post.md', basename: 'post', modifiedAt: 1 };
 
-    await expect(workflow.prepareLocal(file, '../../outside-vault.png'))
+    const artifact = Object.freeze({
+      artifactVersion: '1', rendererVersion: '0.1.0',
+      source: Object.freeze({ vaultPath: 'articles/post.md', modifiedAt: 1, sourceHash: 'SOURCE' }),
+      metadata: Object.freeze({ title: 'Post', author: '', digest: '', cover: null, contentSourceUrl: '' }),
+      theme: Object.freeze({ id: 'native', version: '1.0.0', contentHash: 'THEME' }),
+      canonicalHtml: '<section></section>', plainText: '',
+      diagnostics: Object.freeze([]),
+      contentHash: 'CONTENT',
+      assets: Object.freeze([Object.freeze({
+        id: 'asset:local', kind: 'local-image' as const, source: '../../outside-vault.png',
+        status: 'resolved' as const, contentHash: null, resolvedUrl: null,
+      })]),
+    });
+
+    await expect(workflow.prepareFirstImage(file, artifact))
       .rejects.toMatchObject({ code: 'COVER_PATH_UNSAFE' });
     expect(readBinary).not.toHaveBeenCalled();
   });

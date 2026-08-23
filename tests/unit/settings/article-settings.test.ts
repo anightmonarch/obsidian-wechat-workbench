@@ -33,4 +33,30 @@ describe('ArticleSettingsService', () => {
       keep_me: 'preserved',
     });
   });
+
+  it('preserves a legacy source URL when source-link editing is removed', async () => {
+    const frontmatter: Record<string, unknown> = {
+      content_source_url: 'https://legacy.example.com/source',
+      keep_me: 'preserved',
+    };
+    const processFrontmatter = vi.fn(async (
+      _file: VaultFileRef,
+      mutate: (value: Record<string, unknown>) => void,
+    ) => mutate(frontmatter));
+    const service = new ArticleSettingsService({ processFrontmatter });
+    const file = { path: 'legacy.md', basename: 'legacy', modifiedAt: 2 };
+
+    await service.update(file, {
+      title: 'Legacy title',
+      author: '',
+      digest: '',
+      contentSourceUrl: 'https://legacy.example.com/source',
+    });
+
+    expect(frontmatter).toEqual({
+      content_source_url: 'https://legacy.example.com/source',
+      keep_me: 'preserved',
+      title: 'Legacy title',
+    });
+  });
 });

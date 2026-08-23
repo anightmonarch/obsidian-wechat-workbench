@@ -104,7 +104,7 @@ export interface WorkbenchCoverPort {
     artifact: Readonly<RenderArtifact>,
     kind: CoverPickerOption['kind'],
   ): Promise<Readonly<PreparedCover>>;
-  prepareLocal(file: VaultFileRef, path: string, contextHash: string): Promise<Readonly<PreparedCover>>;
+  prepareUpload(file: VaultFileRef, bytes: Uint8Array, contextHash: string): Promise<Readonly<PreparedCover>>;
   prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
 }
@@ -231,7 +231,7 @@ export class WorkbenchController {
     this.previewStyleOverride = Object.freeze({ path: file.path, config });
     this.pendingStyleSave = Object.freeze({ file, config });
     this.styleSaveStatus = 'unsaved';
-    this.view.showStyleStatus?.('unsaved', '样式尚未保存');
+    this.view.showStyleStatus?.('unsaved');
     this.scheduleStyleSave();
     this.rebuild('style');
   }
@@ -260,17 +260,17 @@ export class WorkbenchController {
     if (pending === null || this.styles === undefined) return;
     this.pendingStyleSave = null;
     this.styleSaveStatus = 'saving';
-    this.view.showStyleStatus?.('saving', '正在保存样式');
+    this.view.showStyleStatus?.('saving');
     try {
       await this.styles.saveArticle(pending.file, pending.config);
       if (this.pendingStyleSave === null) {
         this.styleSaveStatus = 'saved';
-        this.view.showStyleStatus?.('saved', '样式已保存');
+        this.view.showStyleStatus?.('saved');
       }
     } catch {
       if (this.pendingStyleSave === null) this.pendingStyleSave = pending;
       this.styleSaveStatus = 'unsaved';
-      this.view.showStyleStatus?.('unsaved', '样式尚未保存');
+      this.view.showStyleStatus?.('unsaved');
     }
   }
 
@@ -362,7 +362,11 @@ export class WorkbenchController {
   coverPickerModel(): Readonly<CoverPickerModel> {
     const current = this.coverContext();
     return this.covers?.model(current.snapshot, current.artifact)
-      ?? { localOptions: Object.freeze([]), aiEnabled: false, aiDisabledReason: '封面服务不可用' };
+      ?? {
+        options: Object.freeze([]),
+        aiEnabled: false,
+        aiDisabledReason: '封面服务不可用',
+      };
   }
 
   aiCoverDisclosure(): Readonly<AiCoverDisclosure> {
@@ -371,15 +375,21 @@ export class WorkbenchController {
     return this.covers.disclosure(current.artifact);
   }
 
-  async prepareCover(
-    input: Readonly<CoverPickerOption> | string,
-  ): Promise<Readonly<PreparedCover>> {
+  async prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
     const file = this.currentFile(current.snapshot);
-    return typeof input === 'string'
-      ? this.covers.prepareLocal(file, input, publishPayloadHash(current.artifact))
-      : this.covers.prepareSelection(file, current.snapshot, current.artifact, input.kind);
+    return this.covers.prepareSelection(file, current.snapshot, current.artifact, input.kind);
+  }
+
+  async prepareUploadCover(bytes: Uint8Array): Promise<Readonly<PreparedCover>> {
+    const current = this.coverContext();
+    if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
+    return this.covers.prepareUpload(
+      this.currentFile(current.snapshot),
+      bytes,
+      publishPayloadHash(current.artifact),
+    );
   }
 
   async generateAiCover(): Promise<Readonly<PreparedCover>> {

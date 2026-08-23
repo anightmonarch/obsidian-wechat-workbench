@@ -5,7 +5,7 @@ export type HeadingStyle = 'default' | 'color-only' | 'border-bottom' | 'border-
 export type ImageCaptionMode = 'title-alt' | 'alt-title' | 'title' | 'alt' | 'filename' | 'none';
 
 export interface ArticleStyleConfig {
-  version: 1;
+  version: 2;
   themeId: string;
   fontFamily: FontFamilyId;
   fontSize: FontSize;
@@ -15,11 +15,13 @@ export interface ArticleStyleConfig {
   showCodeLineNumbers: boolean;
   macCodeBlock: boolean;
   imageCaption: ImageCaptionMode;
+  externalLinkCitation: boolean;
   paragraphIndent: boolean;
   textJustify: boolean;
+  wordCount: boolean;
 }
 
 export type StyleParseResult =
   | Readonly<{ status: 'missing'; config: null; version: null }>
-  | Readonly<{ status: 'valid'; config: Readonly<ArticleStyleConfig>; version: 1 }>
+  | Readonly<{ status: 'valid'; config: Readonly<ArticleStyleConfig>; version: 1 | 2 }>
   | Readonly<{ status: 'unsupported'; config: null; version: number }>;

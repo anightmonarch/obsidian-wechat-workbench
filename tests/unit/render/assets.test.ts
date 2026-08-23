@@ -6,6 +6,7 @@ import type { BinaryFilePort } from '../../../src/domain/ports';
 import { stableAssetId } from '../../../src/render/assets';
 import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
 import { markdownToSafeHtml } from '../../../src/render/markdown-pipeline';
+import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../../../src/styles/style-config';
 import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
 function snapshot(markdown: string): Readonly<NoteSnapshot> {
@@ -86,6 +87,32 @@ describe('article image assets', () => {
     });
     expect(readBinary).toHaveBeenCalledTimes(1);
     expect(artifact.canonicalHtml).not.toContain('data:image');
+  });
+
+  it('keeps local and remote images compatible with styled preview output', async () => {
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47]);
+    const files: BinaryFilePort = {
+      resolveLink: vi.fn(async () => 'media/photo.png'),
+      readBinary: vi.fn(async () => bytes),
+    };
+    const style = patchArticleStyle(DEFAULT_ARTICLE_STYLE, { imageCaption: 'alt' });
+
+    const artifact = await new RenderArtifactBuilder(files).build(
+      snapshot([
+        '![本地图片](<assets/photo.png>)',
+        '![远程图片](https://example.test/remote.png)',
+      ].join('\n\n')),
+      nativeTheme,
+      style,
+    );
+
+    expect(artifact.assets).toHaveLength(2);
+    expect(artifact.assets.map(asset => asset.kind)).toEqual(['local-image', 'remote-image']);
+    expect(artifact.canonicalHtml).toContain('class="image-figure"');
+    expect(artifact.canonicalHtml).toContain('class="image-caption"');
+    expect(artifact.canonicalHtml).toContain('本地图片');
+    expect(artifact.canonicalHtml).toContain('data-asset-id');
+    expect(artifact.canonicalHtml).not.toContain('src="https://example.test/remote.png"');
   });
 
   it('keeps a missing local image explicit and unresolved', async () => {

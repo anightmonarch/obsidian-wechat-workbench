@@ -34,7 +34,7 @@ const artifact: Readonly<RenderArtifact> = Object.freeze({
 
 function harness(
   settings: PublishWorkflowSettings = {
-    appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH', defaultCoverStrategy: 'first-image',
+    appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH',
   },
   local: Readonly<SyncedDraftState> | null = null,
   recovery?: PublishRecoveryPorts,
@@ -48,18 +48,24 @@ function harness(
     commit: vi.fn(async () => undefined),
     unlink: vi.fn(async () => undefined),
   };
+  const covers = {
+    prepareForPublish: vi.fn(async () => ({
+      source: 'first-local-image' as const,
+      vaultPath: '.wechat-workbench/covers/article/cover-abcd1234.png',
+      bytes: Uint8Array.from(png),
+      mimeType: 'image/png' as const,
+      contentHash: createHash('sha256').update(png).digest('hex'),
+    })),
+  };
   const workflow = new PublishWorkflow(
     { get: () => settings },
     state,
-    {
-      resolveLink: vi.fn(async (source: string) => source),
-      readBinary: vi.fn(async () => png),
-    },
+    covers,
     new PreflightEngine(),
     { publish },
     recovery,
   );
-  return { workflow, publish, state };
+  return { workflow, publish, state, covers };
 }
 
 describe('PublishWorkflow', () => {
@@ -69,15 +75,15 @@ describe('PublishWorkflow', () => {
     const prepared = await current.workflow.prepare(file, artifact);
 
     expect(buildPublishDialogModel(prepared.dialogInput)).toMatchObject({
-      action: 'CREATE', coverLabel: 'cover.png', formalPublish: false,
+      action: 'CREATE', coverLabel: 'cover-abcd1234.png', formalPublish: false,
     });
     expect(prepared.command.coverHash).toBe(createHash('sha256').update(png).digest('hex'));
-    expect(prepared.command.coverPath).toBe('assets/cover.png');
+    expect(prepared.command.coverPath).toBe('.wechat-workbench/covers/article/cover-abcd1234.png');
     expect(Object.isFrozen(prepared.command)).toBe(true);
   });
 
   it('blocks missing account, cover, and account mismatch before any network call', async () => {
-    await expect(harness({ appId: '', accountHash: null, defaultCoverStrategy: 'first-image' })
+    await expect(harness({ appId: '', accountHash: null })
       .workflow.prepare(file, { ...artifact, assets: Object.freeze([]) }))
       .rejects.toMatchObject({ code: 'WECHAT_ACCOUNT_NOT_CONFIGURED' });
 
@@ -147,9 +153,15 @@ describe('PublishWorkflow', () => {
     const resolve = vi.fn(async () => undefined);
     let receipt: Readonly<RecoveryReceipt> | null = null;
     const workflow = new PublishWorkflow(
-      { get: () => ({ appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH', defaultCoverStrategy: 'first-image' }) },
+      { get: () => ({ appId: 'wxSYNTHETIC123456', accountHash: 'ACCOUNT_HASH' }) },
       { read: vi.fn(async () => null), commit, unlink: vi.fn(async () => undefined) },
-      { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => png) },
+      { prepareForPublish: vi.fn(async () => ({
+        source: 'first-local-image' as const,
+        vaultPath: '.wechat-workbench/covers/article/cover-abcd1234.png',
+        bytes: Uint8Array.from(png),
+        mimeType: 'image/png' as const,
+        contentHash: createHash('sha256').update(png).digest('hex'),
+      })) },
       new PreflightEngine(),
       { publish: vi.fn() },
       {

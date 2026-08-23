@@ -1,4 +1,7 @@
 import type { ImageCaptionMode } from '../domain/style';
+import { readingTime } from './reading-time';
+
+const WECHAT_OFFICIAL_HOST = 'mp.weixin.qq.com';
 
 function createHtmlElement(document: Document, tagName: string): HTMLElement {
   return document.createElementNS('http://www.w3.org/1999/xhtml', tagName);
@@ -47,4 +50,74 @@ export function applyImageCaptions(root: Element, mode: ImageCaptionMode): void 
     }
     paragraph.replaceWith(figure);
   }
+}
+
+export function applyReadingSummary(root: Element, markdown: string, enabled: boolean): void {
+  if (!enabled) return;
+
+  const result = readingTime(markdown);
+  if (result.words === 0) return;
+
+  const blockquote = createHtmlElement(root.ownerDocument, 'blockquote');
+  blockquote.className = 'reading-summary';
+  const paragraph = createHtmlElement(root.ownerDocument, 'p');
+  paragraph.textContent = `字数 ${result.words}，阅读大约需 ${Math.ceil(result.minutes)} 分钟`;
+  blockquote.append(paragraph);
+  root.prepend(blockquote);
+}
+
+export function applyExternalLinkCitations(root: Element, enabled: boolean): void {
+  if (!enabled) return;
+
+  const references = new Map<string, { index: number; label: string; href: string }>();
+  for (const anchor of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+    const href = anchor.getAttribute('href')?.trim() ?? '';
+    let url: URL;
+    try {
+      url = new URL(href);
+    } catch {
+      continue;
+    }
+
+    if (!['http:', 'https:'].includes(url.protocol)
+      || url.hostname === WECHAT_OFFICIAL_HOST
+      || anchor.textContent?.trim() === href) {
+      continue;
+    }
+
+    let reference = references.get(url.href);
+    if (reference === undefined) {
+      reference = {
+        index: references.size + 1,
+        label: anchor.getAttribute('title')?.trim() || anchor.textContent?.trim() || url.href,
+        href: url.href,
+      };
+      references.set(url.href, reference);
+    }
+
+    const superscript = createHtmlElement(root.ownerDocument, 'sup');
+    superscript.className = 'external-link-reference';
+    superscript.textContent = `[${reference.index}]`;
+    anchor.append(superscript);
+  }
+
+  if (references.size === 0) return;
+
+  const section = createHtmlElement(root.ownerDocument, 'section');
+  section.className = 'external-link-references';
+  const heading = createHtmlElement(root.ownerDocument, 'h4');
+  heading.textContent = '引用链接';
+  section.append(heading);
+
+  const list = createHtmlElement(root.ownerDocument, 'ol');
+  for (const reference of references.values()) {
+    const item = createHtmlElement(root.ownerDocument, 'li');
+    const link = createHtmlElement(root.ownerDocument, 'a');
+    link.setAttribute('href', reference.href);
+    link.textContent = reference.label;
+    item.append(link);
+    list.append(item);
+  }
+  section.append(list);
+  root.append(section);
 }

@@ -1,4 +1,3 @@
-import { nativeImage } from 'electron';
 import { Buffer } from 'node:buffer';
 import type { MermaidConfig } from 'mermaid';
 
@@ -55,9 +54,28 @@ export class ElectronSvgRasterizer implements SvgRasterizerPort {
       throw new Error('Mermaid SVG contains an external or active resource.');
     }
     const encoded = Buffer.from(svg, 'utf8').toString('base64');
-    const image = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${encoded}`);
-    if (image.isEmpty()) throw new Error('Mermaid SVG could not be rasterized.');
-    return new Uint8Array(image.toPNG());
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Mermaid SVG could not be rasterized.'));
+      image.src = `data:image/svg+xml;base64,${encoded}`;
+    });
+
+    const width = image.naturalWidth;
+    const height = image.naturalHeight;
+    if (width <= 0 || height <= 0) throw new Error('Mermaid SVG could not be rasterized.');
+
+    const canvas = createEl('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (context === null) throw new Error('Mermaid SVG could not be rasterized.');
+    context.drawImage(image, 0, 0, width, height);
+
+    const png = canvas.toDataURL('image/png');
+    const separator = png.indexOf(',');
+    if (separator === -1) throw new Error('Mermaid SVG could not be rasterized.');
+    return new Uint8Array(Buffer.from(png.slice(separator + 1), 'base64'));
   }
 }
 
@@ -81,6 +99,7 @@ export class DiagramRenderer {
     this.engine.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
+      htmlLabels: false,
       deterministicIds: true,
       deterministicIDSeed: id,
       flowchart: { htmlLabels: false },

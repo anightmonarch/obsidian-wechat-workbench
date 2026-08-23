@@ -1,5 +1,12 @@
 import { ItemView, Notice, setIcon, type WorkspaceLeaf } from 'obsidian';
 
+import {
+  openWeChatOfficialConsole,
+  WECHAT_OFFICIAL_CONSOLE_URL,
+} from './external-browser';
+
+export { WECHAT_OFFICIAL_CONSOLE_URL } from './external-browser';
+
 import type { WorkbenchRenderState, WorkbenchViewPort } from './workbench-controller';
 import type { EditableArticleSettings } from '../domain/article';
 import type { VaultFileRef } from '../domain/ports';
@@ -41,7 +48,8 @@ interface WorkbenchControllerBinding {
   unlinkPublishAssociation(association: Readonly<DraftAssociationRef>): Promise<void>;
   coverPickerModel(): Readonly<CoverPickerModel>;
   aiCoverDisclosure(): Readonly<AiCoverDisclosure>;
-  prepareCover(input: Readonly<CoverPickerOption> | string): Promise<Readonly<PreparedCover>>;
+  prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
+  prepareUploadCover(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
   generateAiCover(): Promise<Readonly<PreparedCover>>;
   confirmCover(prepared: Readonly<PreparedCover>): Promise<void>;
   saveArticleSettings(
@@ -137,7 +145,7 @@ export function publishPreparationMessage(error: unknown): string {
     return '请检查文章中的本地图片后再发文章。';
   }
   if (/title|author|digest|source URL|标题|作者|摘要|原文链接/iu.test(message)) {
-    return '请检查发布设置中的标题、作者、摘要和原文链接。';
+    return '请检查发布设置中的标题、作者和摘要。';
   }
   if (/association|draft|草稿关联/iu.test(message)) {
     return '当前文章的草稿关联需要处理，请先到公众号草稿箱确认最近一次同步结果。';
@@ -148,9 +156,7 @@ export function publishPreparationMessage(error: unknown): string {
 export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private controller: WorkbenchControllerBinding | null = null;
   private readonly previewRenderer: ArticlePreviewRenderer;
-  private activeArticle: HTMLElement | null = null;
   private actionBar: HTMLElement | null = null;
-  private summaryRow: HTMLElement | null = null;
   private previewEl: HTMLElement | null = null;
   private styleHost: HTMLElement | null = null;
   private settingsEl: HTMLElement | null = null;
@@ -165,6 +171,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     leaf: WorkspaceLeaf,
     previewAssets?: PreviewAssetResolver,
     private readonly openSettings: () => void = () => undefined,
+    private readonly openConsole: () => Promise<void> = () => openWeChatOfficialConsole(),
   ) {
     super(leaf);
     this.previewRenderer = new ArticlePreviewRenderer(previewAssets);
@@ -194,12 +201,21 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     const title = element('h2', 'wechat-workbench__title', 'WeChat Workbench');
     title.dataset.testid = 'workbench-title';
     brand.append(brandIcon, title);
-    const account = element('button', 'clickable-icon');
+    const account = element('a', 'clickable-icon');
     account.type = 'button';
-    account.dataset.testid = 'account-settings';
-    account.setAttribute('aria-label', '管理本地公众号设置');
-    setIcon(account, 'circle-user-round');
-    this.registerDomEvent(account, 'click', this.openSettings);
+    account.href = WECHAT_OFFICIAL_CONSOLE_URL;
+    account.target = '_blank';
+    account.rel = 'noopener noreferrer';
+    account.dataset.testid = 'wechat-console-link';
+    account.setAttribute('aria-label', '跳转到公众号后台');
+    account.title = '跳转到公众号后台';
+    setIcon(account, 'external-link');
+    this.registerDomEvent(account, 'click', event => {
+      event.preventDefault();
+      void this.openConsole().catch(() => {
+        new Notice('无法打开公众号后台，请在浏览器访问 mp.weixin.qq.com。');
+      });
+    });
     header.append(brand, account);
 
     const tabs = element('div', 'wechat-workbench__tabs');
@@ -244,13 +260,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     this.styleTrigger = styleTrigger;
     toolbar.append(publishButton, copyButton, styleTrigger);
 
-    const summary = element('div', 'wechat-workbench__summary-row');
-    summary.dataset.testid = 'article-connection';
-    this.summaryRow = summary;
-    this.activeArticle = element('div', 'wechat-workbench__active-article', '未连接活动笔记');
-    this.activeArticle.dataset.testid = 'active-article';
-    summary.append(this.activeArticle);
-
     const previewPanel = element('main', 'wechat-workbench__body');
     previewPanel.id = previewPanelId;
     previewPanel.setAttribute('role', 'tabpanel');
@@ -286,7 +295,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     );
 
     this.contentEl.append(
-      header, tabs, toolbar, summary,
+      header, tabs, toolbar,
       previewPanel, this.settingsEl,
     );
     this.controller?.start();
@@ -301,7 +310,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     this.latestState = null;
     this.closeStylePanel(false);
     this.previewRenderer.clear();
-    if (this.activeArticle !== null) this.activeArticle.textContent = '未连接活动笔记';
     if (this.previewTab !== null) this.previewTab.textContent = '文章预览';
     if (this.styleTrigger !== null) {
       this.styleTrigger.textContent = '样式';
@@ -319,12 +327,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showLoading(path: string): void {
     this.latestState = null;
-    if (this.styleWorkbench !== null && this.styleHost !== null) {
-      this.styleHost.hidden = true;
-    }
-    if (this.activeArticle !== null) {
-      this.activeArticle.textContent = `正在渲染 · ${path.split('/').pop() ?? path}`;
-    }
     if (this.copyButton !== null) this.copyButton.disabled = true;
     if (this.publishButton !== null) this.publishButton.disabled = true;
     if (this.styleTrigger !== null) this.styleTrigger.disabled = true;
@@ -348,9 +350,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   showArtifact(state: Readonly<WorkbenchRenderState>): void {
     this.latestState = state;
-    if (this.activeArticle !== null) {
-      this.activeArticle.textContent = `已连接 · ${state.snapshot.basename}`;
-    }
     if (this.previewTab !== null) {
       this.previewTab.textContent = '文章预览';
     }
@@ -390,7 +389,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       ...this.latestState,
       styleSaveStatus: status,
     }));
-    if (message !== undefined) this.showStyleMessage(message);
+    if (message !== undefined && status !== 'saving') this.showStyleMessage(message);
   }
 
   showStyleMessage(message: string): void {
@@ -408,11 +407,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       this.closeStylePanel();
       return;
     }
-    this.styleWorkbench = new StyleWorkbench(this.styleHost, {
+    this.styleWorkbench = new StyleWorkbench(this.app, this.styleHost, {
       patch: patch => this.controller?.updateStyle?.(patch),
       selectTheme: themeId => this.controller?.selectStyleTheme?.(themeId),
       reset: () => this.controller?.resetStyle?.(),
-      setGlobalDefault: () => this.controller?.setStyleAsDefault?.() ?? Promise.resolve(),
       close: () => this.closeStylePanel(),
     });
     this.renderStylePanel(this.latestState);
@@ -423,7 +421,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   private renderStylePanel(state: Readonly<WorkbenchRenderState>): void {
     if (this.styleWorkbench === null) return;
-    this.styleWorkbench.render(state);
+    this.styleWorkbench.update(state);
     if (this.styleHost !== null) this.styleHost.hidden = false;
   }
 
@@ -558,7 +556,9 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.controller === null) return;
     try {
       const session = new CoverPickerSession(this.controller.coverPickerModel(), {
-        prepareLocal: input => this.controller?.prepareCover(input)
+        prepareSelection: input => this.controller?.prepareCover(input)
+          ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
+        prepareUpload: bytes => this.controller?.prepareUploadCover(bytes)
           ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
         generateAi: () => this.generateAiCoverWithConsent(),
         confirm: async prepared => {
@@ -604,10 +604,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.actionBar !== null) {
       this.actionBar.hidden = !preview;
       this.actionBar.style.display = preview ? '' : 'none';
-    }
-    if (this.summaryRow !== null) {
-      this.summaryRow.hidden = !preview;
-      this.summaryRow.style.display = preview ? '' : 'none';
     }
     if (this.settingsEl !== null) this.settingsEl.hidden = preview;
   }

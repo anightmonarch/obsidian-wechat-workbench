@@ -1,4 +1,4 @@
-import { type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
+import { Notice, type EventRef, Plugin, type WorkspaceLeaf } from 'obsidian';
 
 import { ClipboardAssetResolver } from './clipboard/asset-resolver';
 import { ClipboardService } from './clipboard/clipboard-service';
@@ -24,7 +24,10 @@ import { BrowserMermaidEngine, DiagramRenderer, ElectronSvgRasterizer } from './
 import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
 import { accountHashForAppId } from './settings/account';
+import { AiModelCatalogService } from './cover/ai-model-catalog';
+import { AiServiceSettingsService } from './settings/ai-service-settings';
 import { ArticleSettingsService } from './settings/article-settings';
+import { AccountConnectionService } from './settings/account-connection-service';
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
@@ -44,7 +47,8 @@ import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
-import { AccountSettingsModal } from './ui/account-settings-modal';
+import { ElectronExternalBrowser, openWeChatOfficialConsole } from './ui/external-browser';
+import { openPluginSettings } from './ui/settings-navigator';
 import { ObsidianHttpTransport } from './wechat/obsidian-http-transport';
 import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
@@ -104,8 +108,12 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       update: refreshWorkbenchSettings,
     };
     const openAccountSettings = (): void => {
-      new AccountSettingsModal(this.app, settingsAccess, secretStore).open();
+      openPluginSettings(() => {
+        new Notice('请打开设置 → 第三方插件 → WeChat Workbench 完善公众号账号配置。');
+      });
     };
+    const externalBrowser = new ElectronExternalBrowser();
+    const openConsole = (): Promise<void> => openWeChatOfficialConsole(externalBrowser);
     const currentSettings = (): Readonly<PluginSettings> => this.pluginSettings;
     const snapshots = new NoteSnapshotService(vaultPorts, vaultPorts, {
       get defaultAuthor() { return currentSettings().defaultAuthor; },
@@ -158,6 +166,21 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         await updateSettings({ accessTokenExpiresAt: expiresAt });
       },
     } satisfies TokenSettingsPort, wechatHttp);
+    const accountConnection = new AccountConnectionService(
+      settingsAccess,
+      {
+        get: kind => secretStore.get(kind),
+        set: (kind, value) => secretStore.set(kind, value),
+        clear: kind => secretStore.clear(kind),
+      },
+      tokens,
+    );
+    const aiCatalog = new AiModelCatalogService(providerHttp);
+    const aiService = new AiServiceSettingsService(settingsAccess, {
+      get: kind => secretStore.get(kind),
+      set: (kind, value) => secretStore.set(kind, value),
+      clear: kind => secretStore.clear(kind),
+    }, aiCatalog);
     const mediaCacheData: AssetCacheDataPort = {
       get entries() { return currentSettings().mediaCache; },
       save: async entries => { await updateSettings({ mediaCache: entries }); },
@@ -195,20 +218,6 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         return { path, hash: hashContent(await vaultPorts.readBinary(path)) };
       },
     });
-    const publisher = new PublishWorkflow(
-      {
-        get: () => ({
-          appId: this.pluginSettings.appId,
-          accountHash: this.pluginSettings.accountHash,
-          defaultCoverStrategy: this.pluginSettings.defaultCoverStrategy,
-        }),
-      },
-      state,
-      vaultPorts,
-      preflight,
-      coordinator,
-      { receipts, tokens, reconciler: new AmbiguousReconciler(wechat) },
-    );
     const coverWorkflow = new CoverWorkflow(
       vaultPorts,
       new ElectronImagePort(),
@@ -218,6 +227,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       {
         get: () => ({
           globalDefaultCoverPath: this.pluginSettings.globalDefaultCoverPath,
+          imageApiProtocol: this.pluginSettings.imageApiProtocol,
           imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
           imageApiModel: this.pluginSettings.imageApiModel,
         }),
@@ -226,11 +236,25 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         get: () => secretStore.get('imageApiKey'),
         has: () => secretStore.status().imageApiKey,
       },
+      remoteImages,
+    );
+    const publisher = new PublishWorkflow(
+      {
+        get: () => ({
+          appId: this.pluginSettings.appId,
+          accountHash: this.pluginSettings.accountHash,
+        }),
+      },
+      state,
+      coverWorkflow,
+      preflight,
+      coordinator,
+      { receipts, tokens, reconciler: new AmbiguousReconciler(wechat) },
     );
     const covers = {
       model: coverWorkflow.model.bind(coverWorkflow),
       prepareSelection: coverWorkflow.prepareSelection.bind(coverWorkflow),
-      prepareLocal: coverWorkflow.prepareLocal.bind(coverWorkflow),
+      prepareUpload: coverWorkflow.prepareUpload.bind(coverWorkflow),
       prepareAi: coverWorkflow.prepareAi.bind(coverWorkflow),
       confirm: coverWorkflow.confirm.bind(coverWorkflow),
       disclosure: (artifact: Readonly<RenderArtifact>) => buildAiCoverDisclosure({
@@ -238,6 +262,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         digest: artifact.metadata.digest,
         plainText: artifact.plainText,
       }, {
+        imageApiProtocol: this.pluginSettings.imageApiProtocol,
         imageApiBaseUrl: this.pluginSettings.imageApiBaseUrl,
         imageApiModel: this.pluginSettings.imageApiModel,
       }),
@@ -246,7 +271,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     this.registerView(
       WORKBENCH_VIEW_TYPE,
       leaf => {
-        const view = new WeChatWorkbenchView(leaf, previewAssets, openAccountSettings);
+        const view = new WeChatWorkbenchView(leaf, previewAssets, openAccountSettings, openConsole);
         view.setController(new WorkbenchController(
           source,
           snapshots,
@@ -287,6 +312,10 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       this,
       settingsAccess,
       secretStore,
+      accountConnection,
+      aiService,
+      value => new ElectronClipboardPort().write({ text: value }),
+      openConsole,
     ));
   }
 }

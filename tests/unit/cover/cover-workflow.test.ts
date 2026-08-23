@@ -4,6 +4,7 @@ import type { NoteSnapshot } from '../../../src/domain/article';
 import type { RenderArtifact } from '../../../src/domain/artifact';
 import type { VaultFileRef } from '../../../src/domain/ports';
 import { CoverWorkflow } from '../../../src/cover/cover-workflow';
+import { publishPayloadHash } from '../../../src/publish/publish-content';
 
 const file: VaultFileRef = { path: '01-公众号/article.md', basename: 'article', modifiedAt: 1 };
 const snapshot: Readonly<NoteSnapshot> = Object.freeze({
@@ -36,44 +37,107 @@ function harness() {
   const generate = vi.fn(async () => ({
     bytes: processed, mimeType: 'image/png' as const, contentHash: 'AI_HASH', source: 'base64' as const,
   }));
+  const remoteFetch = vi.fn(async () => ({
+    sourceUrl: 'https://cdn.example.test/first.png',
+    finalUrl: 'https://cdn.example.test/first.png',
+    mimeType: 'image/png' as const,
+    bytes: processed,
+    contentHash: 'REMOTE_HASH',
+  }));
   const workflow = new CoverWorkflow(
     { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
     { process: vi.fn(() => processed) },
     { save },
     { generate },
     { processFrontmatter },
-    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', imageApiBaseUrl: 'https://images.example.test', imageApiModel: 'model' }) },
+    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', imageApiProtocol: 'openai-compatible' as const, imageApiBaseUrl: 'https://images.example.test', imageApiModel: 'model' }) },
     { get: vi.fn(() => credential), has: vi.fn(() => true) },
+    { fetch: remoteFetch },
   );
-  return { workflow, frontmatter, processFrontmatter, save, generate };
+  return { workflow, frontmatter, processFrontmatter, save, generate, remoteFetch };
+}
+
+function anthropicHarness() {
+  const current = harness();
+  const settings = { get: () => ({
+    globalDefaultCoverPath: 'assets/default.png',
+    imageApiProtocol: 'anthropic' as const,
+    imageApiBaseUrl: 'https://api.anthropic.test',
+    imageApiModel: 'claude-model',
+  }) };
+  const workflow = new CoverWorkflow(
+    { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
+    { process: vi.fn(() => processed) },
+    { save: current.save },
+    { generate: current.generate },
+    { processFrontmatter: current.processFrontmatter },
+    settings,
+    { get: vi.fn(() => credential), has: vi.fn(() => true) },
+    { fetch: current.remoteFetch },
+  );
+  return { ...current, workflow };
 }
 
 describe('CoverWorkflow', () => {
-  it('prepares an exact local cover without changing article metadata before confirmation', async () => {
+  it('exposes exactly first image, upload, and ai choices', async () => {
+    const current = harness();
+    const model = current.workflow.model(snapshot, artifact);
+
+    expect(model.options.map(option => option.kind)).toEqual(['first-image', 'upload', 'ai']);
+    expect(model.options.map(option => option.label)).toEqual([
+      '文章首图（默认）', '上传本地图片', '智能生成封面',
+    ]);
+  });
+
+  it('clears explicit frontmatter cover when dynamic first image is confirmed', async () => {
     const current = harness();
 
-    const prepared = await current.workflow.prepareLocal(file, 'assets/first.png', '', 'first-local-image');
+    const prepared = await current.workflow.prepareFirstImage(file, artifact);
 
-    expect(prepared).toMatchObject({
-      source: 'first-local-image', vaultPath: '.wechat-workbench/covers/article-test/cover-abcd1234.png',
-      mimeType: 'image/png',
-    });
+    expect(prepared.source).toBe('dynamic-first-image');
+    expect(prepared.persistence).toBe('CLEAR_EXPLICIT_COVER');
+    expect(prepared.vaultPath).toBeNull();
+    expect(prepared.contextHash).not.toBe('');
+    expect(current.save).not.toHaveBeenCalled();
     expect(current.processFrontmatter).not.toHaveBeenCalled();
-    expect(current.frontmatter).toEqual({ title: 'Article', custom: 'keep' });
 
+    current.frontmatter.cover = 'old-explicit-cover.png';
     await current.workflow.confirm(file, prepared);
-    expect(current.frontmatter).toEqual({
-      title: 'Article', custom: 'keep',
-      cover: '.wechat-workbench/covers/article-test/cover-abcd1234.png',
-    });
+    expect(current.frontmatter.cover).toBeUndefined();
+    expect(current.frontmatter.custom).toBe('keep');
+  });
+
+  it('validates uploaded bytes and preserves state when chooser is cancelled', async () => {
+    const current = harness();
+
+    const empty = await current.workflow.prepareUpload(file, new Uint8Array(), 'HASH').catch((error: unknown) => error);
+    const forged = await current.workflow.prepareUpload(file, Uint8Array.from([1, 2, 3]), 'HASH').catch((error: unknown) => error);
+    expect(empty).toMatchObject({ code: 'COVER_UPLOAD_EMPTY' });
+    expect(forged).toMatchObject({ code: 'COVER_UPLOAD_UNSUPPORTED' });
+
+    const cancelled = await current.workflow.prepareUpload(file, processed, publishPayloadHash(artifact));
+    expect(cancelled.source).toBe('local-upload');
+    expect(cancelled.vaultPath).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
+    expect(current.processFrontmatter).not.toHaveBeenCalled();
+  });
+
+  it('persists the actual plugin-owned Vault path for uploaded covers', async () => {
+    const current = harness();
+
+    const prepared = await current.workflow.prepareUpload(file, processed, publishPayloadHash(artifact));
+
+    expect(prepared.persistence).toBe('SET_EXPLICIT_COVER');
+    expect(prepared.vaultPath).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
+    await current.workflow.confirm(file, prepared);
+    expect(current.frontmatter.cover).toBe('.wechat-workbench/covers/article-test/cover-abcd1234.png');
   });
 
   it('gets the image credential only when AI generation is explicitly requested', async () => {
     const current = harness();
     const model = current.workflow.model(snapshot, artifact);
 
-    expect(model.localOptions.filter(option => option.enabled).map(option => option.kind))
-      .toEqual(['first-image', 'global-default']);
+    expect(model.options.filter(option => option.enabled).map(option => option.kind))
+      .toEqual(['first-image', 'upload', 'ai']);
     expect(model.aiEnabled).toBe(true);
 
     const generated = await current.workflow.prepareAi(file, artifact);
@@ -81,5 +145,21 @@ describe('CoverWorkflow', () => {
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Article', bodyExcerpt: 'Body', apiKey: credential,
     }));
+  });
+
+  it('disables Anthropic image generation without invoking the image generator', async () => {
+    const current = anthropicHarness();
+
+    const model = current.workflow.model(snapshot, artifact);
+
+    expect(model.options.find(option => option.kind === 'ai')).toMatchObject({
+      enabled: false,
+      disabledReason: 'Anthropic 当前只支持封面策划，未提供图片输出。',
+    });
+    expect(model.aiEnabled).toBe(false);
+    await expect(current.workflow.prepareAi(file, artifact)).rejects.toMatchObject({
+      code: 'AI_PROVIDER_IMAGE_UNSUPPORTED',
+    });
+    expect(current.generate).not.toHaveBeenCalled();
   });
 });

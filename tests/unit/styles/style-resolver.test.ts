@@ -54,7 +54,7 @@ describe('StyleResolver', () => {
 
   it('does not silently overwrite a future style schema', () => {
     const resolved = resolver.resolve({
-      frontmatter: { 'wechat-style': { version: 2, theme: 'doocs-grace' } },
+      frontmatter: { 'wechat-style': { version: 3, theme: 'doocs-grace' } },
       selectedThemeId: 'native',
       defaultStyle: articleStyle,
     });
@@ -63,7 +63,7 @@ describe('StyleResolver', () => {
       source: 'unsupported-fallback',
       renderMode: 'compiled',
       themeId: articleStyle.themeId,
-      unsupportedVersion: 2,
+      unsupportedVersion: 3,
     });
   });
 });

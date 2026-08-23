@@ -27,6 +27,8 @@ describe('publish settings', () => {
       .toBe('当前：Author');
     expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value)
       .toBe('');
+    expect(host.querySelector('[data-testid="settings-source-url"]')).toBeNull();
+    expect(host.textContent).not.toContain('原文链接');
 
     host.querySelector<HTMLButtonElement>('[data-testid="settings-cover"]')?.click();
     expect(chooseCover).toHaveBeenCalledOnce();
@@ -34,21 +36,19 @@ describe('publish settings', () => {
     const title = host.querySelector<HTMLInputElement>('[data-testid="settings-title"]');
     const author = host.querySelector<HTMLInputElement>('[data-testid="settings-author"]');
     const digest = host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]');
-    const source = host.querySelector<HTMLInputElement>('[data-testid="settings-source-url"]');
-    if (title === null || author === null || digest === null || source === null) {
+    if (title === null || author === null || digest === null) {
       throw new Error('Editable article settings are missing.');
     }
     title.value = 'Updated title';
     author.value = 'wbs';
     digest.value = 'Updated digest';
-    source.value = 'https://example.com/source';
     host.querySelector<HTMLButtonElement>('[data-testid="settings-save"]')?.click();
 
     expect(saveArticle).toHaveBeenCalledWith({
       title: 'Updated title',
       author: 'wbs',
       digest: 'Updated digest',
-      contentSourceUrl: 'https://example.com/source',
+      contentSourceUrl: '',
     });
   });
 

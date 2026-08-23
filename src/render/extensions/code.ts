@@ -63,6 +63,7 @@ function projectLineNumbers(code: Element): void {
   const lines: HighlightToken[][] = [[]];
   for (const child of code.childNodes) collectTokens(child, [], lines);
   const document = code.ownerDocument;
+  code.replaceChildren();
   lines.forEach((tokens, index) => {
     const line = createHtmlElement(document, 'span');
     line.className = 'code-line';
@@ -84,7 +85,6 @@ function projectLineNumbers(code: Element): void {
     }
     line.append(number, content);
     code.append(line);
-    if (index < lines.length - 1) code.append(document.createTextNode('\n'));
   });
 }
 
@@ -99,7 +99,9 @@ function addMacWindow(pre: Element): void {
     dot.className = `code-window-dot code-window-dot--${color}`;
     dots.append(dot);
   }
-  pre.prepend(dots);
+  const code = pre.querySelector(':scope > code');
+  if (code !== null) code.prepend(dots);
+  else pre.prepend(dots);
 }
 
 export function highlightCodeBlocks(

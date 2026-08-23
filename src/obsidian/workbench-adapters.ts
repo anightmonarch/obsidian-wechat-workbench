@@ -67,6 +67,8 @@ export class ObsidianVaultPorts implements VaultPort, BinaryFilePort, MetadataPo
   }
 
   async resolveLink(source: string, fromPath: string): Promise<string | null> {
+    const normalized = normalizePath(source);
+    if (await this.app.vault.adapter.exists(normalized)) return normalized;
     return this.app.metadataCache.getFirstLinkpathDest(source, fromPath)?.path ?? null;
   }
 

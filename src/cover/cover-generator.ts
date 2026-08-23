@@ -1,6 +1,8 @@
 import type { SupportedImageMime } from '../media/image-format';
+import type { AiProviderProtocol } from './ai-provider';
 
 export interface AiCoverGenerationRequest {
+  protocol: AiProviderProtocol;
   baseUrl: string;
   model: string;
   apiKey: string;

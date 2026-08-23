@@ -1,7 +1,90 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_SETTINGS } from '../../../src/settings/model';
-import { buildSettingsPresentation } from '../../../src/settings/settings-tab';
+import { DEFAULT_SETTINGS, type PluginSettings } from '../../../src/settings/model';
+import {
+  buildSettingsPresentation,
+  WeChatWorkbenchSettingTab,
+  type SettingsAccess,
+} from '../../../src/settings/settings-tab';
+import type { AccountConnectionService } from '../../../src/settings/account-connection-service';
+import type { SecretStore } from '../../../src/settings/secret-store';
+import type { AiServiceSettingsService } from '../../../src/settings/ai-service-settings';
+
+function createHarness() {
+  const settings = {
+    current: { ...DEFAULT_SETTINGS },
+    update: vi.fn(async (patch: Partial<PluginSettings>) => {
+      settings.current = { ...settings.current, ...patch };
+      return settings.current;
+    }),
+  };
+  const secrets = {
+    status: vi.fn(() => ({ appSecret: true, accessToken: false, imageApiKey: false })),
+  };
+  const connection = {
+    snapshot: vi.fn<() => ReturnType<AccountConnectionService['snapshot']>>(() => ({
+      state: 'CONNECTED',
+      verifiedAt: 1_755_000_000_000,
+      errorCode: null,
+      errcode: null,
+      whitelistIp: null,
+    })),
+    save: vi.fn(async () => settings.current),
+    verify: vi.fn(async (): Promise<{
+      state: 'CONNECTED';
+      verifiedAt: number;
+      errorCode: null;
+      errcode: null;
+      whitelistIp: null;
+    }> => ({
+      state: 'CONNECTED',
+      verifiedAt: 1_755_000_000_000,
+      errorCode: null,
+      errcode: null,
+      whitelistIp: null,
+    })),
+    disconnect: vi.fn(async () => undefined),
+  };
+  const ai = {
+    refreshModels: vi.fn(async () => [Object.freeze({
+      id: 'image-model',
+      capability: 'IMAGE_UNVERIFIED' as const,
+    })]),
+    save: vi.fn(async () => settings.current),
+  };
+  const copyIp = vi.fn();
+  const openConsole = vi.fn(async () => undefined);
+  const access: SettingsAccess = { get: () => settings.current, update: settings.update };
+  const tab = new WeChatWorkbenchSettingTab(
+    {} as never,
+    {} as never,
+    access,
+    secrets as unknown as SecretStore,
+    connection as unknown as AccountConnectionService,
+    ai as unknown as AiServiceSettingsService,
+    copyIp,
+    openConsole,
+  );
+  return { tab, settings, secrets, connection, access, ai, copyIp, openConsole };
+}
+
+function button(host: HTMLElement, testId: string): HTMLButtonElement {
+  const element = host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+  if (element === null) throw new Error(`Missing button ${testId}`);
+  return element;
+}
+
+function input(host: HTMLElement, testId: string): HTMLInputElement {
+  const element = host.querySelector<HTMLInputElement>(`[data-testid="${testId}"]`);
+  if (element === null) throw new Error(`Missing input ${testId}`);
+  return element;
+}
+
+function select(host: HTMLElement, testId: string): HTMLSelectElement {
+  const element = host.querySelector<HTMLSelectElement>(`[data-testid="${testId}"]`);
+  if (element === null) throw new Error(`Missing select ${testId}`);
+  return element;
+}
 
 describe('buildSettingsPresentation', () => {
   it('shows configuration status without exposing stored secret values', () => {
@@ -12,13 +95,162 @@ describe('buildSettingsPresentation', () => {
     });
 
     expect(presentation.appIdValue).toBe('');
-    expect(presentation).toMatchObject({
-      globalDefaultCoverPath: '', imageApiBaseUrl: '', imageApiModel: '',
-    });
+    expect(presentation).toMatchObject({ imageApiBaseUrl: '', imageApiModel: '' });
     expect(presentation.secretRows).toEqual([
       { kind: 'appSecret', label: 'AppSecret', status: '已配置', inputValue: '' },
       { kind: 'imageApiKey', label: '图片 API Key', status: '未配置', inputValue: '' },
     ]);
     expect(JSON.stringify(presentation)).not.toContain('accessToken');
+  });
+
+  describe('account section', () => {
+    beforeEach(() => {
+      document.body.replaceChildren();
+    });
+
+    it('renders one compact account section without exposing secrets', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(tab.containerEl.textContent).toContain('微信公众号');
+      expect(tab.containerEl.textContent).toContain('公众号名称');
+      expect(tab.containerEl.textContent).toContain('AppID');
+      expect(tab.containerEl.textContent).toContain('AppSecret');
+      expect(tab.containerEl.textContent).toContain('公众号基础连接正常');
+      expect(tab.containerEl.textContent).toContain('上次验证：');
+      expect(tab.containerEl.textContent).not.toContain('插件默认封面');
+      expect(tab.containerEl.querySelector('[data-testid="default-cover-path"]')).toBeNull();
+      expect(JSON.stringify(tab.containerEl.innerHTML)).not.toContain('SYNTHETIC_APP_SECRET');
+      expect(input(tab.containerEl, 'account-secret').value).toBe('');
+    });
+
+    it('maps internal connection states to user-facing labels', () => {
+      const { tab, connection } = createHarness();
+      connection.snapshot.mockReturnValue({
+        state: 'UNVERIFIED', verifiedAt: null, errorCode: null, errcode: null, whitelistIp: null,
+      });
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(tab.containerEl.textContent).toContain('连接状态：待验证');
+      expect(tab.containerEl.textContent).not.toContain('UNVERIFIED');
+    });
+
+    it('shows whitelist guidance and copies only the IP returned by WeChat', () => {
+      const { tab, connection, copyIp } = createHarness();
+      connection.snapshot.mockReturnValue({
+        state: 'FAILED', verifiedAt: 1_755_000_000_000, errorCode: 'WECHAT_API_REJECTED',
+        errcode: 40164, whitelistIp: '203.0.113.4',
+      });
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(tab.containerEl.textContent).toContain('IP 白名单');
+      expect(tab.containerEl.textContent).toContain('203.0.113.4');
+      button(tab.containerEl, 'account-copy-ip').click();
+      expect(copyIp).toHaveBeenCalledWith('203.0.113.4');
+    });
+
+    it('does not verify on display and saves through one explicit action', async () => {
+      const { tab, connection } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(connection.verify).not.toHaveBeenCalled();
+      input(tab.containerEl, 'account-name').value = 'Commit 日记';
+      input(tab.containerEl, 'account-app-id').value = 'wx-new-id';
+      input(tab.containerEl, 'account-secret').value = 'synthetic-app-secret';
+      button(tab.containerEl, 'account-save').click();
+      await vi.waitFor(() => expect(connection.save).toHaveBeenCalledWith({
+        displayName: 'Commit 日记',
+        appId: 'wx-new-id',
+        appSecret: 'synthetic-app-secret',
+      }));
+      expect(connection.verify).not.toHaveBeenCalled();
+    });
+
+    it('verifies explicitly and disables duplicate actions while pending', async () => {
+      const { tab, connection } = createHarness();
+      let release!: () => void;
+      connection.verify.mockImplementation((() => new Promise<void>(resolve => {
+        release = resolve;
+      })) as never);
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'account-verify').click();
+      expect(button(tab.containerEl, 'account-verify').disabled).toBe(true);
+      expect(button(tab.containerEl, 'account-disconnect').disabled).toBe(true);
+      release();
+      await vi.waitFor(() => expect(connection.verify).toHaveBeenCalledOnce());
+    });
+  });
+
+  describe('ai service section', () => {
+    beforeEach(() => {
+      document.body.replaceChildren();
+    });
+
+    it('does not fetch models until the user clicks 获取模型', async () => {
+      const { tab, ai } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(tab.containerEl.textContent).toContain('接口协议');
+      expect(tab.containerEl.textContent).toContain('服务地址');
+      expect(tab.containerEl.textContent).toContain('可用模型');
+      expect(ai.refreshModels).not.toHaveBeenCalled();
+      input(tab.containerEl, 'ai-base-url').value = 'https://images.example.test/v1';
+      input(tab.containerEl, 'ai-base-url').dispatchEvent(new Event('change'));
+      await Promise.resolve();
+      expect(ai.refreshModels).not.toHaveBeenCalled();
+    });
+
+    it('renders refreshed models and saves the selected model explicitly', async () => {
+      const { tab, ai } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'ai-refresh-models').click();
+      input(tab.containerEl, 'ai-base-url').value = 'https://images.example.test/v1';
+      input(tab.containerEl, 'ai-base-url').dispatchEvent(new Event('change'));
+      await vi.waitFor(() => expect(select(tab.containerEl, 'ai-model').options.length).toBe(1));
+      expect(select(tab.containerEl, 'ai-model').value).toBe('image-model');
+      select(tab.containerEl, 'ai-model').value = 'image-model';
+      select(tab.containerEl, 'ai-model').dispatchEvent(new Event('change'));
+      button(tab.containerEl, 'ai-save').click();
+      await vi.waitFor(() => expect(ai.save).toHaveBeenCalledWith({
+        protocol: 'openai-compatible',
+        baseUrl: 'https://images.example.test/v1',
+        model: 'image-model',
+        apiKey: '',
+      }));
+    });
+
+    it('shows a safe action message when model discovery fails', async () => {
+      const { tab, ai } = createHarness();
+      ai.refreshModels.mockRejectedValueOnce(new Error('raw api key and stack trace'));
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'ai-refresh-models').click();
+
+      await vi.waitFor(() => expect(tab.containerEl.textContent)
+        .toContain('模型列表获取失败，请检查服务地址和 API Key 后重试。'));
+      expect(tab.containerEl.textContent).not.toContain('raw api key');
+    });
+
+    it('clears the API key input after saving service configuration', async () => {
+      const { tab, ai } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+      input(tab.containerEl, 'ai-api-key').value = 'synthetic-api-key';
+
+      button(tab.containerEl, 'ai-save').click();
+
+      await vi.waitFor(() => expect(ai.save).toHaveBeenCalled());
+      expect(input(tab.containerEl, 'ai-api-key').value).toBe('');
+    });
   });
 });

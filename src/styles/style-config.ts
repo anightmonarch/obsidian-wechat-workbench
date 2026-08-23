@@ -21,7 +21,7 @@ const CAPTION_MODES = new Set<ImageCaptionMode>([
 ]);
 
 const BASE_DEFAULTS = Object.freeze({
-  version: 1 as const,
+  version: 2 as const,
   themeId: 'doocs-classic',
   fontFamily: 'sans-serif' as const,
   fontSize: 16 as const,
@@ -34,8 +34,10 @@ const BASE_DEFAULTS = Object.freeze({
   showCodeLineNumbers: false,
   macCodeBlock: true,
   imageCaption: 'alt' as const,
+  externalLinkCitation: false,
   paragraphIndent: false,
   textJustify: false,
+  wordCount: false,
 });
 
 function freezeConfig(value: ArticleStyleConfig): Readonly<ArticleStyleConfig> {
@@ -125,7 +127,7 @@ function normalizedCaption(value: unknown, fallback: ImageCaptionMode): ImageCap
 function normalizedConfig(value: Record<string, unknown>, fallback: Readonly<ArticleStyleConfig>): Readonly<ArticleStyleConfig> {
   const headingValue = first(value, 'headingStyles', 'headings');
   return freezeConfig({
-    version: 1,
+    version: 2,
     themeId: normalizedThemeId(first(value, 'themeId', 'theme'), fallback.themeId),
     fontFamily: normalizedFont(first(value, 'fontFamily', 'font'), fallback.fontFamily),
     fontSize: normalizedFontSize(first(value, 'fontSize', 'font-size'), fallback.fontSize),
@@ -144,6 +146,10 @@ function normalizedConfig(value: Record<string, unknown>, fallback: Readonly<Art
       first(value, 'imageCaption', 'image-caption'),
       fallback.imageCaption,
     ),
+    externalLinkCitation: booleanValue(
+      first(value, 'externalLinkCitation', 'external-link-citation'),
+      fallback.externalLinkCitation,
+    ),
     paragraphIndent: booleanValue(
       first(value, 'paragraphIndent', 'paragraph-indent'),
       fallback.paragraphIndent,
@@ -151,6 +157,10 @@ function normalizedConfig(value: Record<string, unknown>, fallback: Readonly<Art
     textJustify: booleanValue(
       first(value, 'textJustify', 'text-justify'),
       fallback.textJustify,
+    ),
+    wordCount: booleanValue(
+      first(value, 'wordCount', 'word-count'),
+      fallback.wordCount,
     ),
   });
 }
@@ -167,11 +177,11 @@ export function parseArticleStyle(
   const version = typeof source.version === 'number' && Number.isInteger(source.version)
     ? source.version
     : 1;
-  if (version !== 1) return Object.freeze({ status: 'unsupported', config: null, version });
+  if (version !== 1 && version !== 2) return Object.freeze({ status: 'unsupported', config: null, version });
   return Object.freeze({
     status: 'valid',
     config: normalizedConfig(source, fallback),
-    version: 1 as const,
+    version,
   });
 }
 
@@ -194,7 +204,7 @@ export function patchArticleStyle(
 
 export function serializeArticleStyle(config: Readonly<ArticleStyleConfig>): Readonly<Record<string, unknown>> {
   return Object.freeze({
-    version: 1,
+    version: 2,
     theme: config.themeId,
     font: config.fontFamily,
     'font-size': config.fontSize,
@@ -204,7 +214,9 @@ export function serializeArticleStyle(config: Readonly<ArticleStyleConfig>): Rea
     'code-line-numbers': config.showCodeLineNumbers,
     'mac-code-block': config.macCodeBlock,
     'image-caption': config.imageCaption,
+    'external-link-citation': config.externalLinkCitation,
     'paragraph-indent': config.paragraphIndent,
     'text-justify': config.textJustify,
+    'word-count': config.wordCount,
   });
 }

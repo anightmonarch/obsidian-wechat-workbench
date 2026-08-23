@@ -1,15 +1,8 @@
-import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import ipaddr from 'ipaddr.js';
+import { ProxyAwareDnsResolver, type DnsAddress, type DnsResolverPort } from './dns-resolver';
 
-export interface DnsAddress {
-  address: string;
-  family: 4 | 6;
-}
-
-export interface DnsResolverPort {
-  lookupAll(hostname: string): Promise<readonly DnsAddress[]>;
-}
+export type { DnsAddress, DnsResolverPort } from './dns-resolver';
 
 export interface ValidatedTarget {
   url: string;
@@ -25,15 +18,6 @@ export class NetworkPolicyError extends Error {
   constructor(readonly code: 'REMOTE_URL_BLOCKED', message: string) {
     super(message);
     this.name = 'NetworkPolicyError';
-  }
-}
-
-export class NodeDnsResolver implements DnsResolverPort {
-  async lookupAll(hostname: string): Promise<readonly DnsAddress[]> {
-    const records = await lookup(hostname, { all: true, verbatim: true });
-    return records
-      .filter((record): record is DnsAddress => record.family === 4 || record.family === 6)
-      .map(record => ({ address: record.address, family: record.family }));
   }
 }
 
@@ -70,7 +54,7 @@ function selectedAddress(records: readonly DnsAddress[]): DnsAddress {
 }
 
 export class NetworkPolicy {
-  constructor(private readonly dns: DnsResolverPort = new NodeDnsResolver()) {}
+  constructor(private readonly dns: DnsResolverPort = new ProxyAwareDnsResolver()) {}
 
   async resolveAndValidate(rawUrl: string): Promise<Readonly<ValidatedTarget>> {
     let url: URL;

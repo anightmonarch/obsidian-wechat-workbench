@@ -1,9 +1,11 @@
 import {
   DEFAULT_SETTINGS,
+  type AccountVerificationRecord,
   type DefaultCoverStrategy,
   type MediaCacheRecord,
   type PluginSettings,
   type RecoveryReceiptRecord,
+  type AiProviderProtocol,
 } from './model';
 import type { ArticleStyleConfig } from '../domain/style';
 import { parseArticleStyle } from '../styles/style-config';
@@ -53,6 +55,34 @@ function coverStrategy(value: unknown): DefaultCoverStrategy {
   return typeof value === 'string' && COVER_STRATEGIES.has(value as DefaultCoverStrategy)
     ? value as DefaultCoverStrategy
     : DEFAULT_SETTINGS.defaultCoverStrategy;
+}
+
+const AI_PROTOCOLS = new Set<AiProviderProtocol>([
+  'openai-compatible',
+  'anthropic',
+]);
+
+function aiProtocol(value: unknown): AiProviderProtocol {
+  return typeof value === 'string' && AI_PROTOCOLS.has(value as AiProviderProtocol)
+    ? value as AiProviderProtocol
+    : DEFAULT_SETTINGS.imageApiProtocol;
+}
+
+function accountVerification(value: unknown): Readonly<AccountVerificationRecord> | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.accountHash !== 'string' || value.accountHash.length === 0) return null;
+  if (value.outcome !== 'SUCCESS' && value.outcome !== 'FAILURE') return null;
+  if (typeof value.verifiedAt !== 'number' || !Number.isFinite(value.verifiedAt)) return null;
+  if (value.errorCode !== null && typeof value.errorCode !== 'string') return null;
+  if (value.errcode !== null && (typeof value.errcode !== 'number'
+    || !Number.isFinite(value.errcode))) return null;
+  return Object.freeze({
+    accountHash: value.accountHash,
+    outcome: value.outcome,
+    verifiedAt: value.verifiedAt,
+    errorCode: value.errorCode,
+    errcode: value.errcode,
+  });
 }
 
 function styleConfig(value: unknown, fallback: Readonly<ArticleStyleConfig>): Readonly<ArticleStyleConfig> {
@@ -134,12 +164,15 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
 }
 
 function sanitizeSettings(value: unknown): PluginSettings {
-  const stored = isRecord(value) && (value.schemaVersion === 1 || value.schemaVersion === 2)
+  const schemaVersion = isRecord(value) && (value.schemaVersion === 1 || value.schemaVersion === 2 || value.schemaVersion === 3)
+    ? value.schemaVersion
+    : 0;
+  const stored = isRecord(value) && (schemaVersion === 1 || schemaVersion === 2 || schemaVersion === 3)
     ? value
     : {};
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
     defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
@@ -155,7 +188,13 @@ function sanitizeSettings(value: unknown): PluginSettings {
       stored.globalDefaultCoverPath,
       DEFAULT_SETTINGS.globalDefaultCoverPath,
     ),
+    accountDisplayName: stringValue(
+      stored.accountDisplayName,
+      DEFAULT_SETTINGS.accountDisplayName,
+    ),
+    accountVerification: schemaVersion >= 3 ? accountVerification(stored.accountVerification) : null,
     imageApiBaseUrl: providerBaseUrl(stored.imageApiBaseUrl),
+    imageApiProtocol: aiProtocol(stored.imageApiProtocol),
     imageApiModel: stringValue(stored.imageApiModel, DEFAULT_SETTINGS.imageApiModel),
     accessTokenExpiresAt: nullableNumber(
       stored.accessTokenExpiresAt,

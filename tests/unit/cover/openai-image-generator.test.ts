@@ -10,6 +10,7 @@ import type { HttpRequest, HttpTransport } from '../../../src/wechat/http-transp
 const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const credential = ['SYNTHETIC', 'IMAGE', 'KEY'].join('_');
 const request: Readonly<AiCoverGenerationRequest> = Object.freeze({
+  protocol: 'openai-compatible',
   baseUrl: 'https://images.example.test/openai',
   model: 'synthetic-image-model',
   apiKey: credential,
@@ -81,6 +82,15 @@ describe('OpenAiImageGenerator', () => {
 
     await expect(generator.generate({ ...request, signal: controller.signal }))
       .rejects.toMatchObject({ code: 'IMAGE_GENERATION_CANCELLED' });
+    expect(current.requests).toHaveLength(0);
+  });
+
+  it('rejects Anthropic requests before building image headers or sending a request', async () => {
+    const current = transport({ data: [] });
+    const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
+
+    await expect(generator.generate({ ...request, protocol: 'anthropic' }))
+      .rejects.toMatchObject({ code: 'AI_PROVIDER_IMAGE_UNSUPPORTED' });
     expect(current.requests).toHaveLength(0);
   });
 });

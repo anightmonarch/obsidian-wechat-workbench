@@ -57,4 +57,36 @@ describe('StyleCompiler', () => {
     expect(result.css).toMatch(/\.wechat-article[\s\S]*\.hljs/iu);
     expect(result.css).not.toMatch(/@(?:import|media|font-face)|url\s*\(|:root|::(?:before|after)/iu);
   });
+
+  it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])('keeps h2 spacing compact for %s', themeId => {
+    const theme = BUILTIN_THEMES.find(candidate => candidate.manifest.id === themeId);
+    if (theme === undefined) throw new Error(`Missing built-in theme: ${themeId}`);
+
+    const result = compiler.compile(theme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }));
+
+    expect(result.css).toMatch(/\.wechat-article h2\s*\{[^}]*margin:\s*2em auto 1em/su);
+  });
+
+  it('keeps mac code chrome inside the code surface and keeps numbered lines compact', () => {
+    const result = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      showCodeLineNumbers: true,
+      macCodeBlock: true,
+    }));
+
+    expect(result.css).toContain('.wechat-article pre.code-window > code');
+    expect(result.css).toContain('padding: 2.25em 1em 1em');
+    expect(result.css).toContain('align-items: baseline;');
+    expect(result.css).toContain('line-height: 1.5;');
+  });
+
+  it('styles generated reading summaries and external-link references', () => {
+    const result = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      externalLinkCitation: true,
+      wordCount: true,
+    }));
+
+    expect(result.css).toContain('.wechat-article blockquote.reading-summary');
+    expect(result.css).toContain('.wechat-article section.external-link-references');
+    expect(result.css).toContain('.wechat-article sup.external-link-reference');
+  });
 });

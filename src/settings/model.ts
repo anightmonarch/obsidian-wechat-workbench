@@ -2,6 +2,16 @@ import type { ArticleStyleConfig } from '../domain/style';
 
 export type DefaultCoverStrategy = 'article' | 'first-image' | 'global-default';
 
+export type AiProviderProtocol = 'openai-compatible' | 'anthropic';
+
+export interface AccountVerificationRecord {
+  accountHash: string;
+  outcome: 'SUCCESS' | 'FAILURE';
+  verifiedAt: number;
+  errorCode: string | null;
+  errcode: number | null;
+}
+
 export interface MediaCacheRecord {
   key: string;
   accountHash: string;
@@ -28,7 +38,7 @@ export interface RecoveryReceiptRecord {
 }
 
 export interface PluginSettings {
-  schemaVersion: 2;
+  readonly schemaVersion: 3;
   appId: string;
   defaultThemeId: string;
   defaultStyle: Readonly<ArticleStyleConfig>;
@@ -38,7 +48,10 @@ export interface PluginSettings {
   defaultSourceUrl: string;
   defaultCoverStrategy: DefaultCoverStrategy;
   globalDefaultCoverPath: string;
+  accountDisplayName: string;
+  accountVerification: Readonly<AccountVerificationRecord> | null;
   imageApiBaseUrl: string;
+  imageApiProtocol: AiProviderProtocol;
   imageApiModel: string;
   accessTokenExpiresAt: number | null;
   accountHash: string | null;
@@ -47,11 +60,11 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
-  schemaVersion: 2,
+  schemaVersion: 3,
   appId: '',
   defaultThemeId: 'native',
   defaultStyle: Object.freeze({
-    version: 1,
+    version: 2,
     themeId: 'doocs-classic',
     fontFamily: 'sans-serif',
     fontSize: 16,
@@ -64,8 +77,10 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
     showCodeLineNumbers: false,
     macCodeBlock: true,
     imageCaption: 'alt',
+    externalLinkCitation: false,
     paragraphIndent: false,
     textJustify: false,
+    wordCount: false,
   }),
   recentStyles: Object.freeze({}),
   customThemeDirectory: '.wechat-workbench/themes',
@@ -73,7 +88,10 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   defaultSourceUrl: '',
   defaultCoverStrategy: 'first-image',
   globalDefaultCoverPath: '',
+  accountDisplayName: '',
+  accountVerification: null,
   imageApiBaseUrl: '',
+  imageApiProtocol: 'openai-compatible',
   imageApiModel: '',
   accessTokenExpiresAt: null,
   accountHash: null,

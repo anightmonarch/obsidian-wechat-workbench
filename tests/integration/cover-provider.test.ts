@@ -4,6 +4,7 @@ import { OpenAiImageGenerator } from '../../src/cover/openai-image-generator';
 import type { HttpTransport } from '../../src/wechat/http-transport';
 
 const request = Object.freeze({
+  protocol: 'openai-compatible' as const,
   baseUrl: 'https://images.example.test/v1', model: 'synthetic-image-model', apiKey: 'SYNTHETIC_KEY',
   title: 'Title', digest: '', bodyExcerpt: 'Body',
 });

@@ -11,7 +11,7 @@ import {
 describe('style config', () => {
   it('provides an immutable Doocs classic default', () => {
     expect(DEFAULT_ARTICLE_STYLE).toMatchObject({
-      version: 1,
+      version: 2,
       themeId: 'doocs-classic',
       fontFamily: 'sans-serif',
       fontSize: 16,
@@ -20,8 +20,10 @@ describe('style config', () => {
       showCodeLineNumbers: false,
       macCodeBlock: true,
       imageCaption: 'alt',
+      externalLinkCitation: false,
       paragraphIndent: false,
       textJustify: false,
+      wordCount: false,
     });
     expect(Object.isFrozen(DEFAULT_ARTICLE_STYLE)).toBe(true);
     expect(Object.isFrozen(DEFAULT_ARTICLE_STYLE.headingStyles)).toBe(true);
@@ -59,7 +61,7 @@ describe('style config', () => {
       'primary-color': 'red',
       headings: { h2: 'unknown-style' },
     });
-    const future = parseArticleStyle({ version: 2, theme: 'future' });
+    const future = parseArticleStyle({ version: 3, theme: 'future' });
 
     expect(repaired.status).toBe('valid');
     if (repaired.status === 'valid') {
@@ -68,7 +70,48 @@ describe('style config', () => {
       expect(repaired.config.primaryColor).toBe('#0F4C81');
       expect(repaired.config.headingStyles.h2).toBe('default');
     }
-    expect(future).toEqual({ status: 'unsupported', config: null, version: 2 });
+    expect(future).toEqual({ status: 'unsupported', config: null, version: 3 });
+  });
+
+  it('migrates v1 to v2 without enabling new projections', () => {
+    const result = parseArticleStyle({
+      version: 1,
+      theme: 'doocs-classic',
+      'font-size': 16,
+    });
+
+    expect(result.status).toBe('valid');
+    if (result.status !== 'valid') return;
+    expect(result.config).toMatchObject({
+      version: 2,
+      externalLinkCitation: false,
+      wordCount: false,
+    });
+    expect(result.version).toBe(1);
+  });
+
+  it('accepts v2 projection settings and serializes stable frontmatter keys', () => {
+    const parsed = parseArticleStyle({
+      version: 2,
+      theme: 'doocs-classic',
+      'external-link-citation': true,
+      'word-count': true,
+    });
+
+    expect(parsed.status).toBe('valid');
+    if (parsed.status !== 'valid') return;
+    expect(parsed.config.externalLinkCitation).toBe(true);
+    expect(parsed.config.wordCount).toBe(true);
+
+    const updated = patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      externalLinkCitation: true,
+      wordCount: true,
+    });
+    expect(serializeArticleStyle(updated)).toMatchObject({
+      version: 2,
+      'external-link-citation': true,
+      'word-count': true,
+    });
   });
 
   it('serializes normalized values and applies a partial patch', () => {
@@ -79,7 +122,7 @@ describe('style config', () => {
     });
 
     expect(serializeArticleStyle(updated)).toMatchObject({
-      version: 1,
+      version: 2,
       theme: 'doocs-classic',
       'font-size': 18,
       'primary-color': '#009874',

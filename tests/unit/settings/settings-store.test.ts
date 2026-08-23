@@ -28,11 +28,45 @@ describe('SettingsStore', () => {
       recoveryReceipts: [],
     })).load();
 
-    expect(settings.schemaVersion).toBe(2);
+    expect(settings.schemaVersion).toBe(3);
     expect(settings.appId).toBe('wx-public-id');
     expect(settings.defaultThemeId).toBe('technical');
     expect(settings.defaultStyle).toEqual(DEFAULT_ARTICLE_STYLE);
+    expect(settings.defaultStyle.externalLinkCitation).toBe(false);
+    expect(settings.defaultStyle.wordCount).toBe(false);
     expect(settings.recentStyles).toEqual({});
+  });
+
+  it('migrates v2 account and image settings into schema v3', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 2,
+      appId: 'wx-public-id',
+      imageApiBaseUrl: 'https://images.example.test/v1',
+      imageApiModel: 'image-model',
+    })).load();
+
+    expect(settings).toMatchObject({
+      schemaVersion: 3,
+      accountDisplayName: '',
+      accountVerification: null,
+      imageApiProtocol: 'openai-compatible',
+      imageApiBaseUrl: 'https://images.example.test/v1',
+      imageApiModel: 'image-model',
+    });
+  });
+
+  it('drops malformed verification records and unsupported protocols', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 3,
+      imageApiProtocol: 'unknown',
+      accountVerification: {
+        accountHash: 'x', outcome: 'SUCCESS', verifiedAt: 'now',
+        errorCode: null, errcode: null,
+      },
+    })).load();
+
+    expect(settings.imageApiProtocol).toBe('openai-compatible');
+    expect(settings.accountVerification).toBeNull();
   });
 
   it('sanitizes style maps and still refuses credential-shaped extras', async () => {

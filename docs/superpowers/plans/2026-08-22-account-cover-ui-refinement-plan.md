@@ -4,6 +4,10 @@
 
 **Goal:** Implement the approved account connection, custom AI provider/model discovery, external WeChat backend link, simplified publish settings, three-source cover workflow, and Obsidian-native visual treatment without weakening existing publish safety.
 
+### Verification amendment: proxy-synthetic DNS fallback
+
+The first real test-Vault model-discovery attempt exposed a desktop-network edge case: the machine proxy maps public DNS answers into the RFC 2544 benchmarking range `198.18.0.0/15`. A direct pinned request can reach the public service, but the existing public-address guard correctly rejects that synthetic answer. To keep the approved pinned transport and SSRF boundary intact, add a narrow DNS resolver fallback: only an exclusively synthetic `198.18.0.0/15` result (or a resolver failure) may trigger a DNS-over-HTTPS lookup through a pinned public resolver; private, loopback, link-local, documentation, or mixed results continue to fail closed. The resulting public address remains pinned by `NetworkPolicy`. This is DNS bootstrap support, not a second provider HTTP transport or a generic proxy bypass.
+
 **Architecture:** Keep UI rendering thin and move account mutations, AI service configuration, model discovery, cover preparation, and external-browser behavior behind narrow ports. Reuse `TokenService`, `PinnedNodeHttpTransport`, `NetworkPolicy`, `RemoteImageFetcher`, immutable `RenderArtifact`, and the existing publish state machine; replace duplicated cover-path resolution with one `PublishCoverResolverPort` implemented by `CoverWorkflow`.
 
 **Tech Stack:** TypeScript 5.8, Obsidian 1.13 API with minimum supported version 1.11.4, Electron desktop APIs, Vitest 4 + jsdom, esbuild, ESLint, existing Node HTTP/DNS security adapters.
@@ -1269,3 +1273,103 @@ Do not commit screenshots containing unmasked account identifiers. Do not push, 
 - [ ] No task treats Anthropic as an image-output provider.
 - [ ] No task loads or validates the development plugin in `commit_note`.
 - [ ] Full automatic, desktop, and real-WeChat evidence remain separate terminal states.
+
+---
+
+## Session Batches and Acceptance Checkpoints
+
+The session executes Tasks 1–13 in six reviewable batches. A checkpoint is a hard stop for the current conversation turn: report evidence, blockers, and changed files before continuing to the next batch unless the user explicitly says to continue. Do not stage unrelated dirty style-workbench files into these batches.
+
+### Batch 1: Account configuration and verification
+
+- Tasks: 1, 2, 3.
+- Scope: schema v3 migration, transactional account save/verify/disconnect service, compact settings UI, disconnect confirmation, and status display.
+- Focused gate:
+  ```bash
+  npx vitest run tests/unit/settings/settings-store.test.ts tests/unit/settings/secret-store.test.ts tests/unit/settings/account-connection-service.test.ts tests/unit/settings/settings-tab.test.ts tests/unit/ui/account-disconnect-modal.test.ts
+  ```
+- Checkpoint gate:
+  ```bash
+  npm run typecheck && npm run lint && npm run build && npm run scan:secrets
+  ```
+- Acceptance:
+  - Settings load versions 1, 2, and 3 without exposing secrets.
+  - Display does not verify; explicit save/verify/disconnect works at service level.
+  - Verification persistence failure rolls back the refreshed token.
+  - Settings page is compact and has no middle blank region.
+- Stop after this gate and present desktop-review instructions plus exact changed-file list.
+
+### Batch 2: AI provider and model discovery
+
+- Tasks: 4, 5, 6.
+- Scope: bounded OpenAI-compatible and Anthropic catalog discovery, host/key isolation, atomic save, protocol dropdown, endpoint input, API Key input, model dropdown, and save action.
+- Focused gate:
+  ```bash
+  npx vitest run tests/unit/cover/ai-model-catalog.test.ts tests/unit/settings/ai-service-settings.test.ts tests/adversarial/network-assets.test.ts tests/unit/settings/settings-tab.test.ts
+  ```
+- Checkpoint gate: repeat Batch 1 checkpoint gate.
+- Acceptance:
+  - Passive display/input causes no network request.
+  - OpenAI-compatible discovery uses Bearer auth; Anthropic uses its required headers.
+  - Old keys never reach a changed protocol/host.
+  - Anthropic models are labeled planning-only and cannot generate images later.
+- Stop and request review of provider UX and security behavior.
+
+### Batch 3: Navigation, article fields, and Obsidian-native shell
+
+- Tasks: 7, 8.
+- Scope: fixed WeChat backend external link, removal of local-account header action, removal of source-link editing, legacy source URL preservation, larger tabs/headings, and accent-variable styling.
+- Focused gate:
+  ```bash
+  npx vitest run tests/unit/ui/external-browser.test.ts tests/unit/ui/workbench-view.test.ts tests/unit/ui/workbench-publish-settings.test.ts tests/unit/settings/article-settings.test.ts tests/integration/workbench.test.ts tests/visual/workbench-visual.test.ts
+  ```
+- Checkpoint gate: repeat Batch 1 checkpoint gate.
+- Acceptance:
+  - Header opens only `https://mp.weixin.qq.com/` and has the approved tooltip/icon.
+  - Publish settings does not render source-link editing.
+  - Saving title/author/digest preserves legacy Frontmatter.
+  - Tabs and section headings follow Obsidian theme variables rather than green.
+- Stop and request visual review in light, dark, and one non-green accent theme.
+
+### Batch 4: Three-source cover workflow
+
+- Tasks: 9, 10.
+- Scope: dynamic first local/remote image, exactly three visible sources, native file picker, byte/MIME validation, crop/storage preparation, and safe preview.
+- Focused gate:
+  ```bash
+  npx vitest run tests/unit/cover/cover-service.test.ts tests/unit/cover/cover-workflow.test.ts tests/unit/cover/electron-image-port.test.ts tests/integration/cover-ui.test.ts tests/adversarial/network-assets.test.ts
+  ```
+- Checkpoint gate: repeat Batch 1 checkpoint gate.
+- Acceptance:
+  - Cover modal shows only first image, upload, and AI sources.
+  - Upload button opens the system picker; cancel preserves state.
+  - Dynamic first image excludes generated assets and follows artifact order.
+  - Remote first image is fetched only by explicit prepare/publish paths under existing network policy.
+- Stop and request real file-picker and Vault-state review.
+
+### Batch 5: AI capability gating and publish-cover consistency
+
+- Tasks: 11, 12.
+- Scope: protocol-aware disclosure, hard Anthropic image-generation block, latest saved provider config, unified publish-cover resolver, frozen bytes, and unchanged ambiguous-draft semantics.
+- Focused gate:
+  ```bash
+  npx vitest run tests/unit/cover/openai-image-generator.test.ts tests/unit/cover/cover-workflow.test.ts tests/unit/ui/ai-cover-confirmation.test.ts tests/integration/cover-provider.test.ts tests/integration/cover-ui.test.ts tests/unit/publish/publish-workflow.test.ts tests/adversarial/publish-concurrency.test.ts tests/integration/workbench.test.ts
+  ```
+- Checkpoint gate: repeat Batch 1 checkpoint gate.
+- Acceptance:
+  - AI generation requests only an OpenAI-compatible configured model after confirmation.
+  - Anthropic makes zero generation requests.
+  - Publish consumes one prepared/frozen cover and removes duplicate resolution logic.
+  - Remote failure produces no draft side effect.
+- Stop and request synthetic desktop review before final acceptance.
+
+### Batch 6: Full acceptance and evidence ledger
+
+- Task: 13.
+- Scope: complete automatic gates, fixed-Vault desktop acceptance, isolated real provider/WeChat checks where credentials are available, and evidence recording.
+- Gate:
+  ```bash
+  npm test && npm run lint && npm run typecheck && npm run build && npm run verify:release && npm run scan:secrets && WECHAT_WORKBENCH_TEST_VAULT=$HOME/workspace/Github/wechat-workbench-test-vault npm run sync:test-vault
+  ```
+- Acceptance: every automatic command exits zero or is recorded as an explicit blocker; every desktop scenario is independently verified in the fixed Vault; unavailable credentials produce blocked rows, not assumed passes.
+- Stop with the final delivery ledger and distinguish implemented, verified, blocked, and deferred states.

@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeChat Workbench · Doocs 样式面板设计稿</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --background-primary: #ffffff;
+      --background-secondary: #f7f7f7;
+      --background-modifier-hover: #f2f2f2;
+      --background-modifier-border: #e4e4e4;
+      --text-normal: #1f1f1f;
+      --text-muted: #707070;
+      --interactive-accent: #00b957;
+      --interactive-accent-hover: #00a84e;
+      --danger: #f04444;
+      --article-color: #0f4c81;
+      --article-font-size: 15px;
+      --article-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { overflow: hidden; color: var(--text-normal); background: #efefef; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .prototype-shell {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(620px, 1.24fr);
+      width: 100vw;
+      height: 100vh;
+      min-height: 720px;
+      background: var(--background-primary);
+    }
+
+    .obsidian-editor {
+      min-width: 0;
+      overflow: hidden;
+      border-right: 1px solid var(--background-modifier-border);
+      background: #fff;
+    }
+
+    .editor-toolbar {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--background-modifier-border);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .editor-document {
+      height: calc(100% - 54px);
+      overflow: auto;
+      padding: 58px clamp(32px, 7vw, 88px) 100px;
+    }
+
+    .editor-document h1 { margin: 0 0 26px; font-size: 34px; line-height: 1.35; }
+    .editor-document h2 { margin: 38px 0 18px; font-size: 25px; }
+    .editor-document p { margin: 0 0 18px; font-size: 16px; line-height: 1.9; }
+    .editor-document img { display: block; width: 100%; margin: 28px 0; border-radius: 8px; }
+
+    .workbench {
+      position: relative;
+      min-width: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--background-secondary);
+    }
+
+    .workbench-header {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 26px;
+      background: var(--background-primary);
+      border-bottom: 1px solid var(--background-modifier-border);
+    }
+
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 17px; }
+    .brand-mark {
+      width: 22px;
+      height: 22px;
+      position: relative;
+      transform: rotate(-28deg);
+      border: 2px solid var(--interactive-accent);
+      border-radius: 3px 70% 3px 70%;
+    }
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      bottom: 2px;
+      width: 10px;
+      border-top: 2px solid var(--interactive-accent);
+      transform: rotate(48deg);
+      transform-origin: left center;
+    }
+
+    .user-dot {
+      width: 25px;
+      height: 25px;
+      border: 2px solid #777;
+      border-radius: 50%;
+      position: relative;
+    }
+    .user-dot::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 7px;
+      width: 7px;
+      height: 7px;
+      border: 1.8px solid #777;
+      border-radius: 50%;
+    }
+    .user-dot::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      bottom: 3px;
+      width: 13px;
+      height: 6px;
+      border: 1.8px solid #777;
+      border-bottom: 0;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .tabs {
+      height: 58px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: end;
+      padding: 0 24px;
+      background: var(--background-primary);
+      border-bottom: 1px solid var(--background-modifier-border);
+    }
+    .tab {
+      height: 58px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      font-weight: 600;
+      color: #555;
+      cursor: pointer;
+    }
+    .tab.is-active { color: var(--interactive-accent); border-bottom-color: var(--interactive-accent); }
+
+    .actionbar {
+      height: 74px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 24px;
+      background: var(--background-primary);
+      border-bottom: 1px solid var(--background-modifier-border);
+    }
+    .actionbar .spacer { flex: 1; }
+    .action-button {
+      min-width: 64px;
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: #e9e9e9;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .action-button:hover { background: #dedede; }
+    .action-button.primary { color: #fff; background: var(--interactive-accent); }
+    .action-button.primary:hover { background: var(--interactive-accent-hover); }
+
+    .preview-scroll {
+      height: calc(100% - 200px);
+      overflow: auto;
+      padding: 22px 24px 80px;
+    }
+    .article-card {
+      width: min(100%, 720px);
+      min-height: 100%;
+      margin: 0 auto;
+      padding: 58px 54px 90px;
+      border: 1px solid #e2e2e2;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 8px 22px rgb(0 0 0 / 7%);
+    }
+
+    .wechat-article {
+      color: #333;
+      font-family: var(--article-font-family);
+      font-size: var(--article-font-size);
+      line-height: 1.85;
+    }
+    .wechat-article h1,
+    .wechat-article h2,
+    .wechat-article h3 {
+      margin: 1.55em 0 .7em;
+      line-height: 1.4;
+      color: #222;
+    }
+    .wechat-article h1 { margin-top: 0; font-size: 1.9em; }
+    .wechat-article h2 { font-size: 1.45em; }
+    .wechat-article h3 { font-size: 1.2em; }
+    .wechat-article p { margin: .85em 0; }
+    .wechat-article a { color: var(--article-color); text-decoration: none; }
+    .wechat-article blockquote {
+      margin: 1.3em 0;
+      padding: .9em 1.1em;
+      border-left: 4px solid var(--article-color);
+      background: color-mix(in srgb, var(--article-color) 6%, white);
+      color: #555;
+    }
+    .wechat-article figure { margin: 1.5em 0; }
+    .wechat-article figure img { display: block; width: 100%; border-radius: 5px; }
+    .wechat-article figcaption { margin-top: .55em; text-align: center; color: #888; font-size: .84em; }
+    .wechat-article pre {
+      position: relative;
+      overflow: auto;
+      margin: 1.4em 0;
+      padding: 42px 18px 18px;
+      border-radius: 7px;
+      background: #0d1117;
+      color: #c9d1d9;
+      font: 13px/1.65 Menlo, Monaco, Consolas, monospace;
+    }
+    .wechat-article pre.light { background: #f6f8fa; color: #24292f; border: 1px solid #d8dee4; }
+    .mac-dots { position: absolute; top: 15px; left: 17px; display: flex; gap: 6px; }
+    .mac-dots i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+    .mac-dots i:nth-child(2) { background: #febc2e; }
+    .mac-dots i:nth-child(3) { background: #28c840; }
+    .code-line { display: block; white-space: pre; }
+    .code-line-number { display: none; width: 28px; margin-right: 14px; color: #6e7681; text-align: right; user-select: none; }
+    .show-line-numbers .code-line-number { display: inline-block; }
+    .token-keyword { color: #ff7b72; }
+    .token-name { color: #79c0ff; }
+    .token-string { color: #a5d6ff; }
+    .reading-summary { display: none; }
+    .show-word-count .reading-summary { display: block; }
+    .external-reference { display: none; }
+    .show-citations .external-reference { display: inline; }
+    .citation-footer { display: none; margin-top: 2em; padding-top: 1em; border-top: 1px solid #eee; font-size: .88em; }
+    .show-citations .citation-footer { display: block; }
+    .indent-paragraphs > p { text-indent: 2em; }
+    .justify-paragraphs > p { text-align: justify; text-justify: inter-ideograph; }
+    .theme-grace h2 { text-align: center; }
+    .theme-grace h2::before, .theme-grace h2::after { content: "—"; margin: 0 .55em; color: var(--article-color); }
+    .theme-simple h2 { padding-left: .65em; border-left: 4px solid var(--article-color); }
+    .heading-color { color: var(--article-color) !important; }
+    .heading-border-bottom { padding-bottom: .25em; border-bottom: 2px solid var(--article-color); }
+    .heading-border-left { padding-left: .55em; border-left: 4px solid var(--article-color); }
+
+    .style-panel {
+      position: absolute;
+      z-index: 20;
+      top: 200px;
+      right: 0;
+      bottom: 0;
+      width: clamp(390px, 52%, 470px);
+      display: grid;
+      grid-template-rows: 64px minmax(0, 1fr);
+      background: var(--background-primary);
+      border-left: 1px solid var(--background-modifier-border);
+      box-shadow: -12px 0 28px rgb(0 0 0 / 10%);
+      transform: translateX(0);
+      transition: transform 180ms ease;
+    }
+    .style-panel.is-closed { transform: translateX(105%); }
+    .style-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--background-modifier-border);
+      background: #fff;
+    }
+    .style-panel-header h2 { margin: 0; font-size: 18px; }
+    .close-button {
+      min-width: 54px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      background: #e9e9e9;
+      cursor: pointer;
+    }
+
+    .style-panel-body {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 22px 22px 48px;
+      scrollbar-gutter: stable;
+    }
+    .style-section { margin: 0 0 26px; }
+    .style-section-title { margin: 0 0 11px; font-size: 16px; font-weight: 700; }
+    .option-grid { display: grid; gap: 9px; }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .option {
+      min-width: 0;
+      height: 42px;
+      padding: 0 8px;
+      border: 1px solid #dedede;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .option:hover { background: var(--background-modifier-hover); }
+    .option[aria-pressed="true"] {
+      border-color: #222;
+      background: #f5f5f5;
+      box-shadow: 0 0 0 1px #222;
+    }
+    .color-option { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .color-dot { width: 13px; height: 13px; flex: 0 0 auto; border-radius: 50%; background: var(--swatch); }
+
+    .custom-color-wrap { position: relative; width: 42px; height: 42px; }
+    .custom-color {
+      position: absolute;
+      inset: 0;
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .custom-color::-webkit-color-swatch-wrapper { padding: 4px; }
+    .custom-color::-webkit-color-swatch { border: 0; border-radius: 5px; }
+
+    .select-row { display: grid; grid-template-columns: 42% minmax(0, 1fr); gap: 10px; }
+    .custom-select { position: relative; min-width: 0; }
+    .select-trigger {
+      width: 100%;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px;
+      border: 1px solid #dcdcdc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      text-align: left;
+      line-height: 1;
+    }
+    .select-trigger::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-right: 2px solid #858585;
+      border-bottom: 2px solid #858585;
+      transform: translateY(-2px) rotate(45deg);
+    }
+    .select-trigger:focus-visible, .option:focus-visible, .switch-row:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--interactive-accent) 70%, white);
+      outline-offset: 2px;
+    }
+    .select-menu {
+      position: absolute;
+      z-index: 100;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      display: none;
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 6px;
+      border: 1px solid #dedede;
+      border-radius: 9px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgb(0 0 0 / 16%);
+    }
+    .custom-select.is-open .select-menu { display: block; }
+    .select-option {
+      width: 100%;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+    .select-option:hover, .select-option[aria-selected="true"] { background: #f2f2f2; }
+    .select-option[aria-selected="true"]::before { content: "✓"; width: 22px; }
+    .select-option:not([aria-selected="true"]) { padding-left: 33px; }
+
+    .switch-list { display: grid; gap: 4px; }
+    .switch-row {
+      width: 100%;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      font-weight: 600;
+    }
+    .switch {
+      width: 46px;
+      height: 27px;
+      flex: 0 0 auto;
+      padding: 3px;
+      border-radius: 999px;
+      background: #e1e1e1;
+      transition: background 150ms ease;
+    }
+    .switch::after {
+      content: "";
+      display: block;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+      transition: transform 150ms ease;
+    }
+    .switch-row[aria-checked="true"] .switch { background: #1f1f1f; }
+    .switch-row[aria-checked="true"] .switch::after { transform: translateX(19px); }
+
+    .reset-button {
+      height: 42px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--danger);
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .reset-button:hover { background: #d93636; }
+
+    .modal-backdrop {
+      position: fixed;
+      z-index: 1000;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgb(0 0 0 / 36%);
+    }
+    .modal-backdrop.is-visible { display: grid; }
+    .modal {
+      width: min(420px, calc(100vw - 40px));
+      padding: 24px;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 20px 60px rgb(0 0 0 / 22%);
+    }
+    .modal h2 { margin: 0 0 12px; font-size: 20px; }
+    .modal p { margin: 0 0 22px; color: var(--text-muted); line-height: 1.7; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+    @media (max-width: 1120px) {
+      .prototype-shell { grid-template-columns: 36% 64%; }
+      .style-panel { width: min(470px, 76%); }
+      .article-card { padding-inline: 38px; }
+    }
+
+    @media (max-width: 820px) {
+      .prototype-shell { display: block; }
+      .obsidian-editor { display: none; }
+      .workbench { width: 100%; }
+      .style-panel { width: min(470px, 94%); }
+    }
+
+    @media (max-width: 450px) {
+      .style-panel { width: 100%; }
+      .style-panel-body { padding-inline: 16px; }
+      .option { font-size: 12px; padding-inline: 4px; }
+      .grid-5 { gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="prototype-shell">
+    <section class="obsidian-editor" aria-label="Obsidian 编辑区域示意">
+      <header class="editor-toolbar"><span>样式工作台验证.md</span><span>阅读视图 · · ·</span></header>
+      <article class="editor-document">
+        <h1>样式工作台验证</h1>
+        <p>这是用于确认 Doocs 样式配置面板的 Obsidian 笔记内容。左侧仍由 Obsidian 负责编辑，右侧提供实时文章预览。</p>
+        <h2>结构元素</h2>
+        <p>预览稿包含标题、普通段落、引用、图片、图注、代码和外部链接，便于完整检查排版效果。</p>
+        <img alt="示例图片" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='470' viewBox='0 0 900 470'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%230f4c81'/%3E%3Cstop offset='1' stop-color='%2355c9ea'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='900' height='470' rx='26' fill='url(%23g)'/%3E%3Ccircle cx='725' cy='120' r='82' fill='white' fill-opacity='.18'/%3E%3Ccircle cx='785' cy='185' r='44' fill='white' fill-opacity='.16'/%3E%3Ctext x='70' y='205' font-family='Arial,sans-serif' font-size='54' font-weight='700' fill='white'%3EWeChat Workbench%3C/text%3E%3Ctext x='72' y='265' font-family='Arial,sans-serif' font-size='27' fill='white' fill-opacity='.84'%3EDoocs style panel prototype%3C/text%3E%3C/svg%3E">
+      </article>
+    </section>
+
+    <section class="workbench" aria-label="WeChat Workbench UI 设计稿">
+      <header class="workbench-header">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>WeChat Workbench</span></div>
+        <span class="user-dot" aria-hidden="true"></span>
+      </header>
+
+      <nav class="tabs" aria-label="工作台页面">
+        <button class="tab is-active" type="button">文章预览</button>
+        <button class="tab" type="button">发布设置</button>
+      </nav>
+
+      <div class="actionbar">
+        <button class="action-button primary" type="button">发文章</button>
+        <button class="action-button" type="button">复制</button>
+        <span class="spacer"></span>
+        <button class="action-button" id="open-style" type="button" aria-expanded="true">样式</button>
+      </div>
+
+      <div class="preview-scroll" id="preview-scroll">
+        <article class="article-card">
+          <div class="wechat-article theme-classic" id="article-preview">
+            <blockquote class="reading-summary">共 186 字，阅读大约需 1 分钟</blockquote>
+            <h1 data-heading="h1">样式工作台验证</h1>
+            <p>这是用于确认文章预览与组合式样式配置的示例内容。修改右侧设置后，预览会立即变化，面板本身不会消失、闪烁或跳回顶部。</p>
+            <h2 data-heading="h2">结构元素</h2>
+            <ol>
+              <li>字号五档保持同一行。</li>
+              <li>标题层级与标题样式使用两个下拉框。</li>
+              <li>所有布尔配置统一采用左侧文字、右侧开关。</li>
+            </ol>
+            <blockquote>样式配置只影响文章排版，不改变 Obsidian 中的原始 Markdown。</blockquote>
+            <p>外部资料可以访问 <a href="https://example.com">示例链接</a><sup class="external-reference">[1]</sup>，微信公众号链接保持普通链接。</p>
+            <figure>
+              <img id="preview-image" alt="文章中的本地图片" title="WeChat Workbench 样式预览" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='470' viewBox='0 0 900 470'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%230f4c81'/%3E%3Cstop offset='1' stop-color='%2355c9ea'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='900' height='470' rx='26' fill='url(%23g)'/%3E%3Ccircle cx='725' cy='120' r='82' fill='white' fill-opacity='.18'/%3E%3Ccircle cx='785' cy='185' r='44' fill='white' fill-opacity='.16'/%3E%3Ctext x='70' y='205' font-family='Arial,sans-serif' font-size='54' font-weight='700' fill='white'%3EWeChat Workbench%3C/text%3E%3Ctext x='72' y='265' font-family='Arial,sans-serif' font-size='27' fill='white' fill-opacity='.84'%3EDoocs style panel prototype%3C/text%3E%3C/svg%3E">
+              <figcaption id="image-caption">文章中的本地图片</figcaption>
+            </figure>
+            <h2 data-heading="h2">代码预览</h2>
+            <pre id="code-block"><span class="mac-dots" aria-hidden="true"><i></i><i></i><i></i></span><code><span class="code-line"><span class="code-line-number">1</span><span class="token-keyword">const</span> <span class="token-name">message</span> = <span class="token-string">"wechat workbench"</span>;</span><span class="code-line"><span class="code-line-number">2</span>console.log(message);</span></code></pre>
+            <section class="citation-footer"><strong>引用链接</strong><p>[1] https://example.com</p></section>
+          </div>
+        </article>
+      </div>
+
+      <aside class="style-panel" id="style-panel" role="dialog" aria-label="文章样式">
+        <header class="style-panel-header">
+          <h2>文章样式</h2>
+          <button class="close-button" id="close-style" type="button">关闭</button>
+        </header>
+        <div class="style-panel-body" id="style-panel-body">
+          <section class="style-section">
+            <h3 class="style-section-title">主题</h3>
+            <div class="option-grid grid-3" data-group="theme">
+              <button class="option" type="button" data-value="classic" aria-pressed="true">经典</button>
+              <button class="option" type="button" data-value="grace" aria-pressed="false">优雅</button>
+              <button class="option" type="button" data-value="simple" aria-pressed="false">简洁</button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">字体</h3>
+            <div class="option-grid grid-3" data-group="font">
+              <button class="option" type="button" data-value="sans" aria-pressed="true">无衬线</button>
+              <button class="option" type="button" data-value="serif" aria-pressed="false">衬线</button>
+              <button class="option" type="button" data-value="mono" aria-pressed="false">等宽</button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">字号</h3>
+            <div class="option-grid grid-5" data-group="size">
+              <button class="option" type="button" data-value="14" aria-pressed="false">14px</button>
+              <button class="option" type="button" data-value="15" aria-pressed="true">15px</button>
+              <button class="option" type="button" data-value="16" aria-pressed="false">16px</button>
+              <button class="option" type="button" data-value="17" aria-pressed="false">17px</button>
+              <button class="option" type="button" data-value="18" aria-pressed="false">18px</button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">主题色</h3>
+            <div class="option-grid grid-3" data-group="color">
+              <button class="option color-option" type="button" data-value="#0F4C81" aria-pressed="true"><span class="color-dot" style="--swatch:#0F4C81"></span>经典蓝</button>
+              <button class="option color-option" type="button" data-value="#009874" aria-pressed="false"><span class="color-dot" style="--swatch:#009874"></span>翡翠绿</button>
+              <button class="option color-option" type="button" data-value="#FA5151" aria-pressed="false"><span class="color-dot" style="--swatch:#FA5151"></span>活力橘</button>
+              <button class="option color-option" type="button" data-value="#FECE00" aria-pressed="false"><span class="color-dot" style="--swatch:#FECE00"></span>柠檬黄</button>
+              <button class="option color-option" type="button" data-value="#92617E" aria-pressed="false"><span class="color-dot" style="--swatch:#92617E"></span>薰衣紫</button>
+              <button class="option color-option" type="button" data-value="#55C9EA" aria-pressed="false"><span class="color-dot" style="--swatch:#55C9EA"></span>天空蓝</button>
+              <button class="option color-option" type="button" data-value="#B76E79" aria-pressed="false"><span class="color-dot" style="--swatch:#B76E79"></span>玫瑰金</button>
+              <button class="option color-option" type="button" data-value="#556B2F" aria-pressed="false"><span class="color-dot" style="--swatch:#556B2F"></span>橄榄绿</button>
+              <button class="option color-option" type="button" data-value="#333333" aria-pressed="false"><span class="color-dot" style="--swatch:#333333"></span>石墨黑</button>
+              <button class="option color-option" type="button" data-value="#A9A9A9" aria-pressed="false"><span class="color-dot" style="--swatch:#A9A9A9"></span>雾烟灰</button>
+              <button class="option color-option" type="button" data-value="#FFB7C5" aria-pressed="false"><span class="color-dot" style="--swatch:#FFB7C5"></span>樱花粉</button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">自定义色</h3>
+            <div class="custom-color-wrap">
+              <input class="custom-color" id="custom-color" type="color" value="#0f4c81" aria-label="自定义主题色">
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">标题</h3>
+            <div class="select-row">
+              <div class="custom-select" data-select="heading-level">
+                <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>H2</span></button>
+                <div class="select-menu" role="listbox">
+                  <button class="select-option" type="button" role="option" data-value="h1" aria-selected="false">H1</button>
+                  <button class="select-option" type="button" role="option" data-value="h2" aria-selected="true">H2</button>
+                  <button class="select-option" type="button" role="option" data-value="h3" aria-selected="false">H3</button>
+                  <button class="select-option" type="button" role="option" data-value="h4" aria-selected="false">H4</button>
+                  <button class="select-option" type="button" role="option" data-value="h5" aria-selected="false">H5</button>
+                  <button class="select-option" type="button" role="option" data-value="h6" aria-selected="false">H6</button>
+                </div>
+              </div>
+              <div class="custom-select" data-select="heading-style">
+                <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>默认</span></button>
+                <div class="select-menu" role="listbox">
+                  <button class="select-option" type="button" role="option" data-value="default" aria-selected="true">默认</button>
+                  <button class="select-option" type="button" role="option" data-value="color" aria-selected="false">主题色文字</button>
+                  <button class="select-option" type="button" role="option" data-value="bottom" aria-selected="false">下边框</button>
+                  <button class="select-option" type="button" role="option" data-value="left" aria-selected="false">左边框</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">代码主题</h3>
+            <div class="custom-select" data-select="code-theme">
+              <button class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>github-dark</span></button>
+              <div class="select-menu" role="listbox">
+                <button class="select-option" type="button" role="option" data-value="github-dark" aria-selected="true">github-dark</button>
+                <button class="select-option" type="button" role="option" data-value="github" aria-selected="false">github</button>
+                <button class="select-option" type="button" role="option" data-value="atom-one-dark" aria-selected="false">atom-one-dark</button>
+                <button class="select-option" type="button" role="option" data-value="monokai" aria-selected="false">monokai</button>
+                <button class="select-option" type="button" role="option" data-value="nord" aria-selected="false">nord</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">图注</h3>
+            <div class="option-grid grid-2" data-group="caption">
+              <button class="option" type="button" data-value="title-alt" aria-pressed="false">title 优先</button>
+              <button class="option" type="button" data-value="alt-title" aria-pressed="false">alt 优先</button>
+              <button class="option" type="button" data-value="title" aria-pressed="false">只显示 title</button>
+              <button class="option" type="button" data-value="alt" aria-pressed="true">只显示 alt</button>
+              <button class="option" type="button" data-value="filename" aria-pressed="false">文件名</button>
+              <button class="option" type="button" data-value="none" aria-pressed="false">不显示</button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <div class="switch-list">
+              <button class="switch-row" type="button" data-setting="mac" role="switch" aria-checked="true"><span>Mac 样式</span><span class="switch" aria-hidden="true"></span></button>
+              <button class="switch-row" type="button" data-setting="lines" role="switch" aria-checked="false"><span>行号</span><span class="switch" aria-hidden="true"></span></button>
+              <button class="switch-row" type="button" data-setting="citations" role="switch" aria-checked="false"><span>外链转引用</span><span class="switch" aria-hidden="true"></span></button>
+              <button class="switch-row" type="button" data-setting="indent" role="switch" aria-checked="false"><span>首行缩进</span><span class="switch" aria-hidden="true"></span></button>
+              <button class="switch-row" type="button" data-setting="justify" role="switch" aria-checked="false"><span>两端对齐</span><span class="switch" aria-hidden="true"></span></button>
+              <button class="switch-row" type="button" data-setting="count" role="switch" aria-checked="false"><span>字数统计</span><span class="switch" aria-hidden="true"></span></button>
+            </div>
+          </section>
+
+          <section class="style-section">
+            <h3 class="style-section-title">操作</h3>
+            <button class="reset-button" id="reset-style" type="button">重置</button>
+          </section>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="reset-modal" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+      <h2 id="reset-title">重置文章样式？</h2>
+      <p>主题、字体、字号、颜色、标题、代码、图注和段落设置将恢复为默认值。</p>
+      <div class="modal-actions">
+        <button class="action-button" id="cancel-reset" type="button">取消</button>
+        <button class="reset-button" id="confirm-reset" type="button">确认重置</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const article = document.querySelector('#article-preview');
+    const panel = document.querySelector('#style-panel');
+    const customColor = document.querySelector('#custom-color');
+    const codeBlock = document.querySelector('#code-block');
+    const imageCaption = document.querySelector('#image-caption');
+    const modal = document.querySelector('#reset-modal');
+    const headingState = { h1: 'default', h2: 'default', h3: 'default', h4: 'default', h5: 'default', h6: 'default' };
+    let selectedHeading = 'h2';
+
+    const fonts = {
+      sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+      serif: 'Optima, "Songti SC", "Noto Serif CJK SC", Georgia, serif',
+      mono: 'Menlo, Monaco, "Courier New", monospace'
+    };
+
+    function selectButton(group, value) {
+      document.querySelectorAll(`[data-group="${group}"] .option`).forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.value === value));
+      });
+    }
+
+    function applyHeadingStyle() {
+      article.querySelectorAll('[data-heading]').forEach((heading) => {
+        heading.classList.remove('heading-color', 'heading-border-bottom', 'heading-border-left');
+        const style = headingState[heading.dataset.heading];
+        if (style === 'color') heading.classList.add('heading-color');
+        if (style === 'bottom') heading.classList.add('heading-border-bottom');
+        if (style === 'left') heading.classList.add('heading-border-left');
+      });
+    }
+
+    document.querySelectorAll('[data-group] .option').forEach((button) => {
+      button.addEventListener('click', () => {
+        const group = button.closest('[data-group]').dataset.group;
+        const value = button.dataset.value;
+        selectButton(group, value);
+
+        if (group === 'theme') {
+          article.classList.remove('theme-classic', 'theme-grace', 'theme-simple');
+          article.classList.add(`theme-${value}`);
+        }
+        if (group === 'font') document.documentElement.style.setProperty('--article-font-family', fonts[value]);
+        if (group === 'size') document.documentElement.style.setProperty('--article-font-size', `${value}px`);
+        if (group === 'color') {
+          document.documentElement.style.setProperty('--article-color', value);
+          customColor.value = value;
+        }
+        if (group === 'caption') {
+          const image = document.querySelector('#preview-image');
+          const caption = {
+            'title-alt': image.title || image.alt,
+            'alt-title': image.alt || image.title,
+            title: image.title,
+            alt: image.alt,
+            filename: 'wechat-workbench-style-preview',
+            none: ''
+          }[value];
+          imageCaption.textContent = caption;
+          imageCaption.hidden = caption === '';
+        }
+      });
+    });
+
+    customColor.addEventListener('input', () => {
+      document.documentElement.style.setProperty('--article-color', customColor.value);
+      document.querySelectorAll('[data-group="color"] .option').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.value.toLowerCase() === customColor.value.toLowerCase()));
+      });
+    });
+
+    function closeAllSelects(except) {
+      document.querySelectorAll('.custom-select.is-open').forEach((select) => {
+        if (select !== except) {
+          select.classList.remove('is-open');
+          select.querySelector('.select-trigger').setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    document.querySelectorAll('.custom-select').forEach((select) => {
+      const trigger = select.querySelector('.select-trigger');
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const shouldOpen = !select.classList.contains('is-open');
+        closeAllSelects(select);
+        select.classList.toggle('is-open', shouldOpen);
+        trigger.setAttribute('aria-expanded', String(shouldOpen));
+      });
+
+      select.querySelectorAll('.select-option').forEach((option) => {
+        option.addEventListener('click', () => {
+          select.querySelectorAll('.select-option').forEach((entry) => entry.setAttribute('aria-selected', 'false'));
+          option.setAttribute('aria-selected', 'true');
+          trigger.querySelector('span').textContent = option.textContent.trim();
+          select.classList.remove('is-open');
+          trigger.setAttribute('aria-expanded', 'false');
+
+          if (select.dataset.select === 'heading-level') {
+            selectedHeading = option.dataset.value;
+            const styleSelect = document.querySelector('[data-select="heading-style"]');
+            const styleOption = styleSelect.querySelector(`[data-value="${headingState[selectedHeading]}"]`);
+            styleSelect.querySelectorAll('.select-option').forEach((entry) => entry.setAttribute('aria-selected', String(entry === styleOption)));
+            styleSelect.querySelector('.select-trigger span').textContent = styleOption.textContent.trim();
+          }
+          if (select.dataset.select === 'heading-style') {
+            headingState[selectedHeading] = option.dataset.value;
+            applyHeadingStyle();
+          }
+          if (select.dataset.select === 'code-theme') {
+            const isLight = option.dataset.value === 'github';
+            codeBlock.classList.toggle('light', isLight);
+          }
+        });
+      });
+    });
+
+    document.addEventListener('click', () => closeAllSelects());
+
+    document.querySelectorAll('.switch-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const next = row.getAttribute('aria-checked') !== 'true';
+        row.setAttribute('aria-checked', String(next));
+        const setting = row.dataset.setting;
+        if (setting === 'mac') codeBlock.querySelector('.mac-dots').hidden = !next;
+        if (setting === 'lines') codeBlock.classList.toggle('show-line-numbers', next);
+        if (setting === 'citations') article.classList.toggle('show-citations', next);
+        if (setting === 'indent') article.classList.toggle('indent-paragraphs', next);
+        if (setting === 'justify') article.classList.toggle('justify-paragraphs', next);
+        if (setting === 'count') article.classList.toggle('show-word-count', next);
+      });
+    });
+
+    document.querySelector('#close-style').addEventListener('click', () => {
+      panel.classList.add('is-closed');
+      document.querySelector('#open-style').setAttribute('aria-expanded', 'false');
+    });
+    document.querySelector('#open-style').addEventListener('click', () => {
+      panel.classList.remove('is-closed');
+      document.querySelector('#open-style').setAttribute('aria-expanded', 'true');
+    });
+
+    document.querySelector('#reset-style').addEventListener('click', () => modal.classList.add('is-visible'));
+    document.querySelector('#cancel-reset').addEventListener('click', () => modal.classList.remove('is-visible'));
+    modal.addEventListener('click', (event) => { if (event.target === modal) modal.classList.remove('is-visible'); });
+    document.querySelector('#confirm-reset').addEventListener('click', () => window.location.reload());
+  </script>
+</body>
+</html>

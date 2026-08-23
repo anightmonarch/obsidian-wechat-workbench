@@ -1,8 +1,9 @@
-import { Notice } from 'obsidian';
+import type { App } from 'obsidian';
 
-import type { ArticleStyleConfig, HeadingStyle, ImageCaptionMode } from '../domain/style';
+import type { ArticleStyleConfig, HeadingLevel, HeadingStyle } from '../domain/style';
 import type { WorkbenchRenderState } from './workbench-controller';
 import { STYLE_OPTIONS } from '../styles/style-options';
+import { StyleResetModal } from './style-reset-modal';
 
 type StylePatch = Readonly<Partial<Omit<ArticleStyleConfig, 'version' | 'headingStyles'>> & {
   headingStyles?: ArticleStyleConfig['headingStyles'];
@@ -12,7 +13,6 @@ export interface StyleWorkbenchActions {
   patch(patch: StylePatch): void;
   selectTheme(themeId: string): void;
   reset(): void;
-  setGlobalDefault(): Promise<void>;
   close(): void;
 }
 
@@ -28,76 +28,133 @@ function optionButton(
   container: HTMLElement,
   label: string,
   testId: string,
+  value: string,
   active: boolean,
   onClick: () => void,
 ): HTMLButtonElement {
   const button = createEl('button', { text: label, cls: 'wechat-workbench__style-option' });
   button.type = 'button';
-  button.setAttribute(`data-${testId}`, label);
+  button.setAttribute(`data-${testId}`, value);
   button.setAttribute('aria-pressed', String(active));
   button.addEventListener('click', onClick);
   container.append(button);
   return button;
 }
 
-function labeledSelect<T extends string>(
-  container: HTMLElement,
-  labelText: string,
-  value: string,
-  options: readonly { id: T; label: string }[],
-  onChange: (value: T) => void,
-): HTMLSelectElement {
-  const label = createEl('label', { cls: 'wechat-workbench__style-select-label' });
-  label.append(createSpan({ text: labelText }));
-  const select = createEl('select');
-  select.setAttribute('aria-label', labelText);
-  for (const option of options) {
-    const element = createEl('option');
-    element.value = option.id;
-    element.textContent = option.label;
-    element.selected = option.id === value;
-    select.append(element);
-  }
-  select.addEventListener('change', () => onChange(select.value as T));
-  label.append(select);
-  container.append(label);
-  return select;
+interface SelectControl {
+  readonly root: HTMLElement;
+  readonly trigger: HTMLButtonElement;
+  setValue(value: string): void;
 }
 
-function switchControl(
+function customSelect<T extends string>(
   container: HTMLElement,
-  label: string,
-  checked: boolean,
-  onToggle: (checked: boolean) => void,
-): HTMLButtonElement {
-  const button = createEl('button', { cls: 'wechat-workbench__style-switch' });
-  button.type = 'button';
-  button.setAttribute('role', 'switch');
-  button.setAttribute('aria-checked', String(checked));
-  button.append(createSpan({ text: label }));
-  const indicator = createSpan({ cls: 'wechat-workbench__style-switch-indicator' });
-  indicator.setAttribute('aria-hidden', 'true');
-  button.append(indicator);
-  button.addEventListener('click', () => {
-    const next = button.getAttribute('aria-checked') !== 'true';
-    button.setAttribute('aria-checked', String(next));
-    onToggle(next);
+  testId: string,
+  options: readonly { id: T; label: string }[],
+  value: string,
+  onChange: (value: T) => void,
+): SelectControl {
+  const root = createDiv('wechat-workbench__style-select');
+  root.dataset[testId] = 'true';
+  const trigger = createEl('button', { cls: 'wechat-workbench__style-select-trigger' });
+  trigger.type = 'button';
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+  const menu = createDiv('wechat-workbench__style-select-menu');
+  menu.setAttribute('role', 'listbox');
+
+  const setValue = (nextValue: string): void => {
+    const selected = options.find(option => option.id === nextValue) ?? options[0];
+    if (selected === undefined) return;
+    trigger.textContent = selected.label;
+    for (const option of menu.querySelectorAll<HTMLButtonElement>('[role="option"]')) {
+      option.setAttribute('aria-selected', String(option.dataset.value === selected.id));
+    }
+  };
+
+  for (const option of options) {
+    const optionButtonEl = createEl('button', { text: option.label, cls: 'wechat-workbench__style-select-option' });
+    optionButtonEl.type = 'button';
+    optionButtonEl.dataset.value = option.id;
+    optionButtonEl.setAttribute('role', 'option');
+    optionButtonEl.addEventListener('click', () => {
+      setValue(option.id);
+      root.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      onChange(option.id);
+    });
+    menu.append(optionButtonEl);
+  }
+
+  trigger.addEventListener('click', event => {
+    event.stopPropagation();
+    const isOpen = root.classList.toggle('is-open');
+    trigger.setAttribute('aria-expanded', String(isOpen));
+    if (isOpen) {
+      for (const sibling of root.parentElement?.querySelectorAll<HTMLElement>('.wechat-workbench__style-select.is-open') ?? []) {
+        if (sibling === root) continue;
+        sibling.classList.remove('is-open');
+        sibling.querySelector('.wechat-workbench__style-select-trigger')?.setAttribute('aria-expanded', 'false');
+      }
+    }
   });
-  container.append(button);
-  return button;
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      root.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      root.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  root.append(trigger, menu);
+  container.append(root);
+  setValue(value);
+  return { root, trigger, setValue };
 }
+
+const HEADING_LEVELS: readonly HeadingLevel[] = Object.freeze(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+
+const HEADING_LEVEL_OPTIONS = Object.freeze(HEADING_LEVELS.map(level => Object.freeze({
+  id: level,
+  label: level.toUpperCase(),
+})));
+
+const SWITCH_OPTIONS = Object.freeze([
+  Object.freeze({ field: 'macCodeBlock', label: 'Mac 样式' }),
+  Object.freeze({ field: 'showCodeLineNumbers', label: '行号' }),
+  Object.freeze({ field: 'externalLinkCitation', label: '外链转引用' }),
+  Object.freeze({ field: 'paragraphIndent', label: '首行缩进' }),
+  Object.freeze({ field: 'textJustify', label: '两端对齐' }),
+  Object.freeze({ field: 'wordCount', label: '字数统计' }),
+] as const);
 
 export class StyleWorkbench {
   private root: HTMLElement | null = null;
+  private body: HTMLElement | null = null;
   private escapeHandler: ((event: KeyboardEvent) => void) | null = null;
+  private headingLevelSelect: SelectControl | null = null;
+  private headingStyleSelect: SelectControl | null = null;
+  private codeThemeSelect: SelectControl | null = null;
+  private customColor: HTMLInputElement | null = null;
+  private selectedHeadingLevel: HeadingLevel = 'h2';
+  private latestConfig: Readonly<ArticleStyleConfig> | null = null;
 
   constructor(
+    private readonly app: App,
     private readonly container: HTMLElement,
     private readonly actions: StyleWorkbenchActions,
   ) {}
 
   render(state: Readonly<WorkbenchRenderState>): void {
-    this.destroy();
+    if (this.root !== null) {
+      this.update(state);
+      return;
+    }
+
     const root = createEl('aside', { cls: 'wechat-workbench__style-panel' });
     root.dataset.testid = 'style-workbench';
     root.setAttribute('role', 'dialog');
@@ -117,110 +174,159 @@ export class StyleWorkbench {
     header.append(close);
     root.append(header);
 
-    const body = createDiv({ cls: 'wechat-workbench__style-body' });
+    const body = createDiv('wechat-workbench__style-body');
+    this.body = body;
     const config = state.style.config;
     const activeThemeId = state.style.themeId;
-    const themes = new Map(state.themes.map(theme => [theme.manifest.id, theme.manifest.name]));
-    for (const option of STYLE_OPTIONS.themes) themes.set(option.id, option.label);
+    this.latestConfig = config;
 
     const themeSection = section(body, '主题');
-    const primaryThemes = createDiv({ cls: 'wechat-workbench__style-options' });
+    const primaryThemes = createDiv('wechat-workbench__style-options wechat-workbench__style-themes');
     for (const option of STYLE_OPTIONS.themes) {
-      const button = optionButton(primaryThemes, option.label, 'style-theme', activeThemeId === option.id, () => this.actions.selectTheme(option.id));
-      button.dataset.styleTheme = option.id;
+      optionButton(primaryThemes, option.label, 'style-theme', option.id, activeThemeId === option.id, () => this.actions.selectTheme(option.id));
     }
     themeSection.append(primaryThemes);
-    const otherThemes = [...themes.entries()]
-      .filter(([id]) => !STYLE_OPTIONS.themes.some(option => option.id === id));
-    if (otherThemes.length > 0) {
-      const otherLabel = createSpan({ text: '其他主题', cls: 'wechat-workbench__style-subheading' });
-      themeSection.append(otherLabel);
-      const otherOptions = createDiv({ cls: 'wechat-workbench__style-options' });
-      for (const [id, label] of otherThemes) {
-        const button = optionButton(otherOptions, label, 'style-theme', activeThemeId === id, () => this.actions.selectTheme(id));
-        button.dataset.styleTheme = id;
-      }
-      themeSection.append(otherOptions);
-    }
 
     const fontSection = section(body, '字体');
-    const fonts = createDiv({ cls: 'wechat-workbench__style-options' });
+    const fonts = createDiv('wechat-workbench__style-options wechat-workbench__style-fonts');
     for (const option of STYLE_OPTIONS.fonts) {
-      const button = optionButton(fonts, option.label, 'style-font', config.fontFamily === option.id, () => {
+      optionButton(fonts, option.label, 'style-font', option.id, config.fontFamily === option.id, () => {
         this.actions.patch({ fontFamily: option.id });
       });
-      button.dataset.styleFont = option.id;
     }
     fontSection.append(fonts);
 
     const sizeSection = section(body, '字号');
-    const sizes = createDiv({ cls: 'wechat-workbench__style-options' });
+    const sizes = createDiv('wechat-workbench__style-options wechat-workbench__style-sizes');
     for (const size of STYLE_OPTIONS.fontSizes) {
-      const button = optionButton(sizes, `${size}px`, 'style-size', config.fontSize === size, () => {
+      optionButton(sizes, `${size}px`, 'style-size', String(size), config.fontSize === size, () => {
         this.actions.patch({ fontSize: size });
       });
-      button.dataset.styleSize = String(size);
     }
     sizeSection.append(sizes);
 
     const colorSection = section(body, '主题色');
-    const colors = createDiv({ cls: 'wechat-workbench__style-colors' });
+    const colors = createDiv('wechat-workbench__style-options wechat-workbench__style-colors');
     for (const option of STYLE_OPTIONS.colors) {
-      const button = optionButton(colors, option.label, 'style-color', config.primaryColor === option.id, () => {
+      const button = optionButton(colors, option.label, 'style-color', option.id, config.primaryColor === option.id, () => {
         this.actions.patch({ primaryColor: option.id });
       });
-      button.dataset.styleColor = option.id;
       button.style.setProperty('--wechat-style-color', option.id);
+      const dot = createSpan({ cls: 'wechat-workbench__style-color-dot' });
+      button.prepend(dot);
     }
     colorSection.append(colors);
 
-    const headingSection = section(body, '标题');
-    for (const level of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const) {
-      labeledSelect(
-        headingSection,
-        level.toUpperCase(),
-        config.headingStyles[level] ?? 'default',
-        STYLE_OPTIONS.headingStyles,
-        (value: HeadingStyle) => this.actions.patch({ headingStyles: { [level]: value } }),
-      );
-    }
+    const customColorSection = section(body, '自定义色');
+    const customColor = createEl('input', { cls: 'wechat-workbench__style-custom-color' });
+    customColor.type = 'color';
+    customColor.dataset.testid = 'style-custom-color';
+    customColor.setAttribute('aria-label', '自定义主题色');
+    customColor.value = config.primaryColor.toLowerCase();
+    customColor.addEventListener('input', () => {
+      this.actions.patch({ primaryColor: customColor.value.toUpperCase() });
+    });
+    this.customColor = customColor;
+    customColorSection.append(customColor);
 
-    const codeSection = section(body, '代码');
-    labeledSelect(codeSection, '高亮主题', config.codeThemeId, STYLE_OPTIONS.codeThemes, value => this.actions.patch({ codeThemeId: value }));
-    switchControl(codeSection, '显示行号', config.showCodeLineNumbers, checked => this.actions.patch({ showCodeLineNumbers: checked }));
-    switchControl(codeSection, 'Mac 窗口样式', config.macCodeBlock, checked => this.actions.patch({ macCodeBlock: checked }));
+    const headingSection = section(body, '标题');
+    const headingSelectRow = createDiv('wechat-workbench__style-select-row');
+    this.headingLevelSelect = customSelect(
+      headingSelectRow,
+      'styleHeadingLevel',
+      HEADING_LEVEL_OPTIONS,
+      this.selectedHeadingLevel,
+      value => {
+        this.selectedHeadingLevel = value;
+        this.headingStyleSelect?.setValue(this.latestConfig?.headingStyles[this.selectedHeadingLevel] ?? 'default');
+      },
+    );
+    this.headingStyleSelect = customSelect(
+      headingSelectRow,
+      'styleHeadingStyle',
+      STYLE_OPTIONS.headingStyles,
+      config.headingStyles[this.selectedHeadingLevel] ?? 'default',
+      (value: HeadingStyle) => this.actions.patch({ headingStyles: { [this.selectedHeadingLevel]: value } }),
+    );
+    headingSection.append(headingSelectRow);
+
+    const codeSection = section(body, '代码主题');
+    this.codeThemeSelect = customSelect(
+      codeSection,
+      'styleCodeTheme',
+      STYLE_OPTIONS.codeThemes,
+      config.codeThemeId,
+      value => this.actions.patch({ codeThemeId: value }),
+    );
 
     const imageSection = section(body, '图注');
-    labeledSelect(imageSection, '图片说明', config.imageCaption, STYLE_OPTIONS.captionModes, (value: ImageCaptionMode) => this.actions.patch({ imageCaption: value }));
-
-    const paragraphSection = section(body, '段落');
-    switchControl(paragraphSection, '首行缩进', config.paragraphIndent, checked => this.actions.patch({ paragraphIndent: checked }));
-    switchControl(paragraphSection, '两端对齐', config.textJustify, checked => this.actions.patch({ textJustify: checked }));
-
-    if (state.style.unsupportedVersion !== null) {
-      const message = createEl('p', { text: '当前文章样式来自更高版本，请升级插件后再修改。', cls: 'wechat-workbench__style-message' });
-      body.prepend(message);
-    } else if (state.styleSaveStatus === 'unsaved') {
-      body.prepend(createEl('p', { text: '样式尚未保存', cls: 'wechat-workbench__style-message' }));
-    } else if (state.styleSaveStatus === 'saving') {
-      body.prepend(createEl('p', { text: '正在保存样式', cls: 'wechat-workbench__style-message' }));
+    const captions = createDiv('wechat-workbench__style-options wechat-workbench__style-captions');
+    for (const option of STYLE_OPTIONS.captionModes) {
+      optionButton(captions, option.label, 'style-caption', option.id, config.imageCaption === option.id, () => {
+        this.actions.patch({ imageCaption: option.id });
+      });
     }
-    root.append(body);
+    imageSection.append(captions);
 
-    const footer = createEl('footer', { cls: 'wechat-workbench__style-footer' });
-    const reset = createEl('button', { text: '恢复当前主题默认值' });
+    const switches = createDiv('wechat-workbench__style-switches wechat-workbench__style-switch-list');
+    for (const option of SWITCH_OPTIONS) {
+      const row = createEl('button', { cls: 'wechat-workbench__style-switch wechat-workbench__style-toggle-row' });
+      row.type = 'button';
+      row.dataset.styleSwitch = option.label;
+      row.dataset.styleField = option.field;
+      row.setAttribute('role', 'switch');
+      const checked = config[option.field];
+      row.setAttribute('aria-checked', String(checked));
+      row.append(createSpan({ text: option.label }), createSpan({ cls: 'wechat-workbench__style-switch-indicator' }));
+      row.addEventListener('click', () => {
+        const next = row.getAttribute('aria-checked') !== 'true';
+        row.setAttribute('aria-checked', String(next));
+        this.actions.patch({ [option.field]: next });
+      });
+      switches.append(row);
+    }
+    body.append(switches);
+
+    root.append(body);
+    const operation = section(body, '操作');
+    const reset = createEl('button', { text: '重置', cls: 'wechat-workbench__style-reset' });
     reset.type = 'button';
-    reset.addEventListener('click', () => this.actions.reset());
-    const global = createEl('button', { text: '设为全局默认' });
-    global.type = 'button';
-    global.addEventListener('click', () => {
-      void this.actions.setGlobalDefault()
-        .then(() => new Notice('已设为全局默认样式'))
-        .catch(() => new Notice('设置全局默认样式失败'));
-    });
-    footer.append(reset, global);
-    root.append(footer);
+    reset.dataset.styleReset = 'true';
+    reset.addEventListener('click', () => new StyleResetModal(this.app, () => this.actions.reset()).open());
+    operation.append(reset);
     this.container.append(root);
+  }
+
+  update(state: Readonly<WorkbenchRenderState>): void {
+    if (this.root === null) return this.render(state);
+
+    const config = state.style.config;
+    this.latestConfig = config;
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-theme]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleTheme === state.style.themeId));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-font]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleFont === config.fontFamily));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-size]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleSize === String(config.fontSize)));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-color]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleColor === config.primaryColor));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-switch]').forEach(button => {
+      const field = button.dataset.styleField as keyof ArticleStyleConfig | undefined;
+      if (field !== undefined && typeof config[field] === 'boolean') {
+        button.setAttribute('aria-checked', String(config[field]));
+      }
+    });
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-style-caption]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.styleCaption === config.imageCaption));
+    }
+    this.customColor?.setAttribute('value', config.primaryColor.toLowerCase());
+    if (this.customColor !== null) this.customColor.value = config.primaryColor.toLowerCase();
+    this.headingStyleSelect?.setValue(config.headingStyles[this.selectedHeadingLevel] ?? 'default');
+    this.codeThemeSelect?.setValue(config.codeThemeId);
   }
 
   focusFirst(): void {
@@ -232,5 +338,11 @@ export class StyleWorkbench {
     this.escapeHandler = null;
     this.root?.remove();
     this.root = null;
+    this.body = null;
+    this.headingLevelSelect = null;
+    this.headingStyleSelect = null;
+    this.codeThemeSelect = null;
+    this.customColor = null;
+    this.latestConfig = null;
   }
 }

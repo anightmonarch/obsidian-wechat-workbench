@@ -102,6 +102,35 @@ export class ButtonComponent {
   }
 }
 
+export class DropdownComponent {
+  readonly selectEl = document.createElement('select');
+
+  constructor(_containerEl?: HTMLElement) {}
+
+  addOption(value: string, text: string): this {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    this.selectEl.append(option);
+    return this;
+  }
+
+  setValue(value: string): this {
+    this.selectEl.value = value;
+    return this;
+  }
+
+  onChange(callback: (value: string) => void): this {
+    this.selectEl.addEventListener('change', () => callback(this.selectEl.value));
+    return this;
+  }
+
+  setDisabled(disabled: boolean): this {
+    this.selectEl.disabled = disabled;
+    return this;
+  }
+}
+
 export class Setting {
   readonly settingEl = document.createElement('div');
 
@@ -133,6 +162,13 @@ export class Setting {
   addButton(builder: (component: ButtonComponent) => unknown): this {
     const component = new ButtonComponent();
     this.settingEl.append(component.buttonEl);
+    builder(component);
+    return this;
+  }
+
+  addDropdown(builder: (component: DropdownComponent) => unknown): this {
+    const component = new DropdownComponent();
+    this.settingEl.append(component.selectEl);
     builder(component);
     return this;
   }

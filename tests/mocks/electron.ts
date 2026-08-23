@@ -15,3 +15,7 @@ export const nativeImage = {
 export const clipboard = {
   write: () => undefined,
 };
+
+export const shell = {
+  openExternal: async (_url: string): Promise<void> => undefined,
+};

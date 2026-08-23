@@ -14,4 +14,8 @@ declare module 'electron' {
   export const clipboard: {
     write(content: { html?: string; text: string }): void;
   };
+
+  export const shell: {
+    openExternal(url: string): Promise<void>;
+  };
 }

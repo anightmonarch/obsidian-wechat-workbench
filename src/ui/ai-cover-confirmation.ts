@@ -1,5 +1,7 @@
 import { type App, Modal } from 'obsidian';
 
+import type { AiProviderProtocol } from '../cover/ai-provider';
+
 export interface AiCoverSource {
   title: string;
   digest: string;
@@ -7,11 +9,13 @@ export interface AiCoverSource {
 }
 
 export interface AiCoverProviderSettings {
+  imageApiProtocol: AiProviderProtocol;
   imageApiBaseUrl: string;
   imageApiModel: string;
 }
 
 export interface AiCoverDisclosure {
+  protocol: string;
   baseUrl: string;
   model: string;
   sentFields: readonly ['title', 'digest', 'bodyExcerpt'];
@@ -36,6 +40,7 @@ export function buildAiCoverDisclosure(
   settings: Readonly<AiCoverProviderSettings>,
 ): Readonly<AiCoverDisclosure> {
   return Object.freeze({
+    protocol: settings.imageApiProtocol === 'anthropic' ? 'Anthropic' : 'OpenAI 兼容',
     baseUrl: settings.imageApiBaseUrl.trim(),
     model: settings.imageApiModel.trim(),
     sentFields: Object.freeze(['title', 'digest', 'bodyExcerpt'] as const),
@@ -62,6 +67,7 @@ export class AiCoverConfirmationModal extends Modal {
     this.contentEl.replaceChildren();
     this.titleEl.textContent = '确认生成智能封面';
     const rows: Array<[string, string]> = [
+      ['接口协议', this.disclosure.protocol],
       ['服务地址', this.disclosure.baseUrl],
       ['模型', this.disclosure.model],
       ['标题', this.disclosure.payload.title],

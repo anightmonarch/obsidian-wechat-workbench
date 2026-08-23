@@ -1,12 +1,10 @@
 import { posix } from 'node:path';
 
+import type { PublishCoverResolverPort } from '../cover/cover-workflow';
 import type { RenderArtifact } from '../domain/artifact';
 import type { VaultFileRef } from '../domain/ports';
-import { detectImageMime } from '../media/image-format';
 import type { PreflightEngine } from '../preflight/preflight-engine';
-import { hashContent } from '../render/canonicalize';
 import { publishPayloadHash, transactionFingerprint } from './publish-content';
-import type { DefaultCoverStrategy } from '../settings/model';
 import { accountHashForAppId } from '../settings/account';
 import { PublicError } from '../wechat/errors';
 import type { PublishCoordinator } from './publish-coordinator';
@@ -24,7 +22,6 @@ import type { PublishStateStore, SyncedDraftState } from './publish-state-store'
 export interface PublishWorkflowSettings {
   appId: string;
   accountHash: string | null;
-  defaultCoverStrategy: DefaultCoverStrategy;
 }
 
 export interface PublishWorkflowSettingsPort {
@@ -105,7 +102,7 @@ export class PublishWorkflow {
   constructor(
     private readonly settings: PublishWorkflowSettingsPort,
     private readonly state: Pick<PublishStateStore, 'read' | 'commit' | 'unlink'>,
-    private readonly files: PublishCoverFilePort,
+    private readonly covers: PublishCoverResolverPort,
     private readonly preflight: PreflightEngine,
     private readonly coordinator: Pick<PublishCoordinator, 'publish'>,
     private readonly recovery?: PublishRecoveryPorts,
@@ -132,31 +129,20 @@ export class PublishWorkflow {
     if (local !== null && local.accountId !== accountHash) {
       throw new DraftAssociationMismatchError(associationRef(file, local));
     }
-    const coverPath = await this.coverPath(file, artifact, settings.defaultCoverStrategy);
-    let coverBytes: Uint8Array | null = null;
-    let coverMime: ReturnType<typeof detectImageMime> = null;
-    if (coverPath !== null) {
-      try {
-        coverBytes = await this.files.readBinary(coverPath);
-        coverMime = detectImageMime(coverBytes);
-      } catch {
-        coverBytes = null;
-      }
-    }
+    const preparedCover = await this.covers.prepareForPublish(file, artifact);
     const associationMatches = local === null || accountHash === local.accountId;
     const report = this.preflight.run(artifact, {
       purpose: 'publish',
       themeValid: true,
       accountConfigured: settings.appId.trim().length > 0 && accountHash !== null,
-      coverReady: coverBytes !== null && coverMime !== null,
+      coverReady: preparedCover !== null,
       associationAccountMatches: associationMatches,
     });
-    if (report.blocking.length > 0 || accountHash === null || coverBytes === null
-      || coverMime === null || coverPath === null) {
+    if (report.blocking.length > 0 || accountHash === null || preparedCover === null) {
       throw preparationError(report.blocking.map(item => item.message));
     }
 
-    const coverHash = hashContent(coverBytes);
+    const coverHash = preparedCover.contentHash;
     const payloadHash = publishPayloadHash(artifact);
     const decision = decidePublish(local, 'NOT_CHECKED', {
       contentHash: payloadHash,
@@ -173,11 +159,11 @@ export class PublishWorkflow {
       artifact,
       accountHash,
       cover: Object.freeze({
-        bytes: Uint8Array.from(coverBytes),
-        mimeType: coverMime,
-        filename: posix.basename(coverPath),
+        bytes: Uint8Array.from(preparedCover.bytes),
+        mimeType: preparedCover.mimeType,
+        filename: posix.basename(preparedCover.vaultPath),
       }),
-      coverPath,
+      coverPath: preparedCover.vaultPath,
       coverHash,
       payloadHash,
     });
@@ -194,7 +180,7 @@ export class PublishWorkflow {
         themeHash: artifact.theme.contentHash,
         coverHash,
         imageCount: artifact.assets.filter(asset => asset.kind !== 'generated-math').length,
-        coverLabel: posix.basename(coverPath),
+        coverLabel: posix.basename(preparedCover.vaultPath),
       }),
     });
   }
@@ -259,18 +245,6 @@ export class PublishWorkflow {
       draftId: association.draftId,
       accountId: association.accountId,
     });
-  }
-
-  private async coverPath(
-    file: VaultFileRef,
-    artifact: Readonly<RenderArtifact>,
-    strategy: DefaultCoverStrategy,
-  ): Promise<string | null> {
-    if (artifact.metadata.cover !== null) {
-      return this.files.resolveLink(artifact.metadata.cover, file.path);
-    }
-    if (strategy !== 'first-image') return null;
-    return artifact.assets.find(asset => asset.kind === 'local-image')?.source ?? null;
   }
 
   private async commitRecovered(

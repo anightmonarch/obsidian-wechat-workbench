@@ -11,6 +11,7 @@ import {
   type WorkbenchArticleSettingsPort,
   type WorkbenchClipboardPort,
   type WorkbenchEventHandle,
+  type WorkbenchPublishPort,
   type WorkbenchSourcePort,
   type WorkbenchViewPort,
 } from '../../src/ui/workbench-controller';
@@ -112,6 +113,7 @@ function controller(
     warnings: Object.freeze([]),
     info: Object.freeze([]),
   }),
+  publisher?: WorkbenchPublishPort,
 ) {
   const registered: unknown[] = [];
   return {
@@ -127,7 +129,7 @@ function controller(
       'native',
       400,
       clipboard,
-      undefined,
+      publisher,
       undefined,
       articleSettings,
     ),
@@ -283,6 +285,71 @@ describe('WorkbenchController', () => {
     expect(copyForWeChat).toHaveBeenCalledOnce();
     expect(copyForWeChat.mock.calls[0]?.[0].source.vaultPath).toBe('active.md');
     expect(copyHtmlSource).toHaveBeenCalledOnce();
+  });
+
+  it('passes the same completed artifact to rich copy and draft preparation', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const copyForWeChat = vi.fn(async (_artifact: Readonly<RenderArtifact>) => undefined);
+    const copyHtmlSource = vi.fn(async (_artifact: Readonly<RenderArtifact>) => undefined);
+    const prepare = vi.fn(async (currentFile: VaultFileRef, input: Readonly<RenderArtifact>) => ({
+      command: {
+        file: currentFile,
+        expectedAssociation: null,
+        artifact: input,
+        accountHash: 'test-account',
+        cover: { bytes: Uint8Array.from([0x89]), mimeType: 'image/png' as const, filename: 'cover.png' },
+        coverPath: 'cover.png',
+        coverHash: 'cover-hash',
+        payloadHash: input.contentHash,
+      },
+      dialogInput: {
+        action: 'CREATE' as const,
+        appId: 'wx-test',
+        title: input.metadata.title,
+        digest: input.metadata.digest,
+        themeId: input.theme.id,
+        themeVersion: input.theme.version,
+        contentHash: input.contentHash,
+        themeHash: input.theme.contentHash,
+        coverHash: 'cover-hash',
+        imageCount: 0,
+        coverLabel: 'cover.png',
+      },
+    }));
+    const outcome = Object.freeze({
+      taskId: 'test-task', state: 'FAILED' as const, action: null, mediaId: null, error: null,
+      hasUnsyncedChanges: false,
+    });
+    const publisher: WorkbenchPublishPort = {
+      prepare,
+      execute: vi.fn(async () => outcome),
+      reconcile: vi.fn(async () => outcome),
+      repairLocal: vi.fn(async () => outcome),
+      unlink: vi.fn(async () => undefined),
+    };
+    const harness = controller(
+      source,
+      view,
+      async input => artifactFor(input),
+      { copyForWeChat, copyHtmlSource },
+      undefined,
+      undefined,
+      publisher,
+    );
+    harness.instance.start();
+    source.emitActive('active.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    const completed = harness.instance.currentArtifact();
+    expect(completed).not.toBeNull();
+    await harness.instance.copyForWeChat();
+    const prepared = await harness.instance.preparePublish();
+
+    expect(copyForWeChat).toHaveBeenCalledWith(completed);
+    expect(prepare).toHaveBeenCalledWith(file('active.md'), completed);
+    expect(prepared.command.artifact).toBe(completed);
+    expect(prepared.command.payloadHash).toBe(completed?.contentHash);
   });
 
   it('preserves the first blocking diagnostic code when copy is rejected', async () => {

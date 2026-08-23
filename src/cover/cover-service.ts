@@ -1,6 +1,7 @@
 import type {
   CoverCandidate,
   CoverResolutionContext,
+  RenderAssetList,
   CoverSelection,
 } from './cover-types';
 
@@ -11,6 +12,15 @@ function candidate(source: CoverCandidate['source'], vaultPath: string): Readonl
 }
 
 export class CoverService {
+  firstImage(artifact: Readonly<RenderAssetList>): Readonly<CoverCandidate | null> {
+    const first = artifact.assets.find(asset => asset.kind === 'local-image' || asset.kind === 'remote-image');
+    if (first === undefined) return null;
+    return Object.freeze({
+      source: first.kind === 'remote-image' ? 'first-remote-image' : 'first-local-image',
+      vaultPath: first.source,
+    });
+  }
+
   resolve(
     selection: Readonly<CoverSelection>,
     context: Readonly<CoverResolutionContext>,

@@ -8,15 +8,17 @@ import {
 } from '../../src/ui/cover-picker-modal';
 
 const model: Readonly<CoverPickerModel> = Object.freeze({
-  localOptions: Object.freeze([
-    Object.freeze({ kind: 'article', label: '文章封面', sourcePath: 'assets/article.png', enabled: true }),
-    Object.freeze({ kind: 'first-image', label: '正文首图', sourcePath: 'assets/first.png', enabled: true }),
+  options: Object.freeze([
+    Object.freeze({ kind: 'first-image' as const, label: '文章首图（默认）', sourcePath: 'assets/first.png', enabled: true }),
+    Object.freeze({ kind: 'upload' as const, label: '上传本地图片', sourcePath: null, enabled: true }),
+    Object.freeze({ kind: 'ai' as const, label: '智能生成封面', sourcePath: null, enabled: true }),
   ]),
   aiEnabled: true,
   aiDisabledReason: null,
 });
 const prepared = Object.freeze({
-  source: 'first-local-image' as const,
+  source: 'dynamic-first-image' as const,
+  persistence: 'SET_EXPLICIT_COVER' as const,
   notePath: 'article.md',
   contextHash: 'CONTEXT_HASH',
   vaultPath: '.wechat-workbench/covers/article/cover-12345678.png',
@@ -26,9 +28,57 @@ const prepared = Object.freeze({
 });
 
 describe('cover picker session', () => {
+  it('renders exactly the three approved sources and opens a native file picker', async () => {
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
+      generateAi: vi.fn(),
+      confirm: vi.fn(),
+    });
+    const modal = new CoverPickerModal({} as never, session);
+    modal.open();
+    document.body.append(modal.contentEl);
+
+    expect(modal.contentEl.textContent).toContain('文章首图（默认）');
+    expect(modal.contentEl.textContent).toContain('上传本地图片');
+    expect(modal.contentEl.textContent).toContain('智能生成封面');
+    expect(modal.contentEl.querySelectorAll('.wechat-workbench__cover-options button')).toHaveLength(1);
+    expect(modal.contentEl.querySelector<HTMLInputElement>('input[type="file"]')).toMatchObject({
+      accept: 'image/png,image/jpeg,image/webp',
+      multiple: false,
+    });
+    expect(modal.contentEl.querySelector('input[type="text"]')).toBeNull();
+    expect(modal.contentEl.textContent).not.toContain('Vault 内图片路径');
+  });
+
+  it('keeps the native file input mounted after opening the system picker', async () => {
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
+      generateAi: vi.fn(),
+      confirm: vi.fn(),
+    });
+    const modal = new CoverPickerModal({} as never, session);
+    modal.open();
+    document.body.append(modal.contentEl);
+
+    const input = modal.contentEl.querySelector<HTMLInputElement>('input[type="file"]');
+    const choose = [...modal.contentEl.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === '使用本地图片');
+    expect(input).not.toBeNull();
+    expect(choose).not.toBeUndefined();
+    const nativeClick = vi.spyOn(input!, 'click').mockImplementation(() => undefined);
+
+    choose!.click();
+
+    expect(nativeClick).toHaveBeenCalledOnce();
+    expect(input!.isConnected).toBe(true);
+  });
+
   it('keeps local options available when AI generation fails', async () => {
     const session = new CoverPickerSession(model, {
-      prepareLocal: vi.fn(async () => prepared),
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
       generateAi: vi.fn(async () => { throw new Error('provider unavailable'); }),
       confirm: vi.fn(async () => undefined),
     });
@@ -45,7 +95,8 @@ describe('cover picker session', () => {
   it('does not confirm an unselected or failed generated cover', async () => {
     const confirm = vi.fn(async () => undefined);
     const session = new CoverPickerSession(model, {
-      prepareLocal: vi.fn(async () => prepared),
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
       generateAi: vi.fn(async () => { throw new Error('provider unavailable'); }),
       confirm,
     });
@@ -61,7 +112,8 @@ describe('cover picker session', () => {
   it('confirms only the prepared crop selected by the user', async () => {
     const confirm = vi.fn(async () => undefined);
     const session = new CoverPickerSession(model, {
-      prepareLocal: vi.fn(async () => prepared), generateAi: vi.fn(), confirm,
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared), generateAi: vi.fn(), confirm,
     });
 
     await session.selectLocal('first-image');
@@ -72,7 +124,8 @@ describe('cover picker session', () => {
 
   it('shows the prepared cover without exposing the internal vault path', async () => {
     const session = new CoverPickerSession(model, {
-      prepareLocal: vi.fn(async () => prepared),
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
       generateAi: vi.fn(),
       confirm: vi.fn(async () => undefined),
     });
@@ -89,7 +142,8 @@ describe('cover picker session', () => {
     let release: (value: typeof prepared) => void = () => undefined;
     const generateAi = vi.fn(() => new Promise<typeof prepared>(resolve => { release = resolve; }));
     const session = new CoverPickerSession(model, {
-      prepareLocal: vi.fn(async () => prepared), generateAi, confirm: vi.fn(),
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared), generateAi, confirm: vi.fn(),
     });
 
     const first = session.generateAi();

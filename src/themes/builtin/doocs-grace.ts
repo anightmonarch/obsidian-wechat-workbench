@@ -11,7 +11,7 @@ export const DOOCS_GRACE_MANIFEST: ThemeManifest = Object.freeze({
 
 export const DOOCS_GRACE_CSS = `${DOOCS_COMMON_CSS}
 .wechat-article h1 { padding: 0.5em 1em; margin: 2em auto 1em; color: #333333; border-bottom: 2px solid #0F4C81; font-size: 1.4em; font-weight: bold; text-align: center; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1); }
-.wechat-article h2 { padding: 0.3em 1em; margin: 4em auto 2em; color: #ffffff; background: #0F4C81; border-radius: 8px; font-size: 1.3em; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+.wechat-article h2 { padding: 0.3em 1em; margin: 2em auto 1em; color: #ffffff; background: #0F4C81; border-radius: 8px; font-size: 1.3em; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
 .wechat-article h3 { padding: 0 0 0 12px; margin: 2em 8px 0.75em 0; border-left: 4px solid #0F4C81; border-bottom: 1px dashed #0F4C81; font-size: 1.2em; }
 .wechat-article h4 { margin: 2em 8px 0.5em; color: #0F4C81; font-size: 1.1em; }
 .wechat-article h5, .wechat-article h6 { color: #0F4C81; font-size: 1em; }

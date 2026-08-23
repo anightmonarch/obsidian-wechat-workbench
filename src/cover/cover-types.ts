@@ -5,7 +5,12 @@ import type { DefaultCoverStrategy } from '../settings/model';
 export type CoverCandidateSource =
   | 'frontmatter-cover'
   | 'first-local-image'
+  | 'first-remote-image'
   | 'configured-default';
+
+export interface RenderAssetList {
+  assets: Readonly<RenderArtifact['assets']>;
+}
 
 export interface CoverSelection {
   strategy: DefaultCoverStrategy;

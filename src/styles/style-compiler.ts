@@ -65,7 +65,8 @@ ${headingCss}`;
 
 function structuralCss(config: Readonly<ArticleStyleConfig>): string {
   const macCss = config.macCodeBlock
-    ? `.wechat-article pre.code-window { padding-top: 1.8em; position: relative; }
+    ? `.wechat-article pre.code-window { position: relative; padding: 0; }
+.wechat-article pre.code-window > code { display: block; padding: 2.25em 1em 1em; }
 .wechat-article pre.code-window .code-window-dots { position: absolute; top: 0.7em; left: 0.9em; display: inline-flex; gap: 0.35em; }
 .wechat-article pre.code-window .code-window-dot { display: block; width: 0.55em; height: 0.55em; border-radius: 50%; }
 .wechat-article pre.code-window .code-window-dot--red { background: #ff5f57; }
@@ -73,14 +74,21 @@ function structuralCss(config: Readonly<ArticleStyleConfig>): string {
 .wechat-article pre.code-window .code-window-dot--green { background: #28c840; }`
     : '';
   const lineNumberCss = config.showCodeLineNumbers
-    ? `.wechat-article pre .code-line { display: flex; min-height: 1.5em; }
+    ? `.wechat-article pre .code-line { display: flex; align-items: baseline; min-height: 1.5em; line-height: 1.5; }
 .wechat-article pre .code-line-number { flex: 0 0 2.5em; margin-right: 1em; color: #8892a0; text-align: right; user-select: none; }
 .wechat-article pre .code-line-content { flex: 1 1 auto; min-width: 0; }`
     : '';
   return `${macCss}
 ${lineNumberCss}
 .wechat-article figure.image-figure { margin: 1.5em 8px; }
-.wechat-article figcaption.image-caption { margin-top: 0.45em; color: #777777; font-size: 0.8em; text-align: center; }`;
+.wechat-article figcaption.image-caption { margin-top: 0.45em; color: #777777; font-size: 0.8em; text-align: center; }
+.wechat-article blockquote.reading-summary { margin: 1em 0; padding: 0.85em 1em; border-left: 4px solid ${config.primaryColor}; background: #f4f7fb; }
+.wechat-article blockquote.reading-summary > p { margin: 0; }
+.wechat-article section.external-link-references { margin-top: 2em; padding-top: 1em; border-top: 1px solid #d9dfe7; font-size: 0.9em; }
+.wechat-article section.external-link-references h4 { margin: 0 0 0.5em; }
+.wechat-article section.external-link-references ol { margin: 0; padding-left: 1.5em; }
+.wechat-article section.external-link-references a { overflow-wrap: anywhere; }
+.wechat-article sup.external-link-reference { margin-left: 0.15em; color: ${config.primaryColor}; font-size: 0.75em; }`;
 }
 
 function canonicalConfig(config: Readonly<ArticleStyleConfig>): string {
