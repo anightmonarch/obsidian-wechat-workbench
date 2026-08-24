@@ -199,11 +199,15 @@
 }
 
 .wechat-workbench__publish-settings {
+  min-width: 0;
   padding: var(--size-4-4);
   background: var(--background-secondary);
 }
 
 .wechat-workbench__settings-section {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   max-width: 42rem;
   margin: 0 auto var(--size-4-4);
   padding: var(--size-4-4);
@@ -242,6 +246,10 @@
 
 .wechat-workbench__setting-field {
   display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: var(--size-4-2);
   padding: var(--size-4-2) 0;
   color: var(--text-muted);
@@ -251,6 +259,9 @@
 .wechat-workbench__setting-field input,
 .wechat-workbench__setting-field textarea {
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   color: var(--text-normal);
   background: var(--background-primary-alt);
 }
@@ -279,6 +290,8 @@
 
 .wechat-workbench__ai-candidates {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--size-4-2);
@@ -292,9 +305,11 @@
 }
 
 .wechat-workbench__ai-candidate {
+  min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: left;
+  white-space: normal;
 }
 
 .wechat-workbench__settings-save-status {

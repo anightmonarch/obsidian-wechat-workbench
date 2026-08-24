@@ -8,7 +8,7 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 
 | Module | Current state | Direct evidence |
 | --- | --- | --- |
-| Build, typecheck, tests | PASS (automated) | `npm test`: 86 files / 439 tests passed |
+| Build, typecheck, tests | PASS (automated) | `npm test`: 86 files / 440 tests passed |
 | Lint, release assets, secret scan | PASS (automated) | lint 0 errors / 19 existing warnings; release verifier and secret scan pass for 255 files |
 | Plugin sync and load | PASS | `sync:test-vault` copied the three runtime assets; repository and isolated-Vault `main.js` have the same SHA-256, then Obsidian was fully restarted into the isolated Vault |
 | Workbench shell and tabs | PASS | Real Obsidian preview/settings pages and hidden prototype controls observed |
@@ -23,6 +23,7 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 | AI model discovery | NOT APPLICABLE | Deliberately removed from the approved first-version scope; no model-list Endpoint or remote discovery request is part of the implementation |
 | AI text generation with Agnes | PASS (real UI) | Obsidian 1.13.7 generated 3 title candidates, adopted one, generated 1 digest candidate, adopted it, and the isolated note Frontmatter reflected both values |
 | AI metadata autosave | PASS (real UI) | Author field showed `待保存` immediately, then `已保存` after debounce while focus stayed on the same input; the test value was restored and persisted |
+| AI candidate adoption and narrow layout | PASS (real UI + automated) | In a restarted Obsidian test Vault, adopting a title candidate immediately populated the field and left no title/digest candidate container after autosave. A 120-character no-whitespace digest wrapped inside the publish-settings panel without panel-width growth or a horizontal scrollbar. Automated coverage also discards a late regeneration result after adoption |
 | AI intelligent-cover generation | PASS (real UI) | After splitting the 35-second text timeout from a 90-second image timeout and restarting Obsidian, Agnes returned a real 2.35:1 candidate in 25 seconds. The candidate did not write a file or change Frontmatter before confirmation; confirmation wrote `cover-283a1bdd.png` and updated `cover` |
 | AI supplemental prompt / regenerate / cancel | PASS (real UI + automated) | Real UI retained the supplemental prompt through the confirmation request, exposed `重新生成` after a candidate, cancellation left the adopted cover unchanged, and `文章首图（默认）` then cleared the explicit `cover`. Focused tests cover session-only prompt reuse and cancellation failure handling |
 | Agnes provider contract probe | PASS (service only) | 2026-08-24 direct requests: text HTTP 200 with 3 unique titles + 1 digest; image HTTP 200 with HTTPS PNG URL, CDN HTTP 200, PNG signature and 4,736,610-byte response. This does not replace Obsidian UI acceptance |

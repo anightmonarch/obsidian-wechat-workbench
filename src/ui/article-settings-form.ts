@@ -71,6 +71,8 @@ export class ArticleSettingsForm {
   private hasPendingEdit = false;
   private titleOptions: readonly string[] = Object.freeze([]);
   private digestOption: string | null = null;
+  private titleGeneration = 0;
+  private digestGeneration = 0;
   private latestState: Readonly<ArticleSettingsFormState>;
   private latestActions: Readonly<ArticleSettingsFormActions>;
 
@@ -210,15 +212,19 @@ export class ArticleSettingsForm {
   private async generateTitles(): Promise<void> {
     const generate = this.latestActions.generateTitles;
     if (generate === undefined) return;
+    const generation = ++this.titleGeneration;
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
     if (button !== null) button.disabled = true;
     try {
-      this.titleOptions = Object.freeze((await generate(this.draftValues())).slice(0, 3));
+      const values = await generate(this.draftValues());
+      if (generation !== this.titleGeneration) return;
+      this.titleOptions = Object.freeze(values.slice(0, 3));
       this.renderTitleCandidates();
     } catch {
+      if (generation !== this.titleGeneration) return;
       this.titleCandidates.textContent = '生成失败，请检查文本服务配置';
     } finally {
-      if (button !== null) button.disabled = false;
+      if (generation === this.titleGeneration && button !== null) button.disabled = false;
     }
   }
 
@@ -231,6 +237,9 @@ export class ArticleSettingsForm {
       this.titleCandidates.append(candidateButton(
         value, 'settings-title-candidate', 'titleCandidate', () => {
           this.title.value = value;
+          this.titleGeneration += 1;
+          this.titleOptions = Object.freeze([]);
+          this.renderTitleCandidates();
           this.title.dispatchEvent(new Event('input', { bubbles: true }));
         },
       ));
@@ -245,15 +254,19 @@ export class ArticleSettingsForm {
   private async generateDigest(): Promise<void> {
     const generate = this.latestActions.generateDigest;
     if (generate === undefined) return;
+    const generation = ++this.digestGeneration;
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]');
     if (button !== null) button.disabled = true;
     try {
-      this.digestOption = (await generate(this.draftValues())).trim();
+      const value = await generate(this.draftValues());
+      if (generation !== this.digestGeneration) return;
+      this.digestOption = value.trim();
       this.renderDigestCandidate();
     } catch {
+      if (generation !== this.digestGeneration) return;
       this.digestCandidate.textContent = '生成失败，请检查文本服务配置';
     } finally {
-      if (button !== null) button.disabled = false;
+      if (generation === this.digestGeneration && button !== null) button.disabled = false;
     }
   }
 
@@ -264,6 +277,9 @@ export class ArticleSettingsForm {
     this.digestCandidate.append(candidateButton(
       this.digestOption, 'settings-digest-candidate', 'digestCandidate', () => {
         this.digest.value = this.digestOption ?? '';
+        this.digestGeneration += 1;
+        this.digestOption = null;
+        this.renderDigestCandidate();
         this.digest.dispatchEvent(new Event('input', { bubbles: true }));
       },
     ));

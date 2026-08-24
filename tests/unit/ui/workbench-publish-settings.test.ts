@@ -114,8 +114,9 @@ describe('publish settings', () => {
     await Promise.resolve();
     host.querySelector<HTMLButtonElement>('[data-title-candidate="标题二"]')?.click();
     expect(host.querySelector<HTMLInputElement>('[data-testid="settings-title"]')?.value).toBe('标题二');
+    expect(host.querySelector('[data-testid="settings-title-candidates"]')?.textContent).toBe('');
 
-    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-regenerate"]')?.click();
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
     await Promise.resolve();
     await Promise.resolve();
     expect(host.querySelector('[data-title-candidate="标题一"]')).toBeNull();
@@ -126,9 +127,45 @@ describe('publish settings', () => {
     await Promise.resolve();
     host.querySelector<HTMLButtonElement>('[data-digest-candidate]')?.click();
     expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value).toBe('摘要候选');
+    expect(host.querySelector('[data-testid="settings-digest-candidates"]')?.textContent).toBe('');
 
     await vi.advanceTimersByTimeAsync(500);
     expect(saveArticle).toHaveBeenCalled();
+  });
+
+  it('keeps adopted candidates hidden when an earlier regeneration resolves late', async () => {
+    const host = document.createElement('section');
+    let resolveTitle: ((value: readonly string[]) => void) | undefined;
+    let resolveDigest: ((value: string) => void) | undefined;
+    const generateTitles = vi.fn()
+      .mockResolvedValueOnce(['标题一', '标题二', '标题三'] as const)
+      .mockImplementationOnce(() => new Promise<readonly string[]>(resolve => { resolveTitle = resolve; }));
+    const generateDigest = vi.fn()
+      .mockResolvedValueOnce('摘要一')
+      .mockImplementationOnce(() => new Promise<string>(resolve => { resolveDigest = resolve; }));
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), generateTitles, generateDigest,
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-regenerate"]')?.click();
+    host.querySelector<HTMLButtonElement>('[data-title-candidate="标题一"]')?.click();
+    resolveTitle?.(['迟到标题一', '迟到标题二', '迟到标题三']);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.querySelector('[data-testid="settings-title-candidates"]')?.textContent).toBe('');
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-regenerate"]')?.click();
+    host.querySelector<HTMLButtonElement>('[data-digest-candidate]')?.click();
+    resolveDigest?.('迟到摘要');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.querySelector('[data-testid="settings-digest-candidates"]')?.textContent).toBe('');
   });
 
   it('edits explicit frontmatter values without materializing inherited defaults', () => {

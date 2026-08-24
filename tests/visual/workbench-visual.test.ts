@@ -12,6 +12,10 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench__tabs button\s*\{[^}]*font-size:\s*var\(--font-ui-medium\)/su);
     expect(css).toMatch(/wechat-workbench__settings-section h2\s*\{[^}]*font-size:\s*var\(--font-ui-large\)/su);
     expect(css).toMatch(/wechat-workbench__setting-field\s*\{[^}]*font-size:\s*var\(--font-ui-medium\)/su);
+    expect(css).toMatch(/wechat-workbench__setting-field\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/su);
+    expect(css).toMatch(/wechat-workbench__setting-field input,\s*\.wechat-workbench__setting-field textarea\s*\{[^}]*box-sizing:\s*border-box[^}]*min-width:\s*0[^}]*max-width:\s*100%/su);
+    expect(css).toMatch(/wechat-workbench__ai-candidates\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/su);
+    expect(css).toMatch(/wechat-workbench__ai-candidate\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/su);
     expect(css).toMatch(/wechat-workbench__action-bar\s*\{[^}]*display:\s*flex/su);
     expect(css).toMatch(/wechat-workbench__style-trigger\s*\{[^}]*margin-left:\s*auto/su);
     expect(css).toMatch(/wechat-workbench__style-trigger\s*\{[^}]*min-width:\s*4rem/su);
