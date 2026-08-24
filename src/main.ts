@@ -8,6 +8,10 @@ import { CoverStorage } from './cover/cover-storage';
 import { CoverWorkflow } from './cover/cover-workflow';
 import { ElectronImagePort } from './cover/electron-image-port';
 import { OpenAiImageGenerator } from './cover/openai-image-generator';
+import {
+  IMAGE_PROVIDER_TIMEOUT_MS,
+  TEXT_PROVIDER_TIMEOUT_MS,
+} from './ai/provider-timeout-policy';
 import { ObsidianVaultPorts, ObsidianWorkbenchSource } from './obsidian/workbench-adapters';
 import { PreflightEngine } from './preflight/preflight-engine';
 import { AssetCache, type AssetCacheDataPort } from './publish/asset-cache';
@@ -159,7 +163,14 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       new ElectronClipboardPort(),
     );
     const wechatHttp = new TimeoutHttpTransport(new ObsidianHttpTransport(), 35_000);
-    const providerHttp = new TimeoutHttpTransport(new PinnedNodeHttpTransport(), 35_000);
+    const textProviderHttp = new TimeoutHttpTransport(
+      new PinnedNodeHttpTransport(),
+      TEXT_PROVIDER_TIMEOUT_MS,
+    );
+    const imageProviderHttp = new TimeoutHttpTransport(
+      new PinnedNodeHttpTransport(),
+      IMAGE_PROVIDER_TIMEOUT_MS,
+    );
     const tokens = new TokenService(secretStore, {
       get appId() { return currentSettings().appId; },
       get accessTokenExpiresAt() { return currentSettings().accessTokenExpiresAt; },
@@ -184,7 +195,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     const articleText = new ArticleTextGenerationService(
       { get: () => ({ textApiEndpoint: currentSettings().textApiEndpoint, textApiModel: currentSettings().textApiModel }) },
       { get: () => secretStore.get('textApiKey') },
-      new OpenAiTextGenerator(providerHttp),
+      new OpenAiTextGenerator(textProviderHttp),
     );
     const mediaCacheData: AssetCacheDataPort = {
       get entries() { return currentSettings().mediaCache; },
@@ -227,7 +238,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       vaultPorts,
       new ElectronImagePort(),
       new CoverStorage(vaultPorts),
-      new OpenAiImageGenerator(providerHttp, remoteImages),
+      new OpenAiImageGenerator(imageProviderHttp, remoteImages),
       vaultPorts,
       {
         get: () => ({
