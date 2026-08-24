@@ -22,6 +22,24 @@ export class CoverPickerError extends Error {
   }
 }
 
+function aiFailureMessage(error: unknown): string {
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    && typeof error.code === 'string' ? error.code : null;
+  switch (code) {
+    case 'IMAGE_PROVIDER_REJECTED':
+      return '图片服务拒绝请求，请检查完整 Endpoint、模型名称或服务商要求。';
+    case 'IMAGE_PROVIDER_TIMEOUT':
+      return '图片服务响应超时，请稍后重试。';
+    case 'IMAGE_PROVIDER_OUTPUT_INVALID':
+      return '图片服务返回格式不支持，请确认服务支持 url 或 b64_json 图像输出。';
+    case 'IMAGE_PROVIDER_MODEL_MISSING':
+    case 'IMAGE_PROVIDER_KEY_MISSING':
+      return '图片服务配置不完整，请补充模型名称和 API Key。';
+    default:
+      return '图片服务请求失败，请检查网络或 Endpoint 后重试。';
+  }
+}
+
 export class CoverPickerSession {
   readonly options: readonly Readonly<CoverPickerOption>[];
   selected: Readonly<PreparedCover> | null = null;
@@ -67,7 +85,7 @@ export class CoverPickerSession {
     } catch (error) {
       if (error instanceof CoverPickerError && error.code === 'AI_COVER_CANCELLED') return;
       this.errorCode = 'AI_COVER_GENERATION_FAILED';
-      this.errorMessage = '智能封面生成失败，请检查图片服务设置后再试。';
+      this.errorMessage = aiFailureMessage(error);
     } finally {
       this.busy = false;
     }

@@ -89,7 +89,7 @@ describe('cover picker session', () => {
 
     expect(session.options).toContainEqual(expect.objectContaining({ kind: 'first-image', enabled: true }));
     expect(session.errorCode).toBe('AI_COVER_GENERATION_FAILED');
-    expect(session.errorMessage).toBe('智能封面生成失败，请检查图片服务设置后再试。');
+    expect(session.errorMessage).toBe('图片服务请求失败，请检查网络或 Endpoint 后重试。');
     expect(session.errorMessage).not.toContain('provider unavailable');
     expect(session.selected).toBeNull();
   });

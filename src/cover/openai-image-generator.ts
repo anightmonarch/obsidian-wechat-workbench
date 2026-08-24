@@ -123,9 +123,6 @@ export class OpenAiImageGenerator implements CoverGenerator {
         json: {
           model: request.model.trim(),
           prompt: prompt(request),
-          size: '2K',
-          ratio: '16:9',
-          return_base64: true,
         },
       }, request.signal);
     } catch (error) {
