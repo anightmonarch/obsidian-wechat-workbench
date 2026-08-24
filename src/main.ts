@@ -276,7 +276,6 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       disclosure: (artifact: Readonly<RenderArtifact>, supplementalPrompt = '') => buildAiCoverDisclosure({
         title: artifact.metadata.title,
         digest: artifact.metadata.digest,
-        plainText: artifact.plainText,
         supplementalPrompt,
       }, {
         imageApiProtocol: this.pluginSettings.imageApiProtocol,

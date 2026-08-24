@@ -278,7 +278,6 @@ export class CoverWorkflow {
       apiKey,
       title: artifact.metadata.title,
       digest: artifact.metadata.digest,
-      bodyExcerpt: artifact.plainText,
       supplementalPrompt,
       ...(signal === undefined ? {} : { signal }),
     });

@@ -5,7 +5,6 @@ import type { AiProviderProtocol } from '../cover/ai-provider';
 export interface AiCoverSource {
   title: string;
   digest: string;
-  plainText: string;
   supplementalPrompt?: string;
 }
 
@@ -20,20 +19,8 @@ export interface AiCoverDisclosure {
   endpoint: string;
   model: string;
   sentFields: readonly string[];
-  payload: Readonly<{ title: string; digest: string; bodyExcerpt: string; supplementalPrompt: string }>;
+  payload: Readonly<{ title: string; digest: string; supplementalPrompt: string }>;
   costNotice: string;
-}
-
-function excerpt(value: string): string {
-  const sanitized = [...value].map(character => {
-    const code = character.codePointAt(0) ?? 0;
-    return code <= 8 || code === 11 || code === 12 || code >= 14 && code <= 31 || code === 127
-      ? ' '
-      : character;
-  }).join('').trim();
-  return [...sanitized]
-    .slice(0, 3_000)
-    .join('');
 }
 
 function supplemental(value: string | undefined): string {
@@ -56,13 +43,12 @@ export function buildAiCoverDisclosure(
     endpoint: settings.imageApiEndpoint.trim(),
     model: settings.imageApiModel.trim(),
     sentFields: Object.freeze([
-      'title', 'digest', 'bodyExcerpt',
+      'title', 'digest',
       ...(supplementalPrompt.length > 0 ? ['supplementalPrompt'] : []),
     ]),
     payload: Object.freeze({
       title: source.title,
       digest: source.digest,
-      bodyExcerpt: excerpt(source.plainText),
       supplementalPrompt,
     }),
     costNotice: '此次请求将发送给第三方图片服务，可能产生第三方费用。',
@@ -88,7 +74,6 @@ export class AiCoverConfirmationModal extends Modal {
       ['模型', this.disclosure.model],
       ['标题', this.disclosure.payload.title],
       ['摘要', this.disclosure.payload.digest || '空'],
-      ['正文摘录', this.disclosure.payload.bodyExcerpt],
     ];
     for (const [label, value] of rows) {
       const row = createEl('p');

@@ -6,11 +6,10 @@ import {
 } from '../../../src/ui/ai-cover-confirmation';
 
 describe('AI cover disclosure', () => {
-  it('shows exactly what will be sent and excludes local/account context', () => {
+  it('discloses only title and digest, never the article body', () => {
     const disclosure = buildAiCoverDisclosure({
       title: 'Article title',
       digest: 'Article digest',
-      plainText: `Body text ${'字'.repeat(4_000)}`,
     }, {
       imageApiProtocol: 'openai-compatible',
       imageApiEndpoint: 'https://images.example.test/v1/images/generations',
@@ -21,17 +20,17 @@ describe('AI cover disclosure', () => {
       protocol: 'OpenAI 兼容',
       endpoint: 'https://images.example.test/v1/images/generations',
       model: 'synthetic-image-model',
-      sentFields: ['title', 'digest', 'bodyExcerpt'],
+      sentFields: ['title', 'digest'],
       payload: { supplementalPrompt: '' },
     });
-    expect([...disclosure.payload.bodyExcerpt]).toHaveLength(3_000);
+    expect(JSON.stringify(disclosure)).not.toContain('bodyExcerpt');
     expect(JSON.stringify(disclosure)).not.toMatch(/vaultPath|wechat-account|appid|appsecret/iu);
   });
 
   it('requires an explicit modal action before invoking generation', () => {
     const confirm = vi.fn();
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
-      title: 'Title', digest: '', plainText: 'Body',
+      title: 'Title', digest: '',
     }, {
       imageApiProtocol: 'openai-compatible',
       imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
@@ -51,7 +50,7 @@ describe('AI cover disclosure', () => {
   it('keeps the optional prompt in the modal session and passes it only on confirmation', () => {
     const confirm = vi.fn();
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
-      title: 'Title', digest: '', plainText: 'Body', supplementalPrompt: '暖色、留白、编辑感',
+      title: 'Title', digest: '', supplementalPrompt: '暖色、留白、编辑感',
     }, {
       imageApiProtocol: 'openai-compatible',
       imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
@@ -69,7 +68,7 @@ describe('AI cover disclosure', () => {
 
   it('discloses the supplemental field only when it will be sent', () => {
     const disclosure = buildAiCoverDisclosure({
-      title: 'Title', digest: '', plainText: 'Body', supplementalPrompt: '蓝色调',
+      title: 'Title', digest: '', supplementalPrompt: '蓝色调',
     }, {
       imageApiProtocol: 'openai-compatible',
       imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',

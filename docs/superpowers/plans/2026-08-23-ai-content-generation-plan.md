@@ -19,6 +19,10 @@
 
 If this plan conflicts with the approved design, stop and update the plan before changing production code.
 
+### 2026-08-24 implementation amendment
+
+AI cover generation sends only the current title, digest, and optional modal-only supplemental prompt. It does not send headings or a body excerpt. This supersedes earlier cover-specific examples in this plan that included `bodyExcerpt`.
+
 ## Global Constraints
 
 - Desktop only; keep `manifest.json.isDesktopOnly: true` and `minAppVersion >= 1.11.4`.

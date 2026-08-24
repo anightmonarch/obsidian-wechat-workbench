@@ -146,7 +146,7 @@ describe('CoverWorkflow', () => {
     const generated = await current.workflow.prepareAi(file, artifact);
     expect(generated.source).toBe('ai-generated');
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Article', bodyExcerpt: 'Body', apiKey: credential,
+      title: 'Article', digest: '', apiKey: credential,
       endpoint: 'https://images.example.test/v1/images/generations',
       supplementalPrompt: '',
     }));

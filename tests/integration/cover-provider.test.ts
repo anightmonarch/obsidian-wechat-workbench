@@ -6,7 +6,7 @@ import type { HttpTransport } from '../../src/wechat/http-transport';
 const request = Object.freeze({
   protocol: 'openai-compatible' as const,
   endpoint: 'https://images.example.test/v1/images/generations', model: 'synthetic-image-model', apiKey: 'SYNTHETIC_KEY',
-  title: 'Title', digest: '', bodyExcerpt: 'Body', supplementalPrompt: '',
+  title: 'Title', digest: '', supplementalPrompt: '',
 });
 
 describe('OpenAI-compatible cover provider boundary', () => {
