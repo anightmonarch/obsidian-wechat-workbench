@@ -171,7 +171,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
 
   constructor(
     leaf: WorkspaceLeaf,
-    previewAssets?: PreviewAssetResolver,
+    private readonly previewAssets?: PreviewAssetResolver,
     private readonly openSettings: () => void = () => undefined,
     private readonly openConsole: () => Promise<void> = () => openWeChatOfficialConsole(),
   ) {
@@ -381,6 +381,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
         ?? Promise.reject(new Error('文本生成服务不可用。')),
       generateDigest: draft => this.controller?.generateDigest?.(draft)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
+      resolveCoverPreview: asset => this.previewAssets?.resolve(asset) ?? Promise.resolve(null),
     });
   }
 

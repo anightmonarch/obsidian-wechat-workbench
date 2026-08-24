@@ -71,6 +71,10 @@ export class ArticleSettingsForm {
   private hasPendingEdit = false;
   private titleOptions: readonly string[] = Object.freeze([]);
   private digestOption: string | null = null;
+  private titleLoading = false;
+  private digestLoading = false;
+  private titleError: string | null = null;
+  private digestError: string | null = null;
   private titleGeneration = 0;
   private digestGeneration = 0;
   private latestState: Readonly<ArticleSettingsFormState>;
@@ -211,18 +215,24 @@ export class ArticleSettingsForm {
 
   private async generateTitles(): Promise<void> {
     const generate = this.latestActions.generateTitles;
-    if (generate === undefined) return;
+    if (generate === undefined || this.titleLoading) return;
     const generation = ++this.titleGeneration;
+    this.titleLoading = true;
+    this.titleError = null;
+    this.renderTitleCandidates();
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
     if (button !== null) button.disabled = true;
     try {
       const values = await generate(this.draftValues());
       if (generation !== this.titleGeneration) return;
       this.titleOptions = Object.freeze(values.slice(0, 3));
+      this.titleLoading = false;
       this.renderTitleCandidates();
     } catch {
       if (generation !== this.titleGeneration) return;
-      this.titleCandidates.textContent = '生成失败，请检查文本服务配置';
+      this.titleLoading = false;
+      this.titleError = '生成失败，请检查文本服务配置';
+      this.renderTitleCandidates();
     } finally {
       if (generation === this.titleGeneration && button !== null) button.disabled = false;
     }
@@ -230,41 +240,62 @@ export class ArticleSettingsForm {
 
   private renderTitleCandidates(): void {
     this.titleCandidates.replaceChildren();
+    if (!this.titleLoading && this.titleOptions.length === 0 && this.titleError === null) return;
+    this.titleCandidates.append(this.candidateHeader(
+      'AI 标题候选 · 不会自动覆盖',
+      'settings-title-regenerate',
+      'settings-title-candidates-close',
+      () => { void this.generateTitles(); },
+      () => {
+        this.titleGeneration += 1;
+        this.titleOptions = Object.freeze([]);
+        this.titleLoading = false;
+        this.titleError = null;
+        this.renderTitleCandidates();
+      },
+    ));
+    if (this.titleLoading) {
+      this.titleCandidates.append(createSpan({ text: '正在根据文章内容生成 3 个标题…' }));
+    }
+    if (this.titleError !== null) {
+      this.titleCandidates.append(createSpan({ cls: 'wechat-workbench__error', text: this.titleError }));
+    }
     if (this.titleOptions.length === 0) return;
-    const label = createSpan({ cls: 'wechat-workbench__ai-candidate-label', text: '候选标题' });
-    this.titleCandidates.append(label);
     for (const value of this.titleOptions) {
       this.titleCandidates.append(candidateButton(
         value, 'settings-title-candidate', 'titleCandidate', () => {
           this.title.value = value;
           this.titleGeneration += 1;
           this.titleOptions = Object.freeze([]);
+          this.titleLoading = false;
+          this.titleError = null;
           this.renderTitleCandidates();
           this.title.dispatchEvent(new Event('input', { bubbles: true }));
         },
       ));
     }
-    const regenerate = createEl('button', { text: '重新生成' });
-    regenerate.type = 'button';
-    regenerate.dataset.testid = 'settings-title-regenerate';
-    regenerate.addEventListener('click', () => void this.generateTitles());
-    this.titleCandidates.append(regenerate);
   }
 
   private async generateDigest(): Promise<void> {
     const generate = this.latestActions.generateDigest;
-    if (generate === undefined) return;
+    if (generate === undefined || this.digestLoading) return;
     const generation = ++this.digestGeneration;
+    this.digestLoading = true;
+    this.digestError = null;
+    this.renderDigestCandidate();
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]');
     if (button !== null) button.disabled = true;
     try {
       const value = await generate(this.draftValues());
       if (generation !== this.digestGeneration) return;
       this.digestOption = value.trim();
+      this.digestLoading = false;
       this.renderDigestCandidate();
     } catch {
       if (generation !== this.digestGeneration) return;
-      this.digestCandidate.textContent = '生成失败，请检查文本服务配置';
+      this.digestLoading = false;
+      this.digestError = '生成失败，请检查文本服务配置';
+      this.renderDigestCandidate();
     } finally {
       if (generation === this.digestGeneration && button !== null) button.disabled = false;
     }
@@ -272,22 +303,65 @@ export class ArticleSettingsForm {
 
   private renderDigestCandidate(): void {
     this.digestCandidate.replaceChildren();
+    if (!this.digestLoading && (this.digestOption === null || this.digestOption.length === 0) && this.digestError === null) return;
+    this.digestCandidate.append(this.candidateHeader(
+      'AI 摘要候选 · 不会自动覆盖',
+      'settings-digest-regenerate',
+      'settings-digest-candidates-close',
+      () => { void this.generateDigest(); },
+      () => {
+        this.digestGeneration += 1;
+        this.digestOption = null;
+        this.digestLoading = false;
+        this.digestError = null;
+        this.renderDigestCandidate();
+      },
+    ));
+    if (this.digestLoading) {
+      this.digestCandidate.append(createSpan({ text: '正在根据文章内容生成摘要…' }));
+    }
+    if (this.digestError !== null) {
+      this.digestCandidate.append(createSpan({ cls: 'wechat-workbench__error', text: this.digestError }));
+    }
     if (this.digestOption === null || this.digestOption.length === 0) return;
-    this.digestCandidate.append(createSpan({ cls: 'wechat-workbench__ai-candidate-label', text: '候选摘要' }));
     this.digestCandidate.append(candidateButton(
       this.digestOption, 'settings-digest-candidate', 'digestCandidate', () => {
         this.digest.value = this.digestOption ?? '';
         this.digestGeneration += 1;
         this.digestOption = null;
+        this.digestLoading = false;
+        this.digestError = null;
         this.renderDigestCandidate();
         this.digest.dispatchEvent(new Event('input', { bubbles: true }));
       },
     ));
-    const regenerate = createEl('button', { text: '重新生成' });
-    regenerate.type = 'button';
-    regenerate.dataset.testid = 'settings-digest-regenerate';
-    regenerate.addEventListener('click', () => void this.generateDigest());
-    this.digestCandidate.append(regenerate);
+  }
+
+  private candidateHeader(
+    label: string,
+    regenerateTestId: string,
+    closeTestId: string,
+    regenerate: () => void,
+    close: () => void,
+  ): HTMLElement {
+    const header = createDiv('wechat-workbench__ai-candidates-head');
+    header.append(createEl('strong', { text: label }));
+    const actions = createDiv('wechat-workbench__ai-candidates-actions');
+    const regenerateButton = createEl('button', { text: '↻' });
+    regenerateButton.type = 'button';
+    regenerateButton.dataset.testid = regenerateTestId;
+    regenerateButton.setAttribute('aria-label', '重新生成');
+    regenerateButton.title = '重新生成';
+    regenerateButton.addEventListener('click', regenerate);
+    const closeButton = createEl('button', { text: '×' });
+    closeButton.type = 'button';
+    closeButton.dataset.testid = closeTestId;
+    closeButton.setAttribute('aria-label', '关闭候选');
+    closeButton.title = '关闭候选';
+    closeButton.addEventListener('click', close);
+    actions.append(regenerateButton, closeButton);
+    header.append(actions);
+    return header;
   }
 
   private draftValues(): Readonly<ArticleDraftValues> {

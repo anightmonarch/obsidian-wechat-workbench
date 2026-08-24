@@ -49,6 +49,8 @@ describe('cover picker session', () => {
     });
     expect(modal.contentEl.querySelector('input[type="text"]')).toBeNull();
     expect(modal.contentEl.textContent).not.toContain('Vault 内图片路径');
+    expect(modal.contentEl.querySelector('.wechat-workbench__cover-picker-grid')).not.toBeNull();
+    expect(modal.contentEl.querySelectorAll('.wechat-workbench__cover-source-card')).toHaveLength(3);
   });
 
   it('keeps the native file input mounted after opening the system picker', async () => {

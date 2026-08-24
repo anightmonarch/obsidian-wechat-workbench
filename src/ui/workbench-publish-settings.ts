@@ -1,10 +1,12 @@
 import { WECHAT_FRONTMATTER_FIELDS } from '../publish/frontmatter-fields';
 import { publishPayloadHash } from '../publish/publish-content';
+import type { AssetSlot } from '../domain/artifact';
 import type { WorkbenchRenderState } from './workbench-controller';
 import { ArticleSettingsForm, type ArticleSettingsFormActions } from './article-settings-form';
 
 export interface PublishSettingsActions extends ArticleSettingsFormActions {
   chooseCover(): void;
+  resolveCoverPreview?(asset: Readonly<AssetSlot>): Promise<string | null>;
 }
 
 const forms = new WeakMap<HTMLElement, ArticleSettingsForm>();
@@ -34,19 +36,32 @@ export function renderPublishSettings(
   cover.replaceChildren();
   const coverTitle = createEl('h2');
   coverTitle.textContent = '文章封面';
-  const coverValue = createEl('p');
+  const firstImage = state.artifact.assets.find(asset => asset.kind === 'local-image') ?? null;
+  const coverLayout = createDiv('wechat-workbench__cover-layout');
+  const thumbnail = createDiv('wechat-workbench__cover-thumb');
+  thumbnail.dataset.testid = 'settings-cover-thumbnail';
+  const coverMeta = createDiv('wechat-workbench__cover-meta');
+  const coverValue = createEl('strong');
   coverValue.textContent = state.artifact.metadata.cover === null
-    ? state.artifact.assets.some(asset => asset.kind === 'local-image' || asset.kind === 'remote-image')
-      ? '文章首图（默认）'
-      : '文章没有可用首图'
+    ? firstImage === null ? '文章中没有可用图片' : '自动使用文章首图'
     : '已选择封面';
   coverValue.dataset.testid = 'settings-cover-value';
+  const description = createEl('p', { text: state.artifact.metadata.cover === null
+    ? '正文图片变化时自动跟随；推荐尺寸 2.35:1'
+    : '当前使用显式封面；可随时恢复文章首图。' });
   const choose = createEl('button');
   choose.type = 'button';
   choose.textContent = '更换封面';
   choose.dataset.testid = 'settings-cover';
   choose.addEventListener('click', actions.chooseCover);
-  cover.append(coverTitle, coverValue, choose);
+  coverMeta.append(coverValue, description, choose);
+  coverLayout.append(thumbnail, coverMeta);
+  cover.append(coverTitle, coverLayout);
+  if (firstImage !== null && actions.resolveCoverPreview !== undefined) {
+    renderCoverPreview(thumbnail, firstImage, actions.resolveCoverPreview);
+  } else if (firstImage === null) {
+    thumbnail.append(createSpan({ text: '文章中没有可用图片' }));
+  }
 
   let statusSection = container.querySelector<HTMLElement>('[data-testid="settings-publish-status-section"]');
   if (statusSection === null) {
@@ -71,6 +86,32 @@ export function renderPublishSettings(
     ['同步状态', !associated ? '尚未同步' : hasUnsyncedChanges ? '有未同步修改' : '已同步'],
     ['最近同步', typeof syncedAt === 'string' && syncedAt.length > 0 ? syncedAt : '尚未同步'],
   ]);
+}
+
+function renderCoverPreview(
+  thumbnail: HTMLElement,
+  asset: Readonly<AssetSlot>,
+  resolve: (asset: Readonly<AssetSlot>) => Promise<string | null>,
+): void {
+  const requestId = `${asset.id}:${asset.contentHash ?? ''}`;
+  thumbnail.dataset.coverPreviewRequest = requestId;
+  thumbnail.replaceChildren(createSpan({ text: '正在加载首图…' }));
+  void resolve(asset).then(dataUrl => {
+    if (thumbnail.dataset.coverPreviewRequest !== requestId) return;
+    if (dataUrl === null) {
+      thumbnail.replaceChildren(createSpan({ text: '首图暂不可预览' }));
+      return;
+    }
+    const image = createEl('img');
+    image.dataset.testid = 'settings-cover-preview';
+    image.src = dataUrl;
+    image.alt = '文章首图预览';
+    thumbnail.replaceChildren(image);
+  }).catch(() => {
+    if (thumbnail.dataset.coverPreviewRequest === requestId) {
+      thumbnail.replaceChildren(createSpan({ text: '首图暂不可预览' }));
+    }
+  });
 }
 
 function appendSection(

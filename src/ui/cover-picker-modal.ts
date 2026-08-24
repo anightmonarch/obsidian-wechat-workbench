@@ -101,7 +101,8 @@ export class CoverPickerModal extends Modal {
   private render(): void {
     this.contentEl.replaceChildren();
     this.titleEl.textContent = '选择文章封面';
-    const sources = createDiv('wechat-workbench__cover-options');
+    const sources = createDiv('wechat-workbench__cover-options wechat-workbench__cover-source-card');
+    sources.append(createEl('strong', { text: '文章首图（默认）' }));
     for (const option of this.session.options) {
       if (option.kind === 'upload' || option.kind === 'ai') continue;
       const button = createEl('button', { text: option.label });
@@ -113,8 +114,8 @@ export class CoverPickerModal extends Modal {
     }
 
     const uploadOption = this.session.options.find(option => option.kind === 'upload');
-    const local = createDiv('wechat-workbench__cover-local');
-    if (uploadOption !== undefined) local.append(createEl('p', { text: uploadOption.label }));
+    const local = createDiv('wechat-workbench__cover-local wechat-workbench__cover-source-card');
+    local.append(createEl('strong', { text: uploadOption?.label ?? '上传本地图片' }));
     const input = createEl('input');
     input.type = 'file';
     input.accept = 'image/png,image/jpeg,image/webp';
@@ -134,7 +135,9 @@ export class CoverPickerModal extends Modal {
     local.append(input, choose);
 
     const aiOption = this.session.options.find(option => option.kind === 'ai');
-    const ai = createEl('button', { text: aiOption?.label ?? '生成智能封面' });
+    const aiCard = createDiv('wechat-workbench__cover-source-card');
+    aiCard.append(createEl('strong', { text: 'AI 生成封面' }), createEl('p', { text: '生成一张候选图，采用前不会替换当前封面。' }));
+    const ai = createEl('button', { cls: 'mod-cta', text: aiOption?.label ?? '生成智能封面' });
     ai.disabled = !this.session.model.aiEnabled || this.session.busy;
     ai.title = this.session.model.aiDisabledReason ?? '';
     ai.addEventListener('click', () => void this.run(async () => {
@@ -142,21 +145,26 @@ export class CoverPickerModal extends Modal {
       if (this.session.errorMessage !== null) throw new Error(this.session.errorMessage);
     }));
 
-    this.contentEl.append(sources, local, ai);
+    aiCard.append(ai);
+    const picker = createDiv('wechat-workbench__cover-picker-grid');
+    picker.append(sources, local, aiCard);
+    this.contentEl.append(picker);
     if (this.session.selected !== null) {
+      const previewPanel = createDiv('wechat-workbench__cover-candidate-preview');
       const preview = createEl('img');
       preview.className = 'wechat-workbench__cover-preview';
       preview.src = this.session.selected.previewDataUrl;
       preview.alt = '2.35:1 封面裁剪预览';
-      this.contentEl.append(preview, createEl('p', { text: '封面预览已准备' }));
+      previewPanel.append(preview, createEl('p', { text: '封面预览已准备' }));
       if (this.session.selected.source === 'ai-generated') {
         const regenerate = createEl('button', { text: '重新生成' });
         regenerate.disabled = this.session.busy;
         regenerate.addEventListener('click', () => void this.run(async () => {
           await this.session.generateAi();
         }));
-        this.contentEl.append(regenerate);
+        previewPanel.append(regenerate);
       }
+      this.contentEl.append(previewPanel);
     }
     if (this.session.errorMessage !== null) {
       this.contentEl.append(createEl('p', { cls: 'wechat-workbench__error', text: this.session.errorMessage }));

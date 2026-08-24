@@ -4,7 +4,7 @@
 - 日期：2026-08-23
 - 适用版本：`0.1.x`
 - 验收 Vault：`$HOME/workspace/Github/wechat-workbench-test-vault`
-- 已确认原型：[`docs/prototypes/ai-content-generation-workbench.html`](../../prototypes/ai-content-generation-workbench.html)
+- 唯一维护原型：[`docs/prototypes/ai-content-generation-workbench.html`](../../prototypes/ai-content-generation-workbench.html)
 - 详细实施计划：[`2026-08-23-ai-content-generation-plan.md`](../plans/2026-08-23-ai-content-generation-plan.md)
 - 依据：用户于 2026-08-23 对插件设置页、发布设置页、候选采用、自动保存、AI 配置和封面会话规则的逐项确认
 
@@ -24,6 +24,10 @@ AI 结果一律先成为内存候选：
 - 标题、摘要和封面均允许重新生成。
 
 标题、作者和摘要取消显式保存按钮，改为 600ms 防抖自动保存。自动保存期间不得重建输入框、抢占焦点、移动光标或造成界面闪烁。
+
+## 原型维护约定
+
+后续所有发布设置、AI 候选和封面交互的 UI 迭代，只维护并更新 `docs/prototypes/ai-content-generation-workbench.html`。历史的完整交互原型和轻量预览原型仅用于追溯，均已废弃，不得作为实现或验收依据，也不得新建并列原型。
 
 ## 2. 与既有设计的关系
 

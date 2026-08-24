@@ -168,6 +168,50 @@ describe('publish settings', () => {
     expect(host.querySelector('[data-testid="settings-digest-candidates"]')?.textContent).toBe('');
   });
 
+  it('closes a title candidate session and ignores its late response', async () => {
+    const host = document.createElement('section');
+    let resolveTitles: ((value: readonly string[]) => void) | undefined;
+    const generateTitles = vi.fn(() => new Promise<readonly string[]>(resolve => { resolveTitles = resolve; }));
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), generateTitles,
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    const close = host.querySelector<HTMLButtonElement>('[data-testid="settings-title-candidates-close"]');
+    expect(close).not.toBeNull();
+    close?.click();
+    resolveTitles?.(['迟到标题一', '迟到标题二', '迟到标题三']);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(host.querySelector('[data-testid="settings-title-candidates"]')?.textContent).toBe('');
+  });
+
+  it('renders the first article image as the default cover thumbnail', async () => {
+    const host = document.createElement('section');
+    const firstImage = Object.freeze({
+      id: 'asset:first', kind: 'local-image' as const, source: 'assets/first.png',
+      status: 'resolved' as const, contentHash: 'first-image', resolvedUrl: null,
+    });
+    const state = Object.freeze({
+      ...renderState,
+      artifact: Object.freeze({ ...renderState.artifact, assets: Object.freeze([firstImage]) }),
+    });
+    const resolveCoverPreview = vi.fn(async () => 'data:image/png;base64,FIRST');
+
+    renderPublishSettings(host, state, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), resolveCoverPreview,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resolveCoverPreview).toHaveBeenCalledWith(firstImage);
+    expect(host.querySelector<HTMLImageElement>('[data-testid="settings-cover-preview"]')?.src)
+      .toContain('data:image/png;base64,FIRST');
+    expect(host.querySelector('[data-testid="settings-cover-value"]')?.textContent)
+      .toContain('自动使用文章首图');
+  });
+
   it('edits explicit frontmatter values without materializing inherited defaults', () => {
     const host = document.createElement('section');
     const state = Object.freeze({
