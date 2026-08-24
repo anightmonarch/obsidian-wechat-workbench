@@ -98,6 +98,20 @@ describe('publish settings', () => {
     expect(generateDigest).not.toHaveBeenCalled();
   });
 
+  it('does not nest AI controls inside a field label', () => {
+    const host = document.createElement('section');
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined),
+      generateTitles: vi.fn(async () => ['标题一', '标题二', '标题三'] as const),
+      generateDigest: vi.fn(async () => '摘要候选'),
+    });
+
+    expect(host.querySelector('[data-testid="settings-title-ai"]')?.closest('label')).toBeNull();
+    expect(host.querySelector('[data-testid="settings-digest-ai"]')?.closest('label')).toBeNull();
+    expect(host.querySelector('[data-testid="settings-title"]')?.closest('label')).toBeNull();
+    expect(host.querySelector('[data-testid="settings-digest"]')?.closest('label')).toBeNull();
+  });
+
   it('allows adopting and regenerating title and digest candidates in the current session', async () => {
     const host = document.createElement('section');
     const generateTitles = vi.fn()

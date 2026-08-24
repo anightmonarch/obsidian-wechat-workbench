@@ -54,7 +54,11 @@ function candidateButton(
   button.type = 'button';
   button.dataset.testid = testId;
   button.dataset[attribute] = value;
-  button.addEventListener('click', onClick);
+  button.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  });
   return button;
 }
 
@@ -91,13 +95,16 @@ export class ArticleSettingsForm {
     const heading = createEl('h2', { text: '文章信息' });
     this.root.append(heading);
 
-    const titleField = createEl('label', { cls: 'wechat-workbench__setting-field' });
+    const titleField = createDiv('wechat-workbench__setting-field');
     const titleHeader = createDiv('wechat-workbench__ai-field-header');
-    titleHeader.append(createSpan({ text: '标题' }), this.aiButton(
+    const titleLabel = createEl('label', { text: '标题' });
+    titleLabel.htmlFor = 'settings-title-input';
+    titleHeader.append(titleLabel, this.aiButton(
       'settings-title-ai', '生成标题', () => { void this.generateTitles(); },
       actions.generateTitles !== undefined,
     ));
     this.title = createEl('input');
+    this.title.id = 'settings-title-input';
     this.title.type = 'text';
     this.title.value = frontmatterString(state, 'title');
     this.title.placeholder = currentPlaceholder(state.artifact.metadata.title);
@@ -115,13 +122,16 @@ export class ArticleSettingsForm {
     authorField.maxLength = 8;
     this.author = authorField;
 
-    const digestField = createEl('label', { cls: 'wechat-workbench__setting-field' });
+    const digestField = createDiv('wechat-workbench__setting-field');
     const digestHeader = createDiv('wechat-workbench__ai-field-header');
-    digestHeader.append(createSpan({ text: '摘要' }), this.aiButton(
+    const digestLabel = createEl('label', { text: '摘要' });
+    digestLabel.htmlFor = 'settings-digest-input';
+    digestHeader.append(digestLabel, this.aiButton(
       'settings-digest-ai', '生成摘要', () => { void this.generateDigest(); },
       actions.generateDigest !== undefined,
     ));
     this.digest = createEl('textarea');
+    this.digest.id = 'settings-digest-input';
     this.digest.rows = 3;
     this.digest.value = frontmatterString(state, 'digest');
     this.digest.placeholder = currentPlaceholder(state.artifact.metadata.digest);
@@ -352,13 +362,21 @@ export class ArticleSettingsForm {
     regenerateButton.dataset.testid = regenerateTestId;
     regenerateButton.setAttribute('aria-label', '重新生成');
     regenerateButton.title = '重新生成';
-    regenerateButton.addEventListener('click', regenerate);
+    regenerateButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      regenerate();
+    });
     const closeButton = createEl('button', { text: '×' });
     closeButton.type = 'button';
     closeButton.dataset.testid = closeTestId;
     closeButton.setAttribute('aria-label', '关闭候选');
     closeButton.title = '关闭候选';
-    closeButton.addEventListener('click', close);
+    closeButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    });
     actions.append(regenerateButton, closeButton);
     header.append(actions);
     return header;
