@@ -71,7 +71,7 @@ describe('Doocs style golden HTML', () => {
 
       expect(image).not.toBeNull();
       expect(image?.style.borderRadius).not.toBe('');
-      expect(image?.style.boxShadow).not.toBe('');
+      expect(image?.style.boxShadow).toBe('0 6px 18px rgba(15, 23, 42, 0.22)');
     },
   );
 });

@@ -20,7 +20,7 @@ export const DOOCS_COMMON_CSS = `.wechat-article {
 .wechat-article pre { margin: 1em 0; padding: 0; overflow-x: auto; border-radius: 8px; line-height: 1.5; }
 .wechat-article pre > code { display: block; padding: 0.75em 1em 1em; overflow-x: auto; white-space: pre; background: transparent; }
 .wechat-article code:not(pre code) { padding: 3px 5px; color: #0F4C81; background: #eef4fa; border: 1px solid #d9e5f0; border-radius: 4px; font-size: 90%; }
-.wechat-article img { display: block; max-width: 100%; height: auto; margin: 0.1em auto 0.5em; border-radius: 6px; box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14); }
+.wechat-article img { display: block; max-width: 100%; height: auto; margin: 0.1em auto 0.5em; border-radius: 6px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22); }
 .wechat-article figure { margin: 1.5em 0; }
 .wechat-article figcaption { color: #777777; font-size: 0.8em; text-align: center; }
 .wechat-article ol, .wechat-article ul { margin: 0.75em 0; padding-left: 1.5em; }

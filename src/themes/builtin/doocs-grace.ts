@@ -18,7 +18,7 @@ export const DOOCS_GRACE_CSS = `${DOOCS_COMMON_CSS}
 .wechat-article blockquote { padding: 1em 1em 1em 2em; color: rgba(0, 0, 0, 0.6); background: #f7f9fc; border-left-width: 4px; font-style: italic; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }
 .wechat-article code:not(pre code) { font-family: Menlo, Consolas, monospace; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 .wechat-article pre { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05); }
-.wechat-article img { border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+.wechat-article img { border-radius: 8px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22); }
 .wechat-article ul { list-style: none; }
 .wechat-article li { margin: 0.5em 8px; }
 `;
