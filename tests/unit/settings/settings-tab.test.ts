@@ -9,6 +9,7 @@ import {
 import type { AccountConnectionService } from '../../../src/settings/account-connection-service';
 import type { SecretStore } from '../../../src/settings/secret-store';
 import type { AiServiceSettingsService } from '../../../src/settings/ai-service-settings';
+import { PublicError } from '../../../src/wechat/errors';
 
 function createHarness() {
   const settings = {
@@ -111,6 +112,16 @@ describe('buildSettingsPresentation', () => {
       document.body.append(tab.containerEl);
       tab.display();
 
+      const accountCard = tab.containerEl.querySelector<HTMLElement>('[data-testid="account-card"]');
+      expect(accountCard).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-open-console"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-name"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-app-id"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-secret"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-save"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-verify"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-disconnect"]')).not.toBeNull();
+      expect(accountCard?.querySelector('[data-testid="account-status"]')).not.toBeNull();
       expect(tab.containerEl.textContent).toContain('微信公众号');
       expect(tab.containerEl.textContent).toContain('公众号名称');
       expect(tab.containerEl.textContent).toContain('AppID');
@@ -183,6 +194,32 @@ describe('buildSettingsPresentation', () => {
       release();
       await vi.waitFor(() => expect(connection.verify).toHaveBeenCalledOnce());
     });
+
+    it('shows an actionable missing-secret error instead of leaving verification stuck', async () => {
+      const { tab, connection } = createHarness();
+      connection.snapshot.mockReturnValue({
+        state: 'UNCONFIGURED', verifiedAt: null, errorCode: null, errcode: null, whitelistIp: null,
+      });
+      connection.verify.mockRejectedValue(new PublicError({
+        code: 'WECHAT_ACCOUNT_NOT_CONFIGURED',
+        stage: 'TOKEN',
+        errcode: null,
+        errmsg: '微信公众号账号尚未配置完整。',
+        rid: null,
+        remoteEffect: 'NONE',
+        retryable: false,
+        nextAction: '在插件设置中保存 AppID 和 AppSecret。',
+      }));
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'account-verify').click();
+
+      await vi.waitFor(() => expect(tab.containerEl.textContent)
+        .toContain('请先填写并保存 AppSecret，再验证连接。'));
+      expect(button(tab.containerEl, 'account-verify').disabled).toBe(false);
+      expect(button(tab.containerEl, 'account-verify').textContent).toBe('验证连接');
+    });
   });
 
   describe('ai service section', () => {
@@ -199,7 +236,9 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.textContent).toContain('文本生成服务');
       expect(tab.containerEl.textContent).toContain('图片生成服务');
       expect(tab.containerEl.textContent).toContain('完整 Endpoint URL');
-      expect(tab.containerEl.textContent).toContain('OpenAI compatible');
+      expect(tab.containerEl.textContent).not.toContain('OpenAI compatible；请填写包含接口路径的完整 HTTPS 地址。');
+      expect(tab.containerEl.textContent).not.toContain('已安全保存；输入新值以替换。');
+      expect(tab.containerEl.textContent).not.toContain('手动填写，不获取远程模型列表。');
       expect(tab.containerEl.textContent).not.toContain('Anthropic');
       expect(tab.containerEl.textContent).not.toContain('获取模型');
       expect(tab.containerEl.textContent).not.toContain('可用模型');

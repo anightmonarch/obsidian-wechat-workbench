@@ -358,25 +358,40 @@
   padding-top: var(--size-4-3);
 }
 
-.wechat-workbench-settings__account-guidance {
-  margin: 0 0 var(--size-4-3);
-  padding: var(--size-4-3);
+.wechat-workbench-settings__account-card {
+  margin: 0 0 var(--size-4-4);
+  padding: var(--size-4-4);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
-  color: var(--text-muted);
   background: var(--background-secondary);
+}
+
+.wechat-workbench-settings__section-title {
+  margin-left: 0;
+  padding-left: 0;
+  text-align: left;
+}
+
+.wechat-workbench-settings__account-guidance {
+  margin: 0 0 var(--size-4-3);
+  color: var(--text-muted);
 }
 
 .wechat-workbench-settings__account-guidance p {
   margin: 0 0 var(--size-4-2);
 }
 
+.wechat-workbench-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--size-4-3);
+}
+
 .wechat-workbench-settings__account-status {
-  margin: var(--size-4-3) 0 var(--size-4-4);
-  padding: var(--size-4-3);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m);
-  background: var(--background-secondary);
+  margin: var(--size-4-3) 0 0;
+  padding: var(--size-4-3) 0 0;
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .wechat-workbench-settings__account-status p {
@@ -390,6 +405,10 @@
 
 .wechat-workbench-settings__account-status p:last-child {
   margin-bottom: 0;
+}
+
+.wechat-workbench-settings__account-message {
+  color: var(--text-error);
 }
 
 .wechat-workbench-settings__whitelist-ip {
@@ -441,11 +460,9 @@
 
 .wechat-workbench-settings__ai-card h3 {
   margin: 0 0 var(--size-4-1);
+  padding-left: 0;
   color: var(--text-normal);
-}
-
-.wechat-workbench-settings__ai-card .setting-item {
-  padding: var(--size-4-3) 0;
+  text-align: left;
 }
 
 .wechat-workbench-settings__ai-actions {

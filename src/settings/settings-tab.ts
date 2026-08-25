@@ -5,6 +5,7 @@ import type { AccountConnectionService } from './account-connection-service';
 import type { AiServiceInput, AiServiceSettingsService } from './ai-service-settings';
 import type { SecretKind, SecretStatus, SecretStore } from './secret-store';
 import { AccountDisconnectModal } from '../ui/account-disconnect-modal';
+import { PublicError } from '../wechat/errors';
 
 export interface SettingsAccess {
   get(): Readonly<PluginSettings>;
@@ -89,8 +90,10 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
   display(): void {
     this.containerEl.replaceChildren();
 
-    const heading = createEl('h2');
-    heading.textContent = '微信公众号';
+    const heading = createEl('h2', {
+      cls: 'wechat-workbench-settings__section-title',
+      text: '微信公众号',
+    });
     this.containerEl.append(heading);
 
     this.renderAccountSection();
@@ -100,7 +103,10 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
   private renderAiServiceSection(): void {
     const current = this.settings.get();
     const status = this.secrets.status();
-    const heading = createEl('h2', { text: 'AI 内容生成' });
+    const heading = createEl('h2', {
+      cls: 'wechat-workbench-settings__section-title',
+      text: 'AI 内容生成',
+    });
     this.containerEl.append(heading);
     this.containerEl.append(createEl('p', {
       cls: 'setting-item-description',
@@ -135,6 +141,11 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     let appSecret = '';
     let pending = false;
     const status = this.connection.snapshot();
+    const accountCard = createDiv('wechat-workbench-settings__account-card');
+    accountCard.dataset.testid = 'account-card';
+    const statusBlock = createDiv('wechat-workbench-settings__account-status');
+    statusBlock.dataset.testid = 'account-status';
+    renderAccountStatus(statusBlock, status, this.copyText);
 
     const guidance = createDiv('wechat-workbench-settings__account-guidance');
     guidance.append(createEl('p', {
@@ -149,23 +160,23 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       });
     });
     guidance.append(openConsoleButton);
-    this.containerEl.append(guidance);
+    accountCard.append(guidance);
 
-    new Setting(this.containerEl)
+    new Setting(accountCard)
       .setName('公众号名称')
       .addText(text => {
         text.inputEl.dataset.testid = 'account-name';
         text.setValue(displayName).onChange(value => { displayName = value; });
       });
 
-    new Setting(this.containerEl)
+    new Setting(accountCard)
       .setName('AppID')
       .addText(text => {
         text.inputEl.dataset.testid = 'account-app-id';
         text.setValue(appId).onChange(value => { appId = value; });
       });
 
-    new Setting(this.containerEl)
+    new Setting(accountCard)
       .setName('AppSecret')
       .addText(text => {
         text.inputEl.type = 'password';
@@ -200,11 +211,31 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       void (async () => {
         if (pending) return;
         pending = true;
+        saveButton.disabled = true;
         verifyButton.disabled = true;
         disconnectButton.disabled = true;
+        verifyButton.textContent = '验证中…';
+        renderAccountStatus(statusBlock, {
+          state: 'VERIFYING', verifiedAt: null, errorCode: null, errcode: null, whitelistIp: null,
+        }, this.copyText);
         try {
           await this.connection.verify();
           this.display();
+        } catch (error) {
+          const unconfigured = error instanceof PublicError
+            && error.code === 'WECHAT_ACCOUNT_NOT_CONFIGURED';
+          renderAccountStatus(statusBlock, {
+            ...this.connection.snapshot(),
+            state: unconfigured ? 'UNCONFIGURED' : 'FAILED',
+          }, this.copyText, unconfigured
+            ? '请先填写并保存 AppSecret，再验证连接。'
+            : '验证失败，请检查网络或公众号配置后重试。');
+          saveButton.disabled = false;
+          verifyButton.disabled = false;
+          verifyButton.textContent = status.state === 'CONNECTED' || status.state === 'FAILED'
+            ? '重新验证'
+            : '验证连接';
+          disconnectButton.disabled = false;
         } finally {
           pending = false;
         }
@@ -229,31 +260,9 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
 
     const actions = createDiv('wechat-workbench-settings__actions');
     actions.append(saveButton, verifyButton, disconnectButton);
-    this.containerEl.append(actions);
-
-    const stateText = status.state === 'CONNECTED'
-      ? '公众号基础连接正常'
-      : `连接状态：${connectionStateLabel(status.state)}`;
-    const statusBlock = createDiv('wechat-workbench-settings__account-status');
-    statusBlock.dataset.testid = 'account-status';
-    statusBlock.append(createEl('p', { text: stateText }));
-    if (status.verifiedAt !== null) {
-      statusBlock.append(createEl('p', { text: `上次验证：${formatLocalTime(status.verifiedAt)}` }));
-    }
-    if (status.whitelistIp !== null) {
-      const ipRow = createDiv('wechat-workbench-settings__whitelist-ip');
-      ipRow.append(createSpan({ text: `微信返回的本机出口 IP：${status.whitelistIp}` }));
-      const copy = createEl('button', { text: '复制 IP' });
-      copy.type = 'button';
-      copy.dataset.testid = 'account-copy-ip';
-      copy.addEventListener('click', () => {
-        this.copyText(status.whitelistIp!);
-        new Notice('IP 已复制');
-      });
-      ipRow.append(copy);
-      statusBlock.append(ipRow);
-    }
-    this.containerEl.append(statusBlock);
+    accountCard.append(actions);
+    accountCard.append(statusBlock);
+    this.containerEl.append(accountCard);
   }
 }
 
@@ -272,7 +281,6 @@ function appendAiServiceCard(
   let apiKey = '';
   const endpointSetting = new Setting(card)
     .setName('完整 Endpoint URL')
-    .setDesc('OpenAI compatible；请填写包含接口路径的完整 HTTPS 地址。')
     .addText(text => {
       text.setValue(endpoint).onChange(value => { endpoint = value; });
       text.inputEl.dataset.testid = `${options.kind}-ai-endpoint`;
@@ -283,7 +291,6 @@ function appendAiServiceCard(
   endpointSetting.settingEl.dataset.testid = `${options.kind}-ai-endpoint-setting`;
   new Setting(card)
     .setName('API Key')
-    .setDesc(options.keySaved ? '已安全保存；输入新值以替换。' : '保存在 Obsidian SecretStorage。')
     .addText(text => {
       text.inputEl.type = 'password';
       text.inputEl.dataset.testid = `${options.kind}-ai-key`;
@@ -292,7 +299,6 @@ function appendAiServiceCard(
     });
   new Setting(card)
     .setName('模型名称')
-    .setDesc('手动填写，不获取远程模型列表。')
     .addText(text => {
       text.setValue(model).onChange(value => { model = value; });
       text.inputEl.dataset.testid = `${options.kind}-ai-model`;
@@ -331,6 +337,43 @@ function appendAiServiceCard(
   actions.append(save, status);
   card.append(actions);
   container.append(card);
+}
+
+function renderAccountStatus(
+  statusBlock: HTMLElement,
+  status: ReturnType<AccountConnectionService['snapshot']>,
+  copyText: (value: string) => void,
+  message?: string,
+): void {
+  statusBlock.replaceChildren();
+  const stateText = status.state === 'CONNECTED'
+    ? '公众号基础连接正常'
+    : `连接状态：${connectionStateLabel(status.state)}`;
+  statusBlock.append(createEl('p', { text: stateText }));
+  if (message !== undefined) {
+    const detail = createEl('p', {
+      cls: 'wechat-workbench-settings__account-message',
+      text: message,
+    });
+    detail.setAttribute('role', 'alert');
+    statusBlock.append(detail);
+  }
+  if (status.verifiedAt !== null) {
+    statusBlock.append(createEl('p', { text: `上次验证：${formatLocalTime(status.verifiedAt)}` }));
+  }
+  if (status.whitelistIp !== null) {
+    const ipRow = createDiv('wechat-workbench-settings__whitelist-ip');
+    ipRow.append(createSpan({ text: `微信返回的本机出口 IP：${status.whitelistIp}` }));
+    const copy = createEl('button', { text: '复制 IP' });
+    copy.type = 'button';
+    copy.dataset.testid = 'account-copy-ip';
+    copy.addEventListener('click', () => {
+      copyText(status.whitelistIp!);
+      new Notice('IP 已复制');
+    });
+    ipRow.append(copy);
+    statusBlock.append(ipRow);
+  }
 }
 
 function formatLocalTime(timestamp: number): string {
