@@ -13,8 +13,11 @@ import type { VaultFileRef } from '../domain/ports';
 import type { CoverPickerModel, CoverPickerOption, PreparedCover } from '../cover/cover-workflow';
 import type { PreparedPublish } from '../publish/publish-workflow';
 import type { DraftAssociationRef, PublishCommand, PublishOutcome } from '../publish/publish-types';
-import { AiCoverConfirmationModal, type AiCoverDisclosure } from './ai-cover-confirmation';
-import { CoverPickerError, CoverPickerModal, CoverPickerSession } from './cover-picker-modal';
+import {
+  AiCoverConfirmationModal,
+  type AiCoverDisclosure,
+  type AiCoverGenerationSelection,
+} from './ai-cover-confirmation';
 import { WORKBENCH_VIEW_TYPE } from './open-workbench';
 import {
   buildPublishDialogModel,
@@ -24,6 +27,7 @@ import {
 import { PublishReportModal } from './publish-report-modal';
 import { ArticlePreviewRenderer, type PreviewAssetResolver } from './render-preview';
 import { renderPublishSettings } from './workbench-publish-settings';
+import { CoverPreviewModal } from './cover-preview-modal';
 import { StyleWorkbench } from './style-workbench';
 
 interface WorkbenchControllerBinding {
@@ -50,7 +54,10 @@ interface WorkbenchControllerBinding {
   aiCoverDisclosure(supplementalPrompt?: string): Readonly<AiCoverDisclosure>;
   prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
   prepareUploadCover(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
-  generateAiCover(supplementalPrompt?: string): Promise<Readonly<PreparedCover>>;
+  generateAiCover(
+    supplementalPrompt?: string,
+    selection?: Readonly<AiCoverGenerationSelection>,
+  ): Promise<Readonly<PreparedCover>>;
   confirmCover(prepared: Readonly<PreparedCover>): Promise<void>;
   saveArticleSettings(
     file: VaultFileRef,
@@ -375,19 +382,29 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       modifiedAt: state.snapshot.modifiedAt,
     });
     renderPublishSettings(this.settingsEl, state, {
-      chooseCover: () => this.openCoverPicker(),
+      useFirstImageCover: () => void this.useFirstImageCover(),
+      uploadCover: bytes => void this.uploadCover(bytes),
+      generateAiCover: () => void this.generateAiCover(),
       saveArticle: settings => this.saveArticleSettings(file, settings),
       generateTitles: draft => this.controller?.generateTitles?.(draft)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
       generateDigest: draft => this.controller?.generateDigest?.(draft)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
-      resolveCoverPreview: asset => this.previewAssets?.resolve(asset) ?? Promise.resolve(null),
+      resolveCoverPreview: source => typeof source === 'string'
+        ? this.previewAssets?.resolveLocalImage?.(source) ?? Promise.resolve(null)
+        : this.previewAssets?.resolve(source) ?? Promise.resolve(null),
+      openCoverPreview: (url, alt) => this.openCoverPreview(url, alt),
     });
   }
 
   private renderSettingsPlaceholder(message: string): void {
     if (this.settingsEl === null) return;
     this.settingsEl.replaceChildren(element('div', 'wechat-workbench__empty', message));
+  }
+
+  openCoverPreview(url: string, alt: string): void {
+    if (typeof url !== 'string' || url.length === 0) return;
+    new CoverPreviewModal(this.app, url, alt).open();
   }
 
   showStyleStatus(status: 'saved' | 'saving' | 'unsaved', message?: string): void {
@@ -559,49 +576,40 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     }
   }
 
-  private openCoverPicker(): void {
+  private async useFirstImageCover(): Promise<void> {
     if (this.controller === null) return;
     try {
-      let session: CoverPickerSession;
-      session = new CoverPickerSession(this.controller.coverPickerModel(), {
-        prepareSelection: input => this.controller?.prepareCover(input)
-          ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
-        prepareUpload: bytes => this.controller?.prepareUploadCover(bytes)
-          ?? Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。')),
-        generateAi: prompt => this.generateAiCoverWithConsent(
-          prompt,
-          value => session.setSupplementalPrompt(value),
-        ),
-        confirm: async prepared => {
-          await this.controller?.confirmCover(prepared);
-          new Notice('文章封面已更新');
-        },
-      });
-      new CoverPickerModal(this.app, session).open();
+      const option = this.controller.coverPickerModel().options.find(item => item.kind === 'first-image');
+      if (option === undefined) throw new Error('文章首图暂不可用。');
+      await this.controller.confirmCover(await this.controller.prepareCover(option));
+      new Notice('已切换为文章首图');
     } catch {
-      new Notice('无法打开封面选择器，请确认当前文章仍然可编辑。');
+      new Notice('无法使用文章首图，请确认当前文章仍可编辑。');
     }
   }
 
-  private generateAiCoverWithConsent(
-    supplementalPrompt: string,
-    rememberPrompt: (value: string) => void,
-  ): Promise<Readonly<PreparedCover>> {
-    if (this.controller === null) {
-      return Promise.reject(new CoverPickerError('COVER_UNAVAILABLE', '封面服务不可用。'));
+  private async uploadCover(bytes: Uint8Array): Promise<void> {
+    if (this.controller === null) return;
+    try {
+      await this.controller.confirmCover(await this.controller.prepareUploadCover(bytes));
+      new Notice('文章封面已更新');
+    } catch {
+      new Notice('本地图片处理失败，请选择 PNG、JPEG 或 WebP 图片。');
     }
-    const disclosure = this.controller.aiCoverDisclosure(supplementalPrompt);
-    return new Promise((resolve, reject) => {
-      new AiCoverConfirmationModal(
-        this.app,
-        disclosure,
-        value => {
-          rememberPrompt(value);
-          void this.controller?.generateAiCover(value).then(resolve, reject);
-        },
-        () => reject(new CoverPickerError('AI_COVER_CANCELLED', '已取消生成智能封面。')),
-      ).open();
-    });
+  }
+
+  private async generateAiCover(): Promise<void> {
+    if (this.controller === null) return;
+    const controller = this.controller;
+    new AiCoverConfirmationModal(
+      this.app,
+      controller.aiCoverDisclosure(),
+      selection => controller.generateAiCover(selection.supplementalPrompt, selection),
+      async prepared => {
+        await controller.confirmCover(prepared);
+        new Notice('智能封面已生成并采用');
+      },
+    ).open();
   }
 
   private switchTab(

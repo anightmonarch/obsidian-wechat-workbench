@@ -2,6 +2,7 @@ import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 
 export interface PreviewAssetResolver {
   resolve(asset: Readonly<AssetSlot>): Promise<string | null>;
+  resolveLocalImage?(path: string): Promise<string | null>;
 }
 
 function placeholder(className: string, text: string): HTMLButtonElement {

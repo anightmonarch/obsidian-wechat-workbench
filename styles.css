@@ -256,14 +256,25 @@
   font-size: var(--font-ui-medium);
 }
 
-.wechat-workbench__setting-field input,
-.wechat-workbench__setting-field textarea {
+.wechat-workbench .wechat-workbench__setting-field input,
+.wechat-workbench .wechat-workbench__setting-field textarea {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
   max-width: 100%;
+  min-height: 2.5rem;
+  padding: var(--size-4-2) var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
   color: var(--text-normal);
   background: var(--background-primary-alt);
+}
+
+.wechat-workbench .wechat-workbench__setting-field input:focus-visible,
+.wechat-workbench .wechat-workbench__setting-field textarea:focus-visible {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  outline: none;
 }
 
 .wechat-workbench__setting-field textarea {
@@ -552,6 +563,58 @@
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   text-align: center;
+}
+
+.wechat-workbench__cover-thumb[data-preview-url] {
+  cursor: zoom-in;
+  transition: border-color 120ms ease;
+}
+
+.wechat-workbench__cover-thumb[data-preview-url]:hover,
+.wechat-workbench__cover-thumb[data-preview-url]:focus-visible {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+/* 封面大图预览 Modal：居中放大，不超过视口。 */
+.wechat-workbench__cover-preview-modal-shell {
+  box-sizing: border-box;
+  width: min(90vw, 57.333rem) !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 2rem) !important;
+  max-height: calc(100vh - 2rem) !important;
+  overflow-x: hidden !important;
+}
+
+.wechat-workbench__cover-preview-modal {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0;
+  max-width: 100% !important;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+}
+
+.wechat-workbench__cover-preview-figure {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  display: grid;
+  gap: var(--size-4-2);
+}
+
+.wechat-workbench__cover-preview-modal .wechat-workbench__cover-preview-image {
+  box-sizing: border-box;
+  display: block;
+  width: auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: calc(100vh - 8rem) !important;
+  margin-inline: auto;
+  object-fit: contain;
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
 }
 
 .wechat-workbench__cover-thumb img {

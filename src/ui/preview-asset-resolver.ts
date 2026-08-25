@@ -24,4 +24,10 @@ export class WorkbenchPreviewAssetResolver implements PreviewAssetResolver {
     }
     return null;
   }
+
+  async resolveLocalImage(path: string): Promise<string | null> {
+    const bytes = await this.files.readBinary(path);
+    const mime = detectImageMime(bytes);
+    return mime === null ? null : imageDataUrl(bytes, mime);
+  }
 }

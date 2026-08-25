@@ -19,6 +19,9 @@ describe('publish settings', () => {
     expect(host.textContent).toContain('文章信息');
     expect(host.textContent).toContain('文章封面');
     expect(host.textContent).toContain('发布状态');
+    const publishStatus = host.querySelector<HTMLElement>('[data-testid="settings-publish-status-section"]');
+    expect(publishStatus).not.toBeNull();
+    expect(publishStatus?.querySelector('.wechat-workbench__settings-section')).toBeNull();
     expect(host.textContent).not.toMatch(/contentHash|taskId|mediaId|content/u);
     expect(host.querySelector<HTMLInputElement>('[data-testid="settings-title"]')?.value)
       .toBe('');
@@ -34,8 +37,12 @@ describe('publish settings', () => {
     expect(host.querySelector('[data-testid="settings-source-url"]')).toBeNull();
     expect(host.textContent).not.toContain('原文链接');
 
-    host.querySelector<HTMLButtonElement>('[data-testid="settings-cover"]')?.click();
-    expect(chooseCover).toHaveBeenCalledOnce();
+    expect(host.textContent).not.toContain('正文图片变化时自动跟随；推荐尺寸 2.35:1');
+    expect(host.textContent).not.toContain('当前使用显式封面；可随时恢复文章首图。');
+    const coverActions = [...host.querySelectorAll<HTMLButtonElement>('button[data-testid^="settings-cover-"]')];
+    expect(coverActions.map(button => button.textContent)).toEqual(['文章首图', '本地上传', '智能生成']);
+    coverActions[2]?.click();
+    expect(chooseCover).toHaveBeenCalledWith('ai');
 
     const title = host.querySelector<HTMLInputElement>('[data-testid="settings-title"]');
     const author = host.querySelector<HTMLInputElement>('[data-testid="settings-author"]');
@@ -43,6 +50,8 @@ describe('publish settings', () => {
     if (title === null || author === null || digest === null) {
       throw new Error('Editable article settings are missing.');
     }
+    expect(author.getAttribute('type')).toBe('text');
+    expect(digest.maxLength).toBe(120);
     title.value = 'Updated title';
     author.value = 'wbs';
     digest.value = 'Updated digest';
@@ -147,6 +156,23 @@ describe('publish settings', () => {
     expect(saveArticle).toHaveBeenCalled();
   });
 
+  it('caps an AI digest candidate to the WeChat 120-character limit before adoption', async () => {
+    const host = document.createElement('section');
+    const longDigest = '摘'.repeat(121);
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(),
+      saveArticle: vi.fn(async () => undefined),
+      generateDigest: vi.fn(async () => longDigest),
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    host.querySelector<HTMLButtonElement>('[data-digest-candidate]')?.click();
+
+    expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value).toHaveLength(120);
+  });
+
   it('keeps adopted candidates hidden when an earlier regeneration resolves late', async () => {
     const host = document.createElement('section');
     let resolveTitle: ((value: readonly string[]) => void) | undefined;
@@ -222,8 +248,88 @@ describe('publish settings', () => {
     expect(resolveCoverPreview).toHaveBeenCalledWith(firstImage);
     expect(host.querySelector<HTMLImageElement>('[data-testid="settings-cover-preview"]')?.src)
       .toContain('data:image/png;base64,FIRST');
-    expect(host.querySelector('[data-testid="settings-cover-value"]')?.textContent)
-      .toContain('自动使用文章首图');
+  });
+
+  it('exposes a click-to-preview affordance on the cover thumbnail', async () => {
+    const host = document.createElement('section');
+    const firstImage = Object.freeze({
+      id: 'asset:first', kind: 'local-image' as const, source: 'assets/first.png',
+      status: 'resolved' as const, contentHash: 'first-image', resolvedUrl: null,
+    });
+    const state = Object.freeze({
+      ...renderState,
+      artifact: Object.freeze({ ...renderState.artifact, assets: Object.freeze([firstImage]) }),
+    });
+    const resolveCoverPreview = vi.fn(async () => 'data:image/png;base64,FIRST');
+    const openCoverPreview = vi.fn();
+
+    renderPublishSettings(host, state, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined),
+      resolveCoverPreview, openCoverPreview,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const thumb = host.querySelector<HTMLElement>('[data-testid="settings-cover-thumbnail"]');
+    expect(thumb).not.toBeNull();
+    expect(thumb?.getAttribute('data-preview-url')).toBe('data:image/png;base64,FIRST');
+    expect(thumb?.getAttribute('aria-label')).toBe('点击预览文章封面');
+    expect(thumb?.getAttribute('role')).toBe('button');
+    expect(thumb?.tabIndex).toBe(0);
+    thumb?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openCoverPreview).toHaveBeenCalledWith('data:image/png;base64,FIRST', '文章首图预览');
+  });
+
+  it('does not register a click handler when no openCoverPreview action is provided', async () => {
+    const host = document.createElement('section');
+    const firstImage = Object.freeze({
+      id: 'asset:first', kind: 'local-image' as const, source: 'assets/first.png',
+      status: 'resolved' as const, contentHash: 'first-image', resolvedUrl: null,
+    });
+    const state = Object.freeze({
+      ...renderState,
+      artifact: Object.freeze({ ...renderState.artifact, assets: Object.freeze([firstImage]) }),
+    });
+    const resolveCoverPreview = vi.fn(async () => 'data:image/png;base64,NO_HANDLER');
+
+    renderPublishSettings(host, state, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), resolveCoverPreview,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const thumb = host.querySelector<HTMLElement>('[data-testid="settings-cover-thumbnail"]');
+    expect(thumb).not.toBeNull();
+    expect(thumb?.getAttribute('data-preview-url')).toBe('data:image/png;base64,NO_HANDLER');
+    expect(thumb?.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('renders an explicit cover path instead of falling back to the first article image', async () => {
+    const host = document.createElement('section');
+    const firstImage = Object.freeze({
+      id: 'asset:first', kind: 'local-image' as const, source: 'assets/first.png',
+      status: 'resolved' as const, contentHash: 'first-image', resolvedUrl: null,
+    });
+    const explicitPath = '.wechat-workbench/covers/article/cover.png';
+    const state = Object.freeze({
+      ...renderState,
+      artifact: Object.freeze({
+        ...renderState.artifact,
+        metadata: Object.freeze({ ...renderState.artifact.metadata, cover: explicitPath }),
+        assets: Object.freeze([firstImage]),
+      }),
+    });
+    const resolveCoverPreview = vi.fn(async () => 'data:image/png;base64,EXPLICIT');
+
+    renderPublishSettings(host, state, {
+      chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), resolveCoverPreview,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resolveCoverPreview).toHaveBeenCalledWith(explicitPath);
+    expect(host.querySelector<HTMLImageElement>('[data-testid="settings-cover-preview"]')?.src)
+      .toContain('data:image/png;base64,EXPLICIT');
   });
 
   it('edits explicit frontmatter values without materializing inherited defaults', () => {
@@ -276,7 +382,6 @@ describe('publish settings', () => {
 
     expect(host.textContent).toContain('有未同步修改');
     expect(host.textContent).not.toContain('assets/secret-cover.png');
-    expect(host.textContent).toContain('已选择封面');
     expect(host.textContent).not.toContain('MEDIA_ID');
     expect(host.textContent).not.toContain('stale');
     expect(host.textContent).toContain('2026-08-20T00:00:00.000Z');

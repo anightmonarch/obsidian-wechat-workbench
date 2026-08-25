@@ -15,6 +15,11 @@ export interface ArticleSettingsFormActions {
 type EditableField = HTMLInputElement | HTMLTextAreaElement;
 
 const AUTOSAVE_DELAY_MS = 500;
+const WECHAT_DIGEST_MAX_LENGTH = 120;
+
+function digestLimit(value: string): string {
+  return [...value].slice(0, WECHAT_DIGEST_MAX_LENGTH).join('');
+}
 
 function frontmatterString(state: Readonly<ArticleSettingsFormState>, field: string): string {
   const value = state.snapshot.frontmatter[field];
@@ -36,6 +41,7 @@ function editableField(
   const field = createEl('label', { cls: 'wechat-workbench__setting-field' });
   const name = createSpan({ text: label });
   const input = createEl(tag);
+  if (tag === 'input') input.setAttribute('type', 'text');
   input.value = value;
   input.placeholder = placeholder;
   input.dataset.testid = testId;
@@ -92,6 +98,7 @@ export class ArticleSettingsForm {
     this.latestState = state;
     this.latestActions = actions;
     this.root = createEl('section', { cls: 'wechat-workbench__settings-section' });
+    this.root.classList.add('wechat-workbench__article-settings-section');
     const heading = createEl('h2', { text: '文章信息' });
     this.root.append(heading);
 
@@ -133,9 +140,9 @@ export class ArticleSettingsForm {
     this.digest = createEl('textarea');
     this.digest.id = 'settings-digest-input';
     this.digest.rows = 3;
-    this.digest.value = frontmatterString(state, 'digest');
+    this.digest.value = digestLimit(frontmatterString(state, 'digest'));
     this.digest.placeholder = currentPlaceholder(state.artifact.metadata.digest);
-    this.digest.maxLength = 120;
+    this.digest.maxLength = WECHAT_DIGEST_MAX_LENGTH;
     this.digest.dataset.testid = 'settings-digest';
     this.digestCandidate = createDiv('wechat-workbench__ai-candidates');
     this.digestCandidate.dataset.testid = 'settings-digest-candidates';
@@ -161,7 +168,7 @@ export class ArticleSettingsForm {
     if (!this.hasPendingEdit) {
       this.syncField(this.title, frontmatterString(state, 'title'), state.artifact.metadata.title);
       this.syncField(this.author, frontmatterString(state, 'author'), state.artifact.metadata.author);
-      this.syncField(this.digest, frontmatterString(state, 'digest'), state.artifact.metadata.digest);
+      this.syncField(this.digest, digestLimit(frontmatterString(state, 'digest')), digestLimit(state.artifact.metadata.digest));
     }
   }
 
@@ -211,7 +218,7 @@ export class ArticleSettingsForm {
       await this.latestActions.saveArticle({
         title: this.title.value,
         author: this.author.value,
-        digest: this.digest.value,
+        digest: digestLimit(this.digest.value),
         contentSourceUrl: frontmatterString(this.latestState, 'content_source_url'),
       });
       if (revision === this.inputRevision) {
@@ -298,7 +305,7 @@ export class ArticleSettingsForm {
     try {
       const value = await generate(this.draftValues());
       if (generation !== this.digestGeneration) return;
-      this.digestOption = value.trim();
+      this.digestOption = digestLimit(value.trim());
       this.digestLoading = false;
       this.renderDigestCandidate();
     } catch {
@@ -336,7 +343,7 @@ export class ArticleSettingsForm {
     if (this.digestOption === null || this.digestOption.length === 0) return;
     this.digestCandidate.append(candidateButton(
       this.digestOption, 'settings-digest-candidate', 'digestCandidate', () => {
-        this.digest.value = this.digestOption ?? '';
+        this.digest.value = digestLimit(this.digestOption ?? '');
         this.digestGeneration += 1;
         this.digestOption = null;
         this.digestLoading = false;

@@ -5,8 +5,16 @@ import type { WorkbenchRenderState } from './workbench-controller';
 import { ArticleSettingsForm, type ArticleSettingsFormActions } from './article-settings-form';
 
 export interface PublishSettingsActions extends ArticleSettingsFormActions {
-  chooseCover(): void;
-  resolveCoverPreview?(asset: Readonly<AssetSlot>): Promise<string | null>;
+  chooseCover?(source?: 'first-image' | 'upload' | 'ai'): void;
+  useFirstImageCover?(): void;
+  uploadCover?(bytes: Uint8Array): void;
+  generateAiCover?(): void;
+  resolveCoverPreview?(source: Readonly<AssetSlot> | string): Promise<string | null>;
+  /**
+   * 打开封面图大图预览 Modal。由宿主（workbench-view）提供，因为它持有
+   * Obsidian `App` 实例。`url` 已经是 dataURL / https URL，可以直接放进 <img>。
+   */
+  openCoverPreview?(url: string, alt: string): void;
 }
 
 const forms = new WeakMap<HTMLElement, ArticleSettingsForm>();
@@ -40,27 +48,40 @@ export function renderPublishSettings(
   const coverLayout = createDiv('wechat-workbench__cover-layout');
   const thumbnail = createDiv('wechat-workbench__cover-thumb');
   thumbnail.dataset.testid = 'settings-cover-thumbnail';
-  const coverMeta = createDiv('wechat-workbench__cover-meta');
-  const coverValue = createEl('strong');
-  coverValue.textContent = state.artifact.metadata.cover === null
-    ? firstImage === null ? '文章中没有可用图片' : '自动使用文章首图'
-    : '已选择封面';
-  coverValue.dataset.testid = 'settings-cover-value';
-  const description = createEl('p', { text: state.artifact.metadata.cover === null
-    ? '正文图片变化时自动跟随；推荐尺寸 2.35:1'
-    : '当前使用显式封面；可随时恢复文章首图。' });
-  const choose = createEl('button');
-  choose.type = 'button';
-  choose.textContent = '更换封面';
-  choose.dataset.testid = 'settings-cover';
-  choose.addEventListener('click', actions.chooseCover);
-  coverMeta.append(coverValue, description, choose);
-  coverLayout.append(thumbnail, coverMeta);
+  const coverActions = createDiv('wechat-workbench__cover-actions');
+  const uploadInput = createEl('input');
+  uploadInput.type = 'file';
+  uploadInput.accept = 'image/png,image/jpeg,image/webp';
+  uploadInput.multiple = false;
+  uploadInput.hidden = true;
+  uploadInput.addEventListener('change', () => {
+    const selected = uploadInput.files?.[0];
+    if (selected === undefined) return;
+    void selected.arrayBuffer().then(bytes => {
+      const value = new Uint8Array(bytes);
+      if (actions.uploadCover !== undefined) actions.uploadCover(value);
+      else actions.chooseCover?.('upload');
+    });
+  });
+  for (const [label, testId, action] of [
+    ['文章首图', 'settings-cover-first-image', () => actions.useFirstImageCover?.() ?? actions.chooseCover?.('first-image')],
+    ['本地上传', 'settings-cover-upload', () => uploadInput.click()],
+    ['智能生成', 'settings-cover-ai', () => actions.generateAiCover?.() ?? actions.chooseCover?.('ai')],
+  ] as const) {
+    const button = createEl('button', { text: label });
+    button.type = 'button';
+    button.dataset.testid = testId;
+    button.addEventListener('click', action);
+    coverActions.append(button);
+  }
+  coverActions.append(uploadInput);
+  coverLayout.append(thumbnail, coverActions);
   cover.append(coverTitle, coverLayout);
-  if (firstImage !== null && actions.resolveCoverPreview !== undefined) {
-    renderCoverPreview(thumbnail, firstImage, actions.resolveCoverPreview);
-  } else if (firstImage === null) {
-    thumbnail.append(createSpan({ text: '文章中没有可用图片' }));
+  const coverSource = state.artifact.metadata.cover ?? firstImage;
+  if (coverSource !== null && actions.resolveCoverPreview !== undefined) {
+    renderCoverPreview(thumbnail, coverSource, actions.resolveCoverPreview, actions.openCoverPreview);
+  } else if (coverSource === null) {
+    thumbnail.append(createSpan({ text: '暂未选择封面，可本地上传或智能生成' }));
   }
 
   let statusSection = container.querySelector<HTMLElement>('[data-testid="settings-publish-status-section"]');
@@ -90,13 +111,18 @@ export function renderPublishSettings(
 
 function renderCoverPreview(
   thumbnail: HTMLElement,
-  asset: Readonly<AssetSlot>,
-  resolve: (asset: Readonly<AssetSlot>) => Promise<string | null>,
+  source: Readonly<AssetSlot> | string,
+  resolve: (source: Readonly<AssetSlot> | string) => Promise<string | null>,
+  openPreview: ((url: string, alt: string) => void) | undefined,
 ): void {
-  const requestId = `${asset.id}:${asset.contentHash ?? ''}`;
+  const requestId = typeof source === 'string'
+    ? `explicit:${source}`
+    : `${source.id}:${source.contentHash ?? ''}`;
   thumbnail.dataset.coverPreviewRequest = requestId;
   thumbnail.replaceChildren(createSpan({ text: '正在加载首图…' }));
-  void resolve(asset).then(dataUrl => {
+  // 等待预览 URL 期间禁用点击，避免误触空状态。
+  delete thumbnail.dataset.previewUrl;
+  void resolve(source).then(dataUrl => {
     if (thumbnail.dataset.coverPreviewRequest !== requestId) return;
     if (dataUrl === null) {
       thumbnail.replaceChildren(createSpan({ text: '首图暂不可预览' }));
@@ -107,6 +133,21 @@ function renderCoverPreview(
     image.src = dataUrl;
     image.alt = '文章首图预览';
     thumbnail.replaceChildren(image);
+    // 写入 previewUrl 后，CSS 选择器会启用 cursor: zoom-in；
+    // 同时为整张缩略图注册 click / keydown 监听，避免只点图片中空白处无效。
+    thumbnail.dataset.previewUrl = dataUrl;
+    if (openPreview !== undefined) {
+      thumbnail.addEventListener('click', () => openPreview(dataUrl, '文章首图预览'));
+      thumbnail.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPreview(dataUrl, '文章首图预览');
+        }
+      });
+      thumbnail.tabIndex = 0;
+      thumbnail.setAttribute('role', 'button');
+      thumbnail.setAttribute('aria-label', '点击预览文章封面');
+    }
   }).catch(() => {
     if (thumbnail.dataset.coverPreviewRequest === requestId) {
       thumbnail.replaceChildren(createSpan({ text: '首图暂不可预览' }));
@@ -119,11 +160,9 @@ function appendSection(
   title: string,
   rows: ReadonlyArray<readonly [string, string]>,
 ): void {
-  const section = createEl('section');
-  section.className = 'wechat-workbench__settings-section';
   const heading = createEl('h2');
   heading.textContent = title;
-  section.append(heading);
+  container.append(heading);
   for (const [label, value] of rows) {
     const row = createDiv();
     row.className = 'wechat-workbench__setting-row';
@@ -132,7 +171,6 @@ function appendSection(
     const content = createEl('strong');
     content.textContent = value;
     row.append(name, content);
-    section.append(row);
+    container.append(row);
   }
-  container.append(section);
 }

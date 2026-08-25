@@ -6,6 +6,7 @@ export async function requestUrl(): Promise<never> {
 
 export class Modal {
   readonly contentEl = document.createElement('div');
+  readonly modalEl = document.createElement('div');
   readonly titleEl = document.createElement('h2');
 
   constructor(readonly app: unknown) {}
