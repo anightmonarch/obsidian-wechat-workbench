@@ -15,7 +15,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 48px;
+  min-height: 30px;
   padding: 0 var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -58,19 +58,19 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   min-height: 44px;
-  gap: var(--size-4-2);
-  padding: var(--size-4-2) var(--size-4-3);
+  padding: 0 var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
+  background: var(--background-primary);
 }
 
 .wechat-workbench__tabs button {
+  position: relative;
   min-width: 0;
   padding: var(--size-4-1) var(--size-4-2);
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--radius-s);
   color: var(--text-muted);
-  background: var(--background-primary);
+  background: transparent;
   font-size: var(--font-ui-medium);
   white-space: nowrap;
 }
@@ -82,10 +82,20 @@
 }
 
 .wechat-workbench__tabs button.is-active {
-  border-color: var(--wechat-accent);
-  color: var(--text-on-accent, #fff);
-  background: var(--wechat-accent);
+  color: var(--wechat-accent);
+  background: transparent;
   font-weight: var(--font-semibold);
+}
+
+.wechat-workbench__tabs button.is-active::after {
+  position: absolute;
+  right: 18%;
+  bottom: 0;
+  left: 18%;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--wechat-accent);
+  content: '';
 }
 
 .wechat-workbench__action-bar {
