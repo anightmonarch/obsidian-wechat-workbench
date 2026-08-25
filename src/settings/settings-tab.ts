@@ -157,7 +157,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         new Notice('无法打开公众号后台，请在浏览器访问 mp.weixin.qq.com。');
       });
     });
-    guidance.append(guidanceCopy, openConsoleButton);
+    guidance.append(guidanceCopy);
     accountCard.append(guidance);
 
     new Setting(accountCard)
@@ -257,7 +257,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     });
 
     const actions = createDiv('wechat-workbench-settings__actions');
-    actions.append(saveButton, verifyButton, disconnectButton);
+    actions.append(saveButton, verifyButton, disconnectButton, openConsoleButton);
     accountCard.append(actions);
     accountCard.append(statusBlock);
     this.containerEl.append(accountCard);

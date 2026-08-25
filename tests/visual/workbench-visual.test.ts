@@ -62,7 +62,7 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench-settings__section-title\s*\{[^}]*margin-left:\s*0[^}]*padding-left:\s*0/su);
     expect(css).toMatch(/wechat-workbench-settings__account-guidance\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su);
     expect(css).toMatch(/wechat-workbench-settings__account-guidance-copy\s*\{[^}]*min-width:\s*0/su);
-    expect(css).toMatch(/wechat-workbench-settings__account-guidance\s*>\s*button\s*\{[^}]*justify-self:\s*end/su);
+    expect(css).toMatch(/wechat-workbench-settings__actions\s*>\s*\[data-testid="account-open-console"\]\s*\{[^}]*margin-left:\s*auto[^}]*background:\s*var\(--wechat-accent\)/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-prompt-label select\s*\{[^}]*appearance:\s*none[^}]*background-image:\s*url\(/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-content-options\s*\{[^}]*justify-self:\s*start/su);
     expect(css).toMatch(/wechat-workbench__cover-content-options\s*>\s*span\s*\{[^}]*font-weight:\s*700/su);

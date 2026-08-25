@@ -114,7 +114,9 @@ describe('buildSettingsPresentation', () => {
 
       const accountCard = tab.containerEl.querySelector<HTMLElement>('[data-testid="account-card"]');
       expect(accountCard).not.toBeNull();
-      expect(accountCard?.querySelector('[data-testid="account-open-console"]')).not.toBeNull();
+      const actions = accountCard?.querySelector<HTMLElement>('.wechat-workbench-settings__actions');
+      expect(actions?.querySelector('[data-testid="account-open-console"]')).not.toBeNull();
+      expect(actions?.lastElementChild?.getAttribute('data-testid')).toBe('account-open-console');
       expect(accountCard?.querySelector('[data-testid="account-name"]')).not.toBeNull();
       expect(accountCard?.querySelector('[data-testid="account-app-id"]')).not.toBeNull();
       expect(accountCard?.querySelector('[data-testid="account-secret"]')).not.toBeNull();

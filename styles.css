@@ -433,16 +433,26 @@
   margin-top: var(--size-4-1);
 }
 
-.wechat-workbench-settings__account-guidance > button {
-  justify-self: end;
-  white-space: nowrap;
-}
-
 .wechat-workbench-settings__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: var(--size-4-3);
+}
+
+.wechat-workbench-settings__actions > [data-testid="account-open-console"] {
+  margin-left: auto;
+  border-color: var(--wechat-accent);
+  color: white;
+  background: var(--wechat-accent);
+}
+
+.wechat-workbench-settings__actions > [data-testid="account-open-console"]:hover,
+.wechat-workbench-settings__actions > [data-testid="account-open-console"]:focus-visible {
+  border-color: var(--wechat-accent);
+  color: white;
+  background: var(--wechat-accent);
+  filter: brightness(0.94);
 }
 
 .wechat-workbench-settings__account-status {
