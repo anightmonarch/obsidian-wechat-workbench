@@ -8,7 +8,7 @@ export const DOOCS_COMMON_CSS = `.wechat-article {
   text-align: left;
 }
 .wechat-article > :first-child { margin-top: 0 !important; }
-.wechat-article p { margin: 1.25em 8px; letter-spacing: 0.04em; }
+.wechat-article p { margin: 1.25em 0; letter-spacing: 0.04em; }
 .wechat-article blockquote { margin: 1em 0; padding: 1em; color: #333333; background: #f4f7fb; border-left: 4px solid #0F4C81; border-radius: 6px; }
 .wechat-article blockquote > p { margin: 0; letter-spacing: 0.04em; }
 .wechat-article .callout { margin: 1em 0; }

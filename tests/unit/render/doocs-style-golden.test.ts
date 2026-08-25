@@ -40,4 +40,13 @@ describe('Doocs style golden HTML', () => {
     const artifact = await buildStyleFixture(themeId);
     expect(artifact.canonicalHtml).toBe((await readFile(goldenPath, 'utf8')).trimEnd());
   });
+
+  it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])(
+    'keeps paragraphs flush with the article edge for %s',
+    async themeId => {
+      const artifact = await buildStyleFixture(themeId);
+
+      expect(artifact.canonicalHtml).toContain('margin: 1.25em 0');
+    },
+  );
 });

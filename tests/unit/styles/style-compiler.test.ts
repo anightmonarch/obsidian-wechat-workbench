@@ -67,6 +67,12 @@ describe('StyleCompiler', () => {
     expect(result.css).toMatch(/\.wechat-article h2\s*\{[^}]*margin:\s*2em auto 1em/su);
   });
 
+  it('keeps Doocs paragraphs flush with direct heading edges', () => {
+    const result = compiler.compile(baseTheme, DEFAULT_ARTICLE_STYLE);
+
+    expect(result.css).toContain('.wechat-article p { margin: 1.25em 0; letter-spacing: 0.04em; }');
+  });
+
   it('keeps mac code chrome inside the code surface and keeps numbered lines compact', () => {
     const result = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
       showCodeLineNumbers: true,
