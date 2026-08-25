@@ -254,6 +254,20 @@ describe('WorkbenchController', () => {
     expect(view.rendered).toEqual(['active.md', 'active.md']);
   });
 
+  it('keeps published article settings visible while a confirmed cover rebuilds', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    source.emitActive('active.md');
+    const harness = controller(source, view, async input => artifactFor(input));
+    harness.instance.start();
+    await vi.advanceTimersByTimeAsync(400);
+    const loadingBeforeCoverConfirmation = view.loadingCount;
+
+    harness.instance.rebuild('cover-confirmed');
+
+    expect(view.loadingCount).toBe(loadingBeforeCoverConfirmation);
+  });
+
   it('surfaces current build failures without leaking stale failures', async () => {
     const source = new FakeSource();
     const view = new FakeView();

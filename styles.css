@@ -576,6 +576,85 @@
   justify-self: start;
 }
 
+.wechat-workbench__cover-actions,
+.wechat-workbench__cover-content-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.wechat-workbench__cover-generation-config {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(12rem, 1fr);
+  align-items: start;
+  gap: var(--size-4-4);
+  margin-bottom: var(--size-4-3);
+}
+
+.wechat-workbench__cover-generation-config .wechat-workbench__cover-prompt-label {
+  margin: 0;
+}
+
+.wechat-workbench__cover-generation-config .wechat-workbench__cover-prompt-label select {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 16rem;
+	min-height: 2.5rem;
+	padding: 0 var(--size-4-6) 0 var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	appearance: none;
+	background-color: var(--background-secondary);
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.8'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right var(--size-4-3) center;
+	background-size: 0.8rem;
+	cursor: pointer;
+}
+
+.wechat-workbench__cover-generation-config .wechat-workbench__cover-prompt-label select:focus-visible {
+	border-color: var(--interactive-accent);
+	outline: none;
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.wechat-workbench__cover-generation-config .wechat-workbench__cover-content-options {
+  min-height: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  justify-self: start;
+}
+
+.wechat-workbench__cover-generation-config .wechat-workbench__cover-content-options > span {
+  font-weight: 700;
+}
+
+.wechat-workbench__cover-content-choices {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-3);
+}
+
+@media (max-width: 560px) {
+  .wechat-workbench__cover-generation-config {
+    grid-template-columns: 1fr;
+    gap: var(--size-4-2);
+  }
+}
+
+.wechat-workbench__cover-actions button {
+  flex: 0 0 auto;
+}
+
+.wechat-workbench__cover-content-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-1);
+}
+
 .wechat-workbench__cover-prompt-label {
   display: flex;
   flex-direction: column;

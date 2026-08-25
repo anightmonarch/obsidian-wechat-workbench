@@ -15,6 +15,7 @@ import { publishPayloadHash } from '../publish/publish-content';
 import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../styles/style-config';
 import type { ResolvedArticleStyle } from '../styles/style-resolver';
 import type { AiCoverDisclosure } from './ai-cover-confirmation';
+import type { AiCoverGenerationSelection } from './ai-cover-confirmation';
 
 export interface WorkbenchEventHandle {
   hostEvent?: unknown;
@@ -105,7 +106,12 @@ export interface WorkbenchCoverPort {
     kind: CoverPickerOption['kind'],
   ): Promise<Readonly<PreparedCover>>;
   prepareUpload(file: VaultFileRef, bytes: Uint8Array, contextHash: string): Promise<Readonly<PreparedCover>>;
-  prepareAi(file: VaultFileRef, artifact: Readonly<RenderArtifact>, supplementalPrompt?: string): Promise<Readonly<PreparedCover>>;
+  prepareAi(
+    file: VaultFileRef,
+    artifact: Readonly<RenderArtifact>,
+    supplementalPrompt?: string,
+    selection?: Readonly<AiCoverGenerationSelection>,
+  ): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
 }
 
@@ -211,7 +217,7 @@ export class WorkbenchController {
     const pendingFile = this.source.currentMarkdown();
     const preserveExistingView = this.artifact !== null
       && this.snapshot?.vaultPath === pendingFile?.path
-      && (_reason === 'article-settings' || _reason === 'modified');
+      && (_reason === 'article-settings' || _reason === 'modified' || _reason === 'cover-confirmed');
     if (!this.styleBuildPending) {
       if (!preserveExistingView) {
         this.artifact = null;
@@ -411,10 +417,13 @@ export class WorkbenchController {
     );
   }
 
-  async generateAiCover(supplementalPrompt = ''): Promise<Readonly<PreparedCover>> {
+  async generateAiCover(
+    supplementalPrompt = '',
+    selection?: Readonly<AiCoverGenerationSelection>,
+  ): Promise<Readonly<PreparedCover>> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
-    return this.covers.prepareAi(this.currentFile(current.snapshot), current.artifact, supplementalPrompt);
+    return this.covers.prepareAi(this.currentFile(current.snapshot), current.artifact, supplementalPrompt, selection);
   }
 
   async confirmCover(prepared: Readonly<PreparedCover>): Promise<void> {

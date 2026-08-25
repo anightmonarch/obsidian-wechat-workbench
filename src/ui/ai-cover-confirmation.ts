@@ -1,6 +1,11 @@
 import { type App, Modal } from 'obsidian';
 
 import type { AiProviderProtocol } from '../cover/ai-provider';
+import type { PreparedCover } from '../cover/cover-workflow';
+import {
+  COVER_PROMPT_PRESETS,
+  DEFAULT_COVER_PROMPT_PRESET_ID,
+} from '../cover/cover-prompt-presets';
 
 export interface AiCoverSource {
   title: string;
@@ -21,6 +26,13 @@ export interface AiCoverDisclosure {
   sentFields: readonly string[];
   payload: Readonly<{ title: string; digest: string; supplementalPrompt: string }>;
   costNotice: string;
+}
+
+export interface AiCoverGenerationSelection {
+  supplementalPrompt: string;
+  includeTitle: boolean;
+  includeDigest: boolean;
+  presetId: string;
 }
 
 function supplemental(value: string | undefined): string {
@@ -57,57 +69,142 @@ export function buildAiCoverDisclosure(
 
 export class AiCoverConfirmationModal extends Modal {
   private decided = false;
+  private busy = false;
+  private candidate: Readonly<PreparedCover> | null = null;
+  private error: string | null = null;
+  private supplementalPrompt: string;
+  private includeTitle = false;
+  private includeDigest = false;
+  private presetId = DEFAULT_COVER_PROMPT_PRESET_ID;
 
   constructor(
     app: App,
     private readonly disclosure: Readonly<AiCoverDisclosure>,
-    private readonly confirm: (supplementalPrompt: string) => void,
+    private readonly generate: (selection: Readonly<AiCoverGenerationSelection>) => Promise<Readonly<PreparedCover>>,
+    private readonly adopt: (prepared: Readonly<PreparedCover>) => Promise<void>,
     private readonly cancel: () => void = () => undefined,
-  ) { super(app); }
+  ) {
+    super(app);
+    this.supplementalPrompt = disclosure.payload.supplementalPrompt;
+  }
 
   onOpen(): void {
     this.contentEl.replaceChildren();
-    this.titleEl.textContent = '确认生成智能封面';
-    const rows: Array<[string, string]> = [
-      ['接口协议', this.disclosure.protocol],
-      ['接口地址', this.disclosure.endpoint],
-      ['模型', this.disclosure.model],
-      ['标题', this.disclosure.payload.title],
-      ['摘要', this.disclosure.payload.digest || '空'],
-    ];
-    for (const [label, value] of rows) {
-      const row = createEl('p');
-      row.append(createEl('strong', { text: `${label}：` }), document.createTextNode(value));
-      this.contentEl.append(row);
+    this.titleEl.textContent = '生成智能封面';
+    const configRow = createDiv('wechat-workbench__cover-generation-config');
+    const inclusion = createDiv('wechat-workbench__cover-content-options');
+    inclusion.append(createSpan({ text: '封面图是否包含' }));
+    const inclusionChoices = createDiv('wechat-workbench__cover-content-choices');
+    const title = createEl('label');
+    const titleInput = createEl('input');
+    titleInput.type = 'checkbox';
+    titleInput.checked = this.includeTitle;
+    titleInput.dataset.testid = 'ai-cover-include-title';
+    title.append(titleInput, document.createTextNode(' 标题'));
+    const digest = createEl('label');
+    const digestInput = createEl('input');
+    digestInput.type = 'checkbox';
+    digestInput.checked = this.includeDigest;
+    digestInput.dataset.testid = 'ai-cover-include-digest';
+    digest.append(digestInput, document.createTextNode(' 摘要'));
+    inclusionChoices.append(title, digest);
+    inclusion.append(inclusionChoices);
+    const presetLabel = createEl('label', { text: '封面主题' });
+    presetLabel.className = 'wechat-workbench__cover-prompt-label';
+    const preset = createEl('select');
+    preset.dataset.testid = 'ai-cover-preset';
+    for (const item of COVER_PROMPT_PRESETS) {
+      const option = createEl('option', { text: item.name });
+      option.value = item.id;
+      preset.append(option);
     }
+    preset.value = this.presetId;
+    preset.addEventListener('change', () => { this.presetId = preset.value; });
+    presetLabel.append(preset);
+    configRow.append(presetLabel, inclusion);
+    this.contentEl.append(configRow);
     const promptLabel = createEl('label', { text: '补充封面要求（可选）' });
     promptLabel.className = 'wechat-workbench__cover-prompt-label';
     const prompt = createEl('textarea');
     prompt.dataset.testid = 'ai-cover-supplemental-prompt';
     prompt.placeholder = '例如：科技感、极简、暖色调；留空则完全依据文章内容生成';
     prompt.maxLength = 500;
-    prompt.value = this.disclosure.payload.supplementalPrompt;
+    prompt.value = this.supplementalPrompt;
+    prompt.addEventListener('input', () => { this.supplementalPrompt = prompt.value; });
     promptLabel.append(prompt);
     this.contentEl.append(promptLabel);
-    this.contentEl.append(createEl('p', {
-      cls: 'wechat-workbench__publish-warning',
-      text: this.disclosure.costNotice,
-    }));
+    if (this.candidate !== null) {
+      const preview = createEl('img');
+      preview.className = 'wechat-workbench__cover-preview';
+      preview.src = this.candidate.previewDataUrl;
+      preview.alt = '智能生成封面预览';
+      this.contentEl.append(preview);
+    }
+    if (this.error !== null) {
+      this.contentEl.append(createEl('p', { cls: 'wechat-workbench__error', text: this.error }));
+    }
     const actions = createDiv('modal-button-container');
     const cancel = createEl('button', { text: '取消' });
-    cancel.addEventListener('click', () => {
-      this.decided = true;
-      this.cancel();
-      this.close();
-    });
-    const generate = createEl('button', { cls: 'mod-cta', text: '确认并生成' });
-    generate.addEventListener('click', () => {
-      this.decided = true;
-      this.close();
-      this.confirm(supplemental(prompt.value));
-    });
-    actions.append(cancel, generate);
+    cancel.disabled = this.busy;
+    cancel.addEventListener('click', () => this.close());
+    actions.append(cancel);
+    if (this.candidate === null) {
+      const generate = createEl('button', { cls: 'mod-cta', text: this.busy ? '正在生成…' : '生成' });
+      generate.disabled = this.busy;
+      generate.addEventListener('click', () => {
+        this.includeTitle = titleInput.checked;
+        this.includeDigest = digestInput.checked;
+        this.supplementalPrompt = prompt.value;
+        this.presetId = preset.value;
+        void this.runGeneration();
+      });
+      actions.append(generate);
+    } else {
+      const regenerate = createEl('button', { text: '重新生成' });
+      regenerate.disabled = this.busy;
+      regenerate.addEventListener('click', () => void this.runGeneration());
+      const adopt = createEl('button', { cls: 'mod-cta', text: this.busy ? '正在采用…' : '采用' });
+      adopt.disabled = this.busy;
+      adopt.addEventListener('click', () => void this.runAdopt());
+      actions.append(regenerate, adopt);
+    }
     this.contentEl.append(actions);
+  }
+
+  private async runGeneration(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.error = null;
+    this.onOpen();
+    try {
+      this.candidate = await this.generate({
+        supplementalPrompt: supplemental(this.supplementalPrompt),
+        includeTitle: this.includeTitle,
+        includeDigest: this.includeDigest,
+        presetId: this.presetId,
+      });
+    } catch {
+      this.error = '智能封面生成失败，请检查图片服务配置后重试。';
+    } finally {
+      this.busy = false;
+      this.onOpen();
+    }
+  }
+
+  private async runAdopt(): Promise<void> {
+    if (this.busy || this.candidate === null) return;
+    this.busy = true;
+    this.error = null;
+    this.onOpen();
+    try {
+      await this.adopt(this.candidate);
+      this.decided = true;
+      this.close();
+    } catch {
+      this.error = '封面采用失败，请确认当前文章仍可编辑。';
+      this.busy = false;
+      this.onOpen();
+    }
   }
 
   onClose(): void {

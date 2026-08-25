@@ -30,6 +30,8 @@ function aiFailureMessage(error: unknown): string {
       return '图片服务拒绝请求，请检查完整 Endpoint、模型名称或服务商要求。';
     case 'IMAGE_PROVIDER_TIMEOUT':
       return '图片服务响应超时，请稍后重试。';
+    case 'IMAGE_PROVIDER_CONNECTION_RESET':
+      return '图片服务连接被中断，请检查本机代理稳定性后重试。';
     case 'IMAGE_PROVIDER_OUTPUT_INVALID':
       return '图片服务返回格式不支持，请确认服务支持 url 或 b64_json 图像输出。';
     case 'IMAGE_PROVIDER_MODEL_MISSING':

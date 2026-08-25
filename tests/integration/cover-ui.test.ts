@@ -94,6 +94,23 @@ describe('cover picker session', () => {
     expect(session.selected).toBeNull();
   });
 
+  it('turns a reset provider connection into an actionable proxy message', async () => {
+    const session = new CoverPickerSession(model, {
+      prepareSelection: vi.fn(async () => prepared),
+      prepareUpload: vi.fn(async () => prepared),
+      generateAi: vi.fn(async () => {
+        throw Object.assign(new Error('Image provider connection was reset.'), {
+          code: 'IMAGE_PROVIDER_CONNECTION_RESET',
+        });
+      }),
+      confirm: vi.fn(),
+    });
+
+    await session.generateAi();
+
+    expect(session.errorMessage).toBe('图片服务连接被中断，请检查本机代理稳定性后重试。');
+  });
+
   it('does not turn an explicit AI generation cancellation into a provider failure', async () => {
     const session = new CoverPickerSession(model, {
       prepareSelection: vi.fn(async () => prepared),
