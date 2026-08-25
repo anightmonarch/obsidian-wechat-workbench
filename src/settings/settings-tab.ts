@@ -147,7 +147,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     const guidanceCopy = createDiv('wechat-workbench-settings__account-guidance-copy');
     guidanceCopy.append(
       createEl('p', { text: '插件直接从本地连接公众号，安全可控。' }),
-      createEl('p', { text: '点击下方验证按钮。将微信验证返回的本机出口 IP 加入公众号平台开发与设置安全中心 IP 白名单。' }),
+      createEl('p', { text: '点击下方验证按钮，将微信验证返回的本机出口 IP 加入公众号平台：“开发与设置 → 安全中心 → IP 白名单”。' }),
     );
     const openConsoleButton = createEl('button', { text: '打开公众号后台' });
     openConsoleButton.type = 'button';

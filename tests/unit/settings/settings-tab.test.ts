@@ -129,7 +129,7 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.textContent).toContain('公众号基础连接正常');
       expect(tab.containerEl.textContent).toContain('上次验证：');
       expect(tab.containerEl.textContent).toContain('插件直接从本地连接公众号，安全可控。');
-      expect(tab.containerEl.textContent).toContain('点击下方验证按钮。将微信验证返回的本机出口 IP 加入公众号平台开发与设置安全中心 IP 白名单。');
+      expect(tab.containerEl.textContent).toContain('点击下方验证按钮，将微信验证返回的本机出口 IP 加入公众号平台：“开发与设置 → 安全中心 → IP 白名单”。');
       expect(tab.containerEl.textContent).not.toContain('文本和图片服务相互独立。');
       expect(tab.containerEl.textContent).not.toContain('插件默认封面');
       expect(tab.containerEl.querySelector('[data-testid="default-cover-path"]')).toBeNull();
