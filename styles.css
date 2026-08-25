@@ -442,17 +442,17 @@
 
 .wechat-workbench-settings__actions > [data-testid="account-open-console"] {
   margin-left: auto;
-  border-color: var(--wechat-accent);
-  color: white;
-  background: var(--wechat-accent);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  font-weight: var(--font-semibold);
 }
 
 .wechat-workbench-settings__actions > [data-testid="account-open-console"]:hover,
 .wechat-workbench-settings__actions > [data-testid="account-open-console"]:focus-visible {
-  border-color: var(--wechat-accent);
-  color: white;
-  background: var(--wechat-accent);
-  filter: brightness(0.94);
+  border-color: var(--text-muted);
+  color: var(--text-normal);
+  background: var(--background-secondary);
 }
 
 .wechat-workbench-settings__account-status {
