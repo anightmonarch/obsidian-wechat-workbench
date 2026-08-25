@@ -154,6 +154,8 @@
 .wechat-workbench__preview-sheet img {
   max-width: 100%;
   height: auto;
+  border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
 }
 
 .wechat-workbench__preview-sheet .math-projection,

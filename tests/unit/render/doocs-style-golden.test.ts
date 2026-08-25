@@ -61,4 +61,17 @@ describe('Doocs style golden HTML', () => {
       expect(artifact.canonicalHtml).toContain('<table style="border-collapse: collapse; margin: 1em 0; width: 100%"');
     },
   );
+
+  it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])(
+    'gives article images a subtle rounded surface for %s',
+    async themeId => {
+      const artifact = await buildStyleFixture(themeId);
+      const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+      const image = document.querySelector<HTMLImageElement>('.image-figure img');
+
+      expect(image).not.toBeNull();
+      expect(image?.style.borderRadius).not.toBe('');
+      expect(image?.style.boxShadow).not.toBe('');
+    },
+  );
 });
