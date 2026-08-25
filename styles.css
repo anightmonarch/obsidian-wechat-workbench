@@ -1,5 +1,5 @@
 .wechat-workbench {
-  --wechat-accent: var(--interactive-accent);
+  --wechat-accent: #07c160;
   --wechat-style-option-bg: var(--background-primary);
   --wechat-style-option-selected-bg: var(--background-secondary);
   --wechat-style-option-hover-bg: var(--background-modifier-hover, var(--background-secondary));
@@ -292,7 +292,7 @@
 
 .wechat-workbench .wechat-workbench__setting-field input:focus-visible,
 .wechat-workbench .wechat-workbench__setting-field textarea:focus-visible {
-  border-color: var(--interactive-accent);
+  border-color: var(--wechat-accent);
   box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
   outline: none;
 }
@@ -313,7 +313,7 @@
   min-width: 2rem;
   min-height: 2rem;
   padding: 0 var(--size-4-2);
-  color: var(--interactive-accent);
+  color: var(--wechat-accent);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
   background: var(--background-primary-alt);
@@ -326,9 +326,9 @@
   gap: var(--size-4-2);
   margin-top: var(--size-4-2);
   padding: var(--size-4-2);
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
+  border: 1px solid color-mix(in srgb, var(--wechat-accent) 35%, var(--background-modifier-border));
   border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--interactive-accent) 7%, var(--background-secondary));
+  background: color-mix(in srgb, var(--wechat-accent) 7%, var(--background-secondary));
   color: var(--text-normal);
   font-size: var(--font-ui-small);
 }
@@ -592,7 +592,7 @@
 
 .wechat-workbench__cover-thumb[data-preview-url]:hover,
 .wechat-workbench__cover-thumb[data-preview-url]:focus-visible {
-  border-color: var(--interactive-accent);
+  border-color: var(--wechat-accent);
   outline: none;
 }
 
@@ -697,7 +697,7 @@
 }
 
 .wechat-workbench__cover-generation-config .wechat-workbench__cover-prompt-label select:focus-visible {
-	border-color: var(--interactive-accent);
+	border-color: var(--wechat-accent);
 	outline: none;
 	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
