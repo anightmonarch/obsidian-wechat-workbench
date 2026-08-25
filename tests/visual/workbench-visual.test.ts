@@ -60,6 +60,8 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench-settings__actions\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*gap:\s*8px/su);
     expect(css).toMatch(/wechat-workbench-settings__account-status\s*\{[^}]*border-top:\s*1px solid var\(--background-modifier-border\)/su);
     expect(css).toMatch(/wechat-workbench-settings__section-title\s*\{[^}]*margin-left:\s*0[^}]*padding-left:\s*0/su);
+    expect(css).toMatch(/wechat-workbench-settings__account-guidance\s*\{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/su);
+    expect(css).toMatch(/wechat-workbench-settings__account-guidance-copy\s*\{[^}]*min-width:\s*0/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-prompt-label select\s*\{[^}]*appearance:\s*none[^}]*background-image:\s*url\(/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-content-options\s*\{[^}]*justify-self:\s*start/su);
     expect(css).toMatch(/wechat-workbench__cover-content-options\s*>\s*span\s*\{[^}]*font-weight:\s*700/su);

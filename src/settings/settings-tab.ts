@@ -108,10 +108,6 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       text: 'AI 内容生成',
     });
     this.containerEl.append(heading);
-    this.containerEl.append(createEl('p', {
-      cls: 'setting-item-description',
-      text: '文本和图片服务相互独立。请填写完整 Endpoint URL、API Key 和模型名称；保存配置时不联网。',
-    }));
     const grid = createDiv('wechat-workbench-settings__ai-grid');
     appendAiServiceCard(grid, {
       kind: 'text',
@@ -148,9 +144,11 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     renderAccountStatus(statusBlock, status, this.copyText);
 
     const guidance = createDiv('wechat-workbench-settings__account-guidance');
-    guidance.append(createEl('p', {
-      text: '插件直接从本机连接公众号。请将微信验证返回的本机出口 IP 加入公众号平台“开发 → 基本配置 → IP 白名单”。',
-    }));
+    const guidanceCopy = createDiv('wechat-workbench-settings__account-guidance-copy');
+    guidanceCopy.append(
+      createEl('p', { text: '插件直接从本地连接公众号，安全可控。' }),
+      createEl('p', { text: '点击下方验证按钮。将微信验证返回的本机出口 IP 加入公众号平台开发与设置安全中心 IP 白名单。' }),
+    );
     const openConsoleButton = createEl('button', { text: '打开公众号后台' });
     openConsoleButton.type = 'button';
     openConsoleButton.dataset.testid = 'account-open-console';
@@ -159,7 +157,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         new Notice('无法打开公众号后台，请在浏览器访问 mp.weixin.qq.com。');
       });
     });
-    guidance.append(openConsoleButton);
+    guidance.append(guidanceCopy, openConsoleButton);
     accountCard.append(guidance);
 
     new Setting(accountCard)
