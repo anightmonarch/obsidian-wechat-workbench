@@ -15,8 +15,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 56px;
-  padding: 0 var(--size-4-4);
+  min-height: 48px;
+  padding: 0 var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -57,26 +57,34 @@
 .wechat-workbench__tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  min-height: 50px;
-  padding: 0 var(--size-4-4);
+  min-height: 44px;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
 }
 
 .wechat-workbench__tabs button {
   min-width: 0;
-  padding: var(--size-4-3) var(--size-4-2);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  padding: var(--size-4-1) var(--size-4-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
   color: var(--text-muted);
-  background: transparent;
+  background: var(--background-primary);
   font-size: var(--font-ui-medium);
   white-space: nowrap;
 }
 
+.wechat-workbench__tabs button:hover,
+.wechat-workbench__tabs button:focus-visible {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
 .wechat-workbench__tabs button.is-active {
-  border-bottom-color: var(--wechat-accent);
-  color: var(--wechat-accent);
+  border-color: var(--wechat-accent);
+  color: var(--text-on-accent, #fff);
+  background: var(--wechat-accent);
   font-weight: var(--font-semibold);
 }
 
@@ -84,8 +92,8 @@
   display: flex;
   align-items: center;
   gap: var(--size-4-2);
-  min-height: 68px;
-  padding: var(--size-4-3) var(--size-4-4);
+  min-height: 52px;
+  padding: var(--size-4-2) var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
