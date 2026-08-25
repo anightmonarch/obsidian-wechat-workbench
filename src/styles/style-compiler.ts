@@ -80,7 +80,7 @@ function structuralCss(config: Readonly<ArticleStyleConfig>): string {
     : '';
   return `${macCss}
 ${lineNumberCss}
-.wechat-article figure.image-figure { margin: 1.5em 8px; }
+.wechat-article figure.image-figure { margin: 1.5em 0; }
 .wechat-article figcaption.image-caption { margin-top: 0.45em; color: #777777; font-size: 0.8em; text-align: center; }
 .wechat-article blockquote.reading-summary { margin: 1em 0; padding: 0.85em 1em; border-left: 4px solid ${config.primaryColor}; background: #f4f7fb; }
 .wechat-article blockquote.reading-summary > p { margin: 0; }

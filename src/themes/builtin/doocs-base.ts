@@ -17,11 +17,11 @@ export const DOOCS_COMMON_CSS = `.wechat-article {
 .wechat-article .callout-important { background: #f6f0ff; border-left-color: #986EE2; }
 .wechat-article .callout-warning { background: #fff8e8; border-left-color: #C69026; }
 .wechat-article .callout-caution { background: #fff0ef; border-left-color: #E5534B; }
-.wechat-article pre { margin: 1em 8px; padding: 0; overflow-x: auto; border-radius: 8px; line-height: 1.5; }
+.wechat-article pre { margin: 1em 0; padding: 0; overflow-x: auto; border-radius: 8px; line-height: 1.5; }
 .wechat-article pre > code { display: block; padding: 0.75em 1em 1em; overflow-x: auto; white-space: pre; background: transparent; }
 .wechat-article code:not(pre code) { padding: 3px 5px; color: #0F4C81; background: #eef4fa; border: 1px solid #d9e5f0; border-radius: 4px; font-size: 90%; }
 .wechat-article img { display: block; max-width: 100%; height: auto; margin: 0.1em auto 0.5em; border-radius: 4px; }
-.wechat-article figure { margin: 1.5em 8px; }
+.wechat-article figure { margin: 1.5em 0; }
 .wechat-article figcaption { color: #777777; font-size: 0.8em; text-align: center; }
 .wechat-article ol, .wechat-article ul { margin: 0.75em 0; padding-left: 1.5em; }
 .wechat-article li { margin: 0.25em 8px; }

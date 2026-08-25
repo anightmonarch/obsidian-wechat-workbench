@@ -49,4 +49,16 @@ describe('Doocs style golden HTML', () => {
       expect(artifact.canonicalHtml).toContain('margin: 1.25em 0');
     },
   );
+
+  it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])(
+    'keeps images, Mermaid diagrams, and tables aligned with the text edge for %s',
+    async themeId => {
+      const artifact = await buildStyleFixture(themeId);
+
+      expect(artifact.canonicalHtml).toContain('class="image-figure" style="margin: 1.5em 0"');
+      expect(artifact.canonicalHtml).toContain('class="mermaid-placeholder"');
+      expect(artifact.canonicalHtml).toContain('data-asset-kind="generated-diagram" style="margin: 1.5em 0"');
+      expect(artifact.canonicalHtml).toContain('<table style="border-collapse: collapse; margin: 1em 0; width: 100%"');
+    },
+  );
 });
