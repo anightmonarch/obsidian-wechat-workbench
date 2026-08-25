@@ -9,6 +9,7 @@ export interface AiCoverGenerationRequest {
   title: string;
   digest: string;
   supplementalPrompt: string;
+  presetId?: string;
   signal?: AbortSignal;
 }
 

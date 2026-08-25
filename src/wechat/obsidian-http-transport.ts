@@ -11,6 +11,15 @@ function requestBody(request: Readonly<HttpRequest>): string | ArrayBuffer | und
   );
 }
 
+function responseBody(text: string): unknown {
+  if (text.length === 0) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
 export class ObsidianHttpTransport implements HttpTransport {
   constructor(private readonly send: typeof requestUrl = requestUrl) {}
 
@@ -25,7 +34,7 @@ export class ObsidianHttpTransport implements HttpTransport {
     return Object.freeze({
       status: response.status,
       headers: Object.freeze({ ...response.headers }),
-      body: response.json as unknown,
+      body: responseBody(response.text),
     });
   }
 }

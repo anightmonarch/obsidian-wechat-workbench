@@ -79,7 +79,7 @@ Expected:
 - `src/settings/settings-tab.ts` — approved dual configuration cards; remove protocol/model-list UI.
 - `src/domain/article.ts` — shared editable title/author/digest value type.
 - `src/settings/article-settings.ts` — save only title/author/digest.
-- `src/cover/openai-image-generator.ts` — use exact endpoint and minimal request fields.
+- `src/cover/openai-image-generator.ts` — use the exact endpoint and the documented Agnes-compatible `2K` URL-output panoramic request fields with a 120-second request boundary.
 - `src/cover/cover-workflow.ts` — keep AI candidate in memory until adoption and expose restore-first-image.
 - `src/cover/cover-types.ts` — candidate bytes and persistence result types.
 - `src/ui/ai-cover-confirmation.ts` — disclosure, optional prompt, preview, regenerate, adopt, cancel.
@@ -1305,8 +1305,8 @@ const request: Readonly<AiCoverGenerationRequest> = Object.freeze({
   supplementalPrompt: '',
 });
 
-it('posts to the exact endpoint with the fixed 2K landscape contract', async () => {
-  const current = transport({ data: [{ b64_json: Buffer.from(png).toString('base64') }] });
+it('posts to the exact endpoint with the fixed URL-output landscape contract', async () => {
+  const current = transport({ data: [{ url: 'https://cdn.example.test/generated.png' }] });
   const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
 
   await generator.generate(request);
@@ -1315,11 +1315,11 @@ it('posts to the exact endpoint with the fixed 2K landscape contract', async () 
   expect(current.requests[0]?.json).toMatchObject({
     model: 'synthetic-image-model',
     size: '2K',
-    ratio: '16:9',
-    return_base64: true,
+    ratio: '21:9',
+    extra_body: { response_format: 'url' },
   });
   expect(current.requests[0]?.json).not.toHaveProperty('n');
-  expect(current.requests[0]?.json).not.toHaveProperty('response_format');
+  expect(current.requests[0]?.json).not.toHaveProperty('return_base64');
 });
 ```
 
@@ -1362,8 +1362,8 @@ response = await this.requestWithBoundary({
     model: request.model.trim(),
     prompt: prompt(request),
     size: '2K',
-    ratio: '16:9',
-    return_base64: true,
+    ratio: '21:9',
+    extra_body: { response_format: 'url' },
   },
 }, request.signal);
 ```
@@ -1955,7 +1955,7 @@ git commit -m "test(ai): verify content generation workflows"
 - [x] Title returns exactly 3 candidates; digest returns exactly 1.
 - [x] Candidate generation never directly overwrites article values.
 - [x] Autosave uses 600ms debounce, single-flight writes, flush, and stable DOM.
-- [x] AI image request uses the exact endpoint and no optional size/provider fields.
+- [x] AI image request uses the exact endpoint with `size: "2K"`, `ratio: "21:9"`, `extra_body.response_format: "url"`, and a shared 120-second outer/inner transport boundary.
 - [x] AI cover bytes remain in memory until adoption.
 - [x] Supplemental prompt is modal-only, reusable for regeneration, and cleared on close.
 - [x] Restore-first-image clears Frontmatter only and does not delete files.
@@ -2001,7 +2001,7 @@ Tasks: 9–11.
 
 Checkpoint:
 
-- Exact image endpoint and minimal request pass.
+- Exact image endpoint and the documented Agnes-compatible landscape request pass.
 - One candidate stays in memory until adoption.
 - Supplemental prompt survives regenerate and clears on close.
 - Restore-first-image changes Frontmatter only.

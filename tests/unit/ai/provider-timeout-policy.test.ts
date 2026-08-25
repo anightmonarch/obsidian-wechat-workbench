@@ -8,7 +8,7 @@ import {
 describe('provider timeout policy', () => {
   it('allows image generation more time than text generation without extending text requests', () => {
     expect(TEXT_PROVIDER_TIMEOUT_MS).toBe(35_000);
-    expect(IMAGE_PROVIDER_TIMEOUT_MS).toBe(90_000);
+    expect(IMAGE_PROVIDER_TIMEOUT_MS).toBe(120_000);
     expect(IMAGE_PROVIDER_TIMEOUT_MS).toBeGreaterThan(TEXT_PROVIDER_TIMEOUT_MS);
   });
 });

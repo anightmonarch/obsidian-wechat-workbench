@@ -187,7 +187,18 @@ export class CoverWorkflow {
     artifact: Readonly<RenderArtifact>,
   ): Promise<Readonly<PreparedCover>> {
     const first = this.sources.firstImage(artifact);
-    if (first === null) throw new CoverPathError('COVER_FIRST_IMAGE_MISSING', '文章没有可用首图。');
+    if (first === null) {
+      return Object.freeze({
+        source: 'dynamic-first-image' as const,
+        persistence: 'CLEAR_EXPLICIT_COVER' as const,
+        notePath: file.path,
+        contextHash: publishPayloadHash(artifact),
+        vaultPath: null,
+        mimeType: 'image/png' as const,
+        contentHash: createHash('sha256').update(`empty-cover:${publishPayloadHash(artifact)}`).digest('hex'),
+        previewDataUrl: '',
+      });
+    }
     const fetched = first.vaultPath.startsWith('https://')
       ? await this.remoteImages.fetch(first.vaultPath)
       : await this.readLocalImage(file, first.vaultPath);
@@ -261,6 +272,10 @@ export class CoverWorkflow {
     file: VaultFileRef,
     artifact: Readonly<RenderArtifact>,
     supplementalPrompt = '',
+    selection: Readonly<{ includeTitle: boolean; includeDigest: boolean; presetId?: string }> = {
+      includeTitle: true,
+      includeDigest: true,
+    },
     signal?: AbortSignal,
   ): Promise<Readonly<PreparedCover>> {
     const apiKey = this.secret.get();
@@ -271,14 +286,17 @@ export class CoverWorkflow {
     }
     if (apiKey === null) throw new Error('Image API key is not configured.');
     const settings = this.settings.get();
+    const title = selection.includeTitle ? artifact.metadata.title : '';
+    const digest = selection.includeDigest ? artifact.metadata.digest : '';
     const generated = await this.generator.generate({
       protocol: settings.imageApiProtocol,
       endpoint: settings.imageApiEndpoint,
       model: settings.imageApiModel,
       apiKey,
-      title: artifact.metadata.title,
-      digest: artifact.metadata.digest,
+      title,
+      digest,
       supplementalPrompt,
+      presetId: selection.presetId,
       ...(signal === undefined ? {} : { signal }),
     });
     return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));

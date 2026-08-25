@@ -29,6 +29,7 @@ import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
 import { ArticleTextGenerationService } from './ai/article-text-service';
 import { OpenAiTextGenerator } from './ai/openai-text-generator';
+import { createAiProviderHttpTransport } from './ai/provider-http-transport';
 import { accountHashForAppId } from './settings/account';
 import { AiServiceSettingsService } from './settings/ai-service-settings';
 import { ArticleSettingsService } from './settings/article-settings';
@@ -56,7 +57,6 @@ import { WeChatWorkbenchView } from './ui/workbench-view';
 import { ElectronExternalBrowser, openWeChatOfficialConsole } from './ui/external-browser';
 import { openPluginSettings } from './ui/settings-navigator';
 import { ObsidianHttpTransport } from './wechat/obsidian-http-transport';
-import { PinnedNodeHttpTransport } from './wechat/pinned-node-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
 import { WeChatClient } from './wechat/wechat-client';
@@ -154,14 +154,8 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       new ElectronClipboardPort(),
     );
     const wechatHttp = new TimeoutHttpTransport(new ObsidianHttpTransport(), 35_000);
-    const textProviderHttp = new TimeoutHttpTransport(
-      new PinnedNodeHttpTransport(),
-      TEXT_PROVIDER_TIMEOUT_MS,
-    );
-    const imageProviderHttp = new TimeoutHttpTransport(
-      new PinnedNodeHttpTransport(),
-      IMAGE_PROVIDER_TIMEOUT_MS,
-    );
+    const textProviderHttp = createAiProviderHttpTransport(undefined, TEXT_PROVIDER_TIMEOUT_MS);
+    const imageProviderHttp = createAiProviderHttpTransport(undefined, IMAGE_PROVIDER_TIMEOUT_MS);
     const tokens = new TokenService(secretStore, {
       get appId() { return currentSettings().appId; },
       get accessTokenExpiresAt() { return currentSettings().accessTokenExpiresAt; },

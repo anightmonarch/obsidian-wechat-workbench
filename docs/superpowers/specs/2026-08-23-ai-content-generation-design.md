@@ -300,13 +300,15 @@ flowchart LR
 在现有实现上收窄职责：
 
 - 请求 URL 直接使用 `imageApiEndpoint`，不得调用 `providerUrl()` 或拼接 `/v1/images/generations`。
-- 请求体固定包含 `model`、`prompt`、`size: "2K"`、`ratio: "16:9"` 和 `return_base64: true`，一次只请求一张图片；不发送 `n` 或顶层 `response_format`。
-- 该请求契约按首版推荐的 Agnes Image 2.1 Flash 兼容接口固定：`size` 与 `ratio` 保证公众号横向封面比例，`return_base64` 让客户端直接接收并校验图片字节，避免再请求供应商临时图片 URL。其他 OpenAI compatible 图片服务若拒绝这些字段，需要用户改用其兼容的图片 Endpoint/模型；首版不增加模型发现或供应商适配列表。
-- 接受 `data[0].b64_json` 或 `data[0].url`。
-- URL 输出继续走受控远程图片下载与真实 MIME 校验。
+- 请求体固定包含 `model`、`prompt`、`size: "2K"`、`ratio: "21:9"` 和 `extra_body: { response_format: "url" }`，一次只请求一张图片；不发送 `n`、`return_base64` 或顶层 `response_format`。
+- 该请求契约按首版推荐的 Agnes Image 2.1 Flash 兼容接口固定：`size` 与 `ratio` 生成横向候选图，随后由本地图片处理器统一裁剪为 2.35:1。优先使用 URL 输出，避免大 Base64 响应在本机代理长连接中被截断；其他 OpenAI compatible 图片服务若拒绝这些字段，需要用户改用其兼容的图片 Endpoint/模型；首版不增加模型发现或供应商适配列表。
+- 默认期望 `data[0].url`；为兼容已支持的服务仍防御性接受 `data[0].b64_json`。
+- URL 输出必须走受控远程图片下载与真实 MIME 校验；生成请求的外层等待与内部固定 IP 传输总时限必须共用 120 秒策略，图片下载维持独立受控时限。
 - 输出进入现有图片处理器，统一居中裁剪为 2.35:1 PNG。
 
 图片生成器只返回候选字节，不修改 Frontmatter，不决定是否采用。
+
+采用封面触发文章重建时，工作台必须保留上一次成功渲染的文章信息；仅在新产物成功后局部替换，不能以“正在排版”占位覆盖标题、作者和摘要。
 
 ## 6. 配置模型与迁移
 
@@ -662,6 +664,7 @@ sequenceDiagram
 | --- | --- | --- |
 | `AI_TARGET_BLOCKED` | 服务地址不符合公网安全规则。 | 否 |
 | `AI_REQUEST_TIMEOUT` | AI 服务响应超时，可手动重新生成。 | 否 |
+| `AI_CONNECTION_RESET` | AI 服务连接被中断，请检查本机代理稳定性后手动重试。 | 否 |
 | `AI_AUTH_REJECTED` | AI 服务拒绝鉴权，请检查 API Key。 | 否 |
 | `AI_MODEL_REJECTED` | 服务不支持当前模型或请求参数。 | 否 |
 | `AI_RATE_LIMITED` | 请求过于频繁，请稍后手动重试。 | 否 |
@@ -824,7 +827,7 @@ npm run scan:secrets
 - 接受首版只支持 OpenAI compatible，以减少跨协议兼容和 UI 复杂度。
 - 接受用户手填模型名称，不提供发现、验证或推荐。
 - 接受保存配置不能证明服务可用；真实生成承担能力验证。
-- 接受首版图片请求固定使用 Agnes 兼容的 `2K + 16:9 + return_base64` 契约，由本地图片处理器继续统一裁剪为 2.35:1；不增加供应商发现或适配列表。
+- 接受首版图片请求固定使用 Agnes 兼容的 `2K + 21:9 + extra_body.response_format=url` 契约，生成请求等待上限为 120 秒；返回图片经独立受控下载后由本地图片处理器统一裁剪为 2.35:1，不增加供应商发现、自动重试、自动回退或适配列表。
 - 接受候选和补充封面描述只驻留当前会话，关闭后不可恢复。
 - 接受显式封面文件不会因恢复文章首图而自动删除，避免误删用户资产。
 - 接受异常退出可能丢失最后 600ms 尚未开始的输入，以稳定 UI 和避免每键写盘换取性能。

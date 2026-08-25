@@ -163,6 +163,20 @@ describe('CoverWorkflow', () => {
     }));
   });
 
+  it('omits unchecked title and digest values from the AI cover request', async () => {
+    const current = harness();
+
+    await current.workflow.prepareAi(file, artifact, '', {
+      includeTitle: false,
+      includeDigest: false,
+    });
+
+    expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
+      title: '',
+      digest: '',
+    }));
+  });
+
   it('disables Anthropic image generation without invoking the image generator', async () => {
     const current = anthropicHarness();
 
