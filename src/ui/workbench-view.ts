@@ -307,6 +307,12 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       header, tabs, toolbar,
       previewPanel, this.settingsEl,
     );
+    this.registerDomEvent(this.contentEl, 'click', event => {
+      if (this.styleWorkbench === null || this.styleHost === null) return;
+      if (!(event.target instanceof Node)) return;
+      if (this.styleHost.contains(event.target) || this.styleTrigger?.contains(event.target)) return;
+      this.closeStylePanel(false);
+    });
     this.controller?.start();
   }
 

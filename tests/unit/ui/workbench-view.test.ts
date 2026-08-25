@@ -180,6 +180,16 @@ describe('WeChatWorkbenchView', () => {
     view.showArtifact(renderState);
     expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
 
+    styleRoot?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).toBe(styleRoot);
+
+    view.contentEl.querySelector<HTMLElement>('.wechat-workbench__preview-canvas')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(styleHost?.hidden).toBe(true);
+    expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).toBeNull();
+    expect(view.contentEl.querySelector('[data-testid="style-trigger"]')?.getAttribute('aria-expanded'))
+      .toBe('false');
+
     view.contentEl.querySelector<HTMLButtonElement>('[data-testid="copy-rich"]')?.click();
     await Promise.resolve();
     expect(copied).toEqual(['rich']);
