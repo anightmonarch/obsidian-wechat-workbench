@@ -36,6 +36,7 @@ import { AccountConnectionService } from './settings/account-connection-service'
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
+import { createNonRenderingSettingsAccess } from './settings/non-rendering-settings-access';
 import { CodeThemeRegistry } from './styles/code-theme-registry';
 import { StyleCompiler } from './styles/style-compiler';
 import { StyleFrontmatterStore } from './styles/style-frontmatter-store';
@@ -98,20 +99,10 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     const source = new ObsidianWorkbenchSource(this.app);
     const themes = new ThemeRegistry(BUILTIN_THEMES, vaultPorts);
     await themes.load(this.pluginSettings.customThemeDirectory);
-    const refreshWorkbenchSettings = async (
-      patch: Partial<PluginSettings>,
-    ): Promise<Readonly<PluginSettings>> => {
-      await updateSettings(patch);
-      await themes.load(this.pluginSettings.customThemeDirectory);
-      for (const leaf of this.app.workspace.getLeavesOfType(WORKBENCH_VIEW_TYPE)) {
-        if (leaf.view instanceof WeChatWorkbenchView) leaf.view.requestRebuild('settings');
-      }
-      return this.pluginSettings;
-    };
-    const settingsAccess = {
-      get: () => this.pluginSettings,
-      update: refreshWorkbenchSettings,
-    };
+    const settingsAccess = createNonRenderingSettingsAccess(
+      () => this.pluginSettings,
+      updateSettings,
+    );
     const openAccountSettings = (): void => {
       openPluginSettings(() => {
         new Notice('请打开设置 → 第三方插件 → WeChat Workbench 完善公众号账号配置。');
