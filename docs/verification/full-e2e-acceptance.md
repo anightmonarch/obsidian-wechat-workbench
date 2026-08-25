@@ -1,6 +1,6 @@
 # Full End-to-End Acceptance Ledger
 
-Checkpoint: 2026-08-24
+Checkpoint: 2026-08-25. The settings UI isolation and verification-feedback updates have fresh automated and runtime-asset evidence; their real Obsidian click path remains pending because reloading can discard unsaved editor content.
 
 Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wechat-workbench-test-vault`. The main `commit_note` Vault is outside the development plugin path.
 
@@ -8,11 +8,12 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 
 | Module | Current state | Direct evidence |
 | --- | --- | --- |
-| Build, typecheck, tests | PASS (automated) | `npm test`: 86 files / 440 tests passed |
-| Lint, release assets, secret scan | PASS (automated) | lint 0 errors / 19 existing warnings; release verifier and secret scan pass for 255 files |
-| Plugin sync and load | PASS | `sync:test-vault` copied the three runtime assets; repository and isolated-Vault `main.js` have the same SHA-256, then Obsidian was fully restarted into the isolated Vault |
+| Build, typecheck, tests | PASS (automated) | 2026-08-25: `npm test` rebuilt the plugin, typechecked it, then passed 89 files / 460 tests |
+| Lint, release assets, secret scan | PASS (automated) | 2026-08-25: lint completed with no errors; release verifier passed; secret scan passed 265 files |
+| Plugin sync and load | PARTIAL | A prior 2026-08-25 `sync:test-vault` copied the three runtime assets and confirmed a matching `main.js` SHA-256; these later source changes still require a final sync and real Obsidian reload before current-runtime acceptance |
 | Workbench shell and tabs | PASS | Real Obsidian preview/settings pages and hidden prototype controls observed |
-| Account settings layout/status | PASS | Real settings page shows compact account section, status, guidance, masked secret and disconnect confirmation |
+| Account settings layout/status | PARTIAL | The unified account-card layout, 8px action gap, concise AI field copy, inline missing-AppSecret error, left-aligned headings, and wide AI-control CSS passed DOM/CSS tests but need a post-reload Obsidian visual check |
+| Account and AI settings refresh isolation | PASS (automated) | `createNonRenderingSettingsAccess` has no workbench-refresh dependency; `main.ts` no longer requests `requestRebuild('settings')`; focused settings tests pass |
 | Real account verification | BLOCKED | WeChat API IP whitelist condition; explicitly excluded by task scope |
 | Official-console external link | PASS | Fixed AX `mp.weixin.qq.com/`, tooltip/label, and external-browser action observed |
 | Article metadata/source compatibility | PASS | Real save preserved `content_source_url`; source-link editor absent |
@@ -33,4 +34,4 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 
 ## Completion decision
 
-The AI content-generation scope is complete: current production code was synced, restarted, and accepted through the real macOS Obsidian path. The project as a whole is not marked complete: the remaining rows are explicit external blockers or require a stronger clipboard evidence path, and they must not be silently promoted to PASS.
+The prior AI content-generation acceptance remains historical evidence. The current settings UI isolation update is not yet accepted through the real macOS Obsidian path: it must be reloaded and checked with a ready workbench before the two `PARTIAL` rows can be promoted. The project as a whole is not marked complete; remaining rows are external blockers or require stronger evidence and must not be silently promoted to PASS.
