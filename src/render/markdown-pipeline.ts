@@ -58,6 +58,15 @@ const processor = unified()
   .use(rehypeSanitize, ARTICLE_HTML_SCHEMA)
   .use(rehypeStringify);
 
+function removeInvisibleControlCharacters(markdown: string): string {
+  return [...markdown].filter(character => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint === 9 || codePoint === 10 || codePoint === 13
+      || codePoint >= 32 && codePoint !== 127;
+  }).join('');
+}
+
 export async function markdownToSafeHtml(markdown: string): Promise<string> {
-  return String(await processor.process(expandObsidianImageEmbeds(markdown)));
+  const normalized = removeInvisibleControlCharacters(markdown);
+  return String(await processor.process(expandObsidianImageEmbeds(normalized)));
 }

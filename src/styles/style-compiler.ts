@@ -46,6 +46,7 @@ function primaryColorOverrides(primaryColor: string): string {
 .wechat-article h2 { background-color: ${primaryColor}; }
 .wechat-article h3 { border-left-color: ${primaryColor}; }
 .wechat-article h4, .wechat-article h5, .wechat-article h6, .wechat-article strong { color: ${primaryColor}; }
+.wechat-article h1 strong, .wechat-article h2 strong, .wechat-article h3 strong, .wechat-article h4 strong, .wechat-article h5 strong, .wechat-article h6 strong { color: inherit; }
 .wechat-article a { color: ${primaryColor}; }
 .wechat-article code:not(pre code) { color: ${primaryColor}; border-color: ${primaryColor}; }`;
 }

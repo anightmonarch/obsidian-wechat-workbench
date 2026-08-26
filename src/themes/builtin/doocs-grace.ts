@@ -19,6 +19,6 @@ export const DOOCS_GRACE_CSS = `${DOOCS_COMMON_CSS}
 .wechat-article code:not(pre code) { font-family: Menlo, Consolas, monospace; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 .wechat-article pre { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05); }
 .wechat-article img { border-radius: 8px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22); }
-.wechat-article ul { list-style: none; }
+.wechat-article ul { list-style: disc; }
 .wechat-article li { margin: 0.5em 8px; }
 `;

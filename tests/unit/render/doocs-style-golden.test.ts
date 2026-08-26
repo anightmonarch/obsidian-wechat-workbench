@@ -10,10 +10,10 @@ import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
 const fixtureMarkdown = await readFile('tests/fixtures/articles/style-elements.md', 'utf8');
 
-function snapshot(themeId: string): Readonly<NoteSnapshot> {
+function snapshot(themeId: string, markdown = fixtureMarkdown): Readonly<NoteSnapshot> {
   return Object.freeze({
     vaultPath: 'tests/fixtures/articles/style-elements.md',
-    basename: 'style-elements', modifiedAt: 1, markdown: fixtureMarkdown,
+    basename: 'style-elements', modifiedAt: 1, markdown,
     frontmatter: Object.freeze({}),
     metadata: Object.freeze({
       title: '样式工作台验证', author: 'WeChat Workbench', digest: 'Synthetic style fixture',
@@ -23,12 +23,12 @@ function snapshot(themeId: string): Readonly<NoteSnapshot> {
   });
 }
 
-async function buildStyleFixture(themeId: string) {
+async function buildStyleFixture(themeId: string, markdown = fixtureMarkdown) {
   const base = BUILTIN_THEMES.find(theme => theme.manifest.id === themeId);
   if (base === undefined) throw new Error(`Missing theme fixture: ${themeId}`);
   const style = patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId, imageCaption: 'alt' });
   const compiled = new StyleCompiler(new CodeThemeRegistry()).compile(base, style);
-  return new RenderArtifactBuilder().build(snapshot(themeId), compiled, style);
+  return new RenderArtifactBuilder().build(snapshot(themeId, markdown), compiled, style);
 }
 
 describe('Doocs style golden HTML', () => {
@@ -72,6 +72,28 @@ describe('Doocs style golden HTML', () => {
       expect(image).not.toBeNull();
       expect(image?.style.borderRadius).not.toBe('');
       expect(image?.style.boxShadow).toBe('0 6px 18px rgba(15, 23, 42, 0.22)');
+    },
+  );
+
+  it.each(['doocs-grace', 'doocs-simple'])(
+    'keeps unordered-list markers visible for %s',
+    async themeId => {
+      const artifact = await buildStyleFixture(themeId, '- **第一项**\n- 第二项');
+      const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+
+      expect(document.querySelector<HTMLUListElement>('ul')?.style.listStyle).toBe('disc');
+    },
+  );
+
+  it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])(
+    'keeps bold text visible inside an h2 for %s',
+    async themeId => {
+      const artifact = await buildStyleFixture(themeId, '## **3、测试多模态能力**');
+      const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+      const heading = document.querySelector<HTMLHeadingElement>('h2');
+
+      expect(heading?.textContent).toBe('3、测试多模态能力');
+      expect(heading?.querySelector<HTMLElement>('strong')?.style.color).toBe('inherit');
     },
   );
 });

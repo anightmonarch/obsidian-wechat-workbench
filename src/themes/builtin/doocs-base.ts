@@ -28,6 +28,7 @@ export const DOOCS_COMMON_CSS = `.wechat-article {
 .wechat-article hr { height: 1px; margin: 2em 0; border: 0; background: #d9dfe7; }
 .wechat-article a { color: #576B95; text-decoration: none; }
 .wechat-article strong { color: #0F4C81; font-weight: bold; }
+.wechat-article h1 strong, .wechat-article h2 strong, .wechat-article h3 strong, .wechat-article h4 strong, .wechat-article h5 strong, .wechat-article h6 strong { color: inherit; }
 .wechat-article table { width: 100%; margin: 1em 0; border-collapse: collapse; }
 .wechat-article th, .wechat-article td { padding: 0.35em 0.55em; border: 1px solid #d9dfe7; text-align: left; }
 .wechat-article th { background: #f4f7fb; font-weight: bold; }

@@ -18,6 +18,6 @@ export const DOOCS_SIMPLE_CSS = `${DOOCS_COMMON_CSS}
 .wechat-article code:not(pre code) { font-family: Menlo, Consolas, monospace; border-radius: 6px; }
 .wechat-article pre { border: 1px solid #edf0f4; }
 .wechat-article img { border: 1px solid #edf0f4; border-radius: 8px; }
-.wechat-article ul { list-style: none; }
+.wechat-article ul { list-style: disc; }
 .wechat-article li { margin: 0.5em 8px; }
 `;

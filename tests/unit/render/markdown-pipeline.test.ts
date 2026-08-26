@@ -74,4 +74,15 @@ describe('RenderArtifactBuilder', () => {
     expect(artifact.canonicalHtml).toContain('code-line-number');
     expect(artifact.canonicalHtml).toContain('code-line-content');
   });
+
+  it('removes invisible C0 controls without adding paragraph indentation', async () => {
+    const artifact = await new RenderArtifactBuilder().build(
+      snapshot('\u0008\u0008不知道是不是今天用户多了起来。'),
+      nativeTheme,
+    );
+    const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+
+    expect(document.querySelector('p')?.textContent).toBe('不知道是不是今天用户多了起来。');
+    expect(artifact.canonicalHtml).not.toContain('\u0008');
+  });
 });
