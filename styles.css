@@ -328,7 +328,7 @@
   padding: var(--size-4-2);
   border: 1px solid color-mix(in srgb, var(--wechat-accent) 35%, var(--background-modifier-border));
   border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--wechat-accent) 7%, var(--background-secondary));
+  background: transparent;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
 }
