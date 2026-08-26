@@ -17,6 +17,9 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench\s+\.wechat-workbench__setting-field input,\s*\.wechat-workbench\s+\.wechat-workbench__setting-field textarea\s*\{[^}]*box-sizing:\s*border-box[^}]*min-width:\s*0[^}]*max-width:\s*100%/su);
     expect(css).toMatch(/wechat-workbench__ai-candidates\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/su);
     expect(css).toMatch(/wechat-workbench__ai-candidates\s*\{[^}]*background:\s*transparent/su);
+    expect(css).toMatch(/wechat-workbench__ai-candidates\s*\{[^}]*border:\s*1px solid var\(--background-modifier-border\)/su);
+    expect(css).toMatch(/wechat-workbench\s+\.wechat-workbench__setting-field input:focus-visible,\s*\.wechat-workbench\s+\.wechat-workbench__setting-field textarea:focus-visible\s*\{[^}]*border-color:\s*var\(--background-modifier-border\)[^}]*box-shadow:\s*0 0 0 2px var\(--background-modifier-border-focus\)/su);
+    expect(css).toMatch(/wechat-workbench__cover-thumb\[data-preview-url\]:hover,\s*\.wechat-workbench__cover-thumb\[data-preview-url\]:focus-visible\s*\{[^}]*border-color:\s*var\(--background-modifier-border\)/su);
     expect(css).toMatch(/wechat-workbench__ai-candidate\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere/su);
     expect(css).toMatch(/wechat-workbench__action-bar\s*\{[^}]*display:\s*flex[^}]*min-height:\s*52px/su);
     expect(css).toMatch(/wechat-workbench__style-trigger\s*\{[^}]*margin-left:\s*auto/su);
