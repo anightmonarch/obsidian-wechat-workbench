@@ -69,6 +69,23 @@ describe('OpenAiTextGenerator', () => {
     await expect(generator.generateDigest(request)).resolves.toBe('一段面向读者的摘要');
   });
 
+  it('accepts a plain-text digest without relaxing the title contract', async () => {
+    const current = transport({ choices: [{ message: { content: '摘要：供应商直接返回的一段摘要。' } }] });
+    const generator = new OpenAiTextGenerator(current.http);
+
+    await expect(generator.generateDigest(request)).resolves.toBe('供应商直接返回的一段摘要。');
+    await expect(generator.generateTitles(request))
+      .rejects.toMatchObject({ code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
+  });
+
+  it('rejects malformed JSON instead of treating it as a plain-text digest', async () => {
+    const current = transport({ choices: [{ message: { content: '{"digest":"缺少结束符"' } }] });
+    const generator = new OpenAiTextGenerator(current.http);
+
+    await expect(generator.generateDigest(request))
+      .rejects.toMatchObject({ code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
+  });
+
   it('recovers a JSON object wrapped in harmless provider commentary', async () => {
     const current = transport({
       choices: [{ message: { content: '下面是结果：\n{"titles":["标题一","标题二","标题三"]}\n希望对你有帮助。' } }],

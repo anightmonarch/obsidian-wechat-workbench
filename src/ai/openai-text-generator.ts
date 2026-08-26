@@ -136,9 +136,22 @@ function responseContent(body: unknown): string {
   return content;
 }
 
-function parsedMessage(body: unknown): Record<string, unknown> {
-  const parsed = parseJsonContent(responseContent(body));
-  return object(parsed);
+function plainDigestContent(content: string): string | null {
+  const trimmed = content.trim();
+  if (trimmed.length === 0 || /[{}]/u.test(trimmed) || trimmed.startsWith('```')) return null;
+  const withoutLabel = trimmed.replace(/^(?:以下是)?(?:文章)?摘要(?:如下)?[：:]\s*/u, '');
+  return withoutLabel.length > 0 ? withoutLabel : null;
+}
+
+function parsedMessage(body: unknown, purpose: 'title' | 'digest'): Record<string, unknown> {
+  const content = responseContent(body);
+  try {
+    return object(parseJsonContent(content));
+  } catch (error) {
+    const digest = purpose === 'digest' ? plainDigestContent(content) : null;
+    if (digest !== null) return { digest };
+    throw error;
+  }
 }
 
 function redactedMessage(error: unknown, apiKey: string): string {
@@ -214,7 +227,7 @@ export class OpenAiTextGenerator implements AiTextGenerator {
       throw failure('AI_TEXT_PROVIDER_REJECTED', `Text provider returned HTTP ${response.status}.`);
     }
     try {
-      return parsedMessage(response.body);
+      return parsedMessage(response.body, purpose);
     } catch (error) {
       if (error instanceof AiTextGenerationError) throw error;
       throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', redactedMessage(error, request.apiKey));
