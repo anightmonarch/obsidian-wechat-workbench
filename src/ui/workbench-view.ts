@@ -217,7 +217,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     account.rel = 'noopener noreferrer';
     account.dataset.testid = 'wechat-console-link';
     account.setAttribute('aria-label', '跳转到公众号后台');
-    account.title = '跳转到公众号后台';
     setIcon(account, 'external-link');
     this.registerDomEvent(account, 'click', event => {
       event.preventDefault();

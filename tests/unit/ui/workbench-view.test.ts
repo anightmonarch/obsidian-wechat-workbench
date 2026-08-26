@@ -111,6 +111,7 @@ describe('WeChatWorkbenchView', () => {
     expect(consoleLink?.getAttribute('target')).toBe('_blank');
     expect(consoleLink?.getAttribute('rel')).toBe('noopener noreferrer');
     expect(consoleLink?.getAttribute('aria-label')).toBe('跳转到公众号后台');
+    expect(consoleLink?.getAttribute('title')).toBeNull();
     expect(consoleLink?.dataset.icon).toBe('external-link');
   });
 
