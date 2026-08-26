@@ -173,6 +173,32 @@ describe('publish settings', () => {
     expect(host.querySelector<HTMLTextAreaElement>('[data-testid="settings-digest"]')?.value).toHaveLength(120);
   });
 
+  it('shows actionable text-generation failures instead of blaming every failure on configuration', async () => {
+    const host = document.createElement('section');
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(),
+      saveArticle: vi.fn(async () => undefined),
+      generateTitles: vi.fn(async () => {
+        throw Object.assign(new Error('Text provider request timed out.'), { code: 'AI_TEXT_PROVIDER_TIMEOUT' });
+      }),
+      generateDigest: vi.fn(async () => {
+        throw Object.assign(new Error('Text provider returned malformed output.'), { code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
+      }),
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.querySelector('[data-testid="settings-title-candidates"]')?.textContent)
+      .toContain('服务响应超时，请稍后重试');
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(host.querySelector('[data-testid="settings-digest-candidates"]')?.textContent)
+      .toContain('服务返回格式异常，请重新生成');
+  });
+
   it('keeps adopted candidates hidden when an earlier regeneration resolves late', async () => {
     const host = document.createElement('section');
     let resolveTitle: ((value: readonly string[]) => void) | undefined;

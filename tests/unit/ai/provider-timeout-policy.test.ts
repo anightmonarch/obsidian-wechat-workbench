@@ -6,8 +6,8 @@ import {
 } from '../../../src/ai/provider-timeout-policy';
 
 describe('provider timeout policy', () => {
-  it('allows image generation more time than text generation without extending text requests', () => {
-    expect(TEXT_PROVIDER_TIMEOUT_MS).toBe(35_000);
+  it('covers observed text-provider latency without making it as long as image generation', () => {
+    expect(TEXT_PROVIDER_TIMEOUT_MS).toBe(60_000);
     expect(IMAGE_PROVIDER_TIMEOUT_MS).toBe(120_000);
     expect(IMAGE_PROVIDER_TIMEOUT_MS).toBeGreaterThan(TEXT_PROVIDER_TIMEOUT_MS);
   });

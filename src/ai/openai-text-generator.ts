@@ -97,11 +97,31 @@ function parseJsonContent(body: unknown): unknown {
     : body;
   if (typeof root !== 'string') return root;
   const fenced = root.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/iu);
+  const candidate = fenced?.[1]?.trim() ?? root;
   try {
-    return JSON.parse(fenced?.[1]?.trim() ?? root) as unknown;
+    return JSON.parse(candidate) as unknown;
   } catch {
+    const firstBrace = candidate.indexOf('{');
+    const lastBrace = candidate.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as unknown;
+      } catch {
+        // Fall through to the public, provider-neutral error below.
+      }
+    }
     throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider returned invalid JSON.');
   }
+}
+
+function contentText(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return null;
+  const parts = value.flatMap(part => {
+    const current = object(part);
+    return current.type === 'text' && typeof current.text === 'string' ? [current.text] : [];
+  });
+  return parts.length > 0 ? parts.join('') : null;
 }
 
 function responseContent(body: unknown): string {
@@ -109,10 +129,11 @@ function responseContent(body: unknown): string {
   const choices = object(parsed).choices;
   const first = Array.isArray(choices) ? object(choices[0]) : {};
   const message = object(first.message);
-  if (typeof message.content !== 'string') {
+  const content = contentText(message.content);
+  if (content === null) {
     throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider response contains no message content.');
   }
-  return message.content;
+  return content;
 }
 
 function parsedMessage(body: unknown): Record<string, unknown> {
@@ -172,6 +193,7 @@ export class OpenAiTextGenerator implements AiTextGenerator {
       },
       json: {
         model: request.model.trim(),
+        max_tokens: 256,
         messages: messages(request.context, purpose),
       },
     };

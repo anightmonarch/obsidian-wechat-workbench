@@ -30,6 +30,25 @@ function currentPlaceholder(value: string): string {
   return value.length > 0 ? `当前：${value}` : '未设置';
 }
 
+function textGenerationErrorMessage(error: unknown): string {
+  const code = typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : '';
+  switch (code) {
+    case 'AI_TEXT_PROVIDER_TIMEOUT': return '服务响应超时，请稍后重试';
+    case 'AI_TEXT_PROVIDER_RATE_LIMITED': return '请求过于频繁，请稍后重试';
+    case 'AI_TEXT_PROVIDER_REJECTED': return '服务拒绝请求，请检查 API Key 和模型配置';
+    case 'AI_TEXT_PROVIDER_OUTPUT_INVALID': return '服务返回格式异常，请重新生成';
+    case 'AI_TEXT_PROVIDER_REQUEST_FAILED': return '网络连接失败，请检查网络后重试';
+    case 'AI_TEXT_PROVIDER_KEY_MISSING':
+    case 'AI_TEXT_PROVIDER_MODEL_MISSING':
+    case 'AI_TEXT_PROVIDER_URL_INVALID':
+      return '文本服务未配置完整，请到插件设置检查';
+    case 'AI_TEXT_GENERATION_CANCELLED': return '已取消生成';
+    default: return '生成失败，请稍后重试';
+  }
+}
+
 function editableField(
   container: HTMLElement,
   label: string,
@@ -245,10 +264,10 @@ export class ArticleSettingsForm {
       this.titleOptions = Object.freeze(values.slice(0, 3));
       this.titleLoading = false;
       this.renderTitleCandidates();
-    } catch {
+    } catch (error) {
       if (generation !== this.titleGeneration) return;
       this.titleLoading = false;
-      this.titleError = '生成失败，请检查文本服务配置';
+      this.titleError = textGenerationErrorMessage(error);
       this.renderTitleCandidates();
     } finally {
       if (generation === this.titleGeneration && button !== null) button.disabled = false;
@@ -308,10 +327,10 @@ export class ArticleSettingsForm {
       this.digestOption = digestLimit(value.trim());
       this.digestLoading = false;
       this.renderDigestCandidate();
-    } catch {
+    } catch (error) {
       if (generation !== this.digestGeneration) return;
       this.digestLoading = false;
-      this.digestError = '生成失败，请检查文本服务配置';
+      this.digestError = textGenerationErrorMessage(error);
       this.renderDigestCandidate();
     } finally {
       if (generation === this.digestGeneration && button !== null) button.disabled = false;
