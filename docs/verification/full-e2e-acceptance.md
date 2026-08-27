@@ -11,6 +11,7 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 | Build, typecheck, tests | PASS (automated) | 2026-08-27: `npm test` passed 90 files / 495 tests; current TypeScript and an isolated checkout using `obsidian@1.11.4` both passed `tsc --noEmit` |
 | Lint, release assets, secret scan | PASS (automated) | 2026-08-27: lint passed with zero warnings under `--max-warnings 0`; release verifier and secret scan passed |
 | Plugin sync and load | PASS | The current build's three runtime assets matched the isolated Vault copies by SHA-256. Obsidian `1.13.7` was reloaded and displayed WeChat Workbench `0.1.0`, author `anightmonarch` |
+| Minimum Obsidian 1.11.4 desktop | PASS | The official signed and notarized macOS `1.11.4` application ran with separate user data and an isolated Vault. The current plugin loaded; its synthetic note, workbench preview, style panel and settings page were exercised without a publish or remote-model action |
 | Workbench shell and tabs | PASS | Real Obsidian preview/settings pages and hidden prototype controls observed |
 | Account settings layout/status | PASS | After the 2026-08-27 reload, the real settings page rendered the WeChat account section, connection actions, normal connection status, and separate text/image AI configuration tabs. No credential values were recorded |
 | Account and AI settings refresh isolation | PASS (automated) | `createNonRenderingSettingsAccess` has no workbench-refresh dependency; `main.ts` no longer requests `requestRebuild('settings')`; focused settings tests pass |
@@ -35,4 +36,4 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 
 ## Completion decision
 
-The current build is accepted on the latest public macOS Obsidian desktop path. Public release readiness is still blocked by a real minimum-version desktop run, Windows and Linux desktop smoke tests, and the official WeChat backend visual comparison. Historical remote-flow evidence remains valid but was not silently treated as a fresh remote run.
+The current build is accepted on both the minimum `1.11.4` and latest public `1.13.7` macOS Obsidian desktop paths. Public release readiness is still blocked by Windows and Linux desktop smoke tests and the official WeChat backend visual comparison. Historical remote-flow evidence remains valid but was not silently treated as a fresh remote run.
