@@ -27,6 +27,8 @@ function snapshot(markdown: string): Readonly<NoteSnapshot> {
 
 const nativeTheme = BUILTIN_THEMES.find(theme => theme.manifest.id === 'native');
 if (nativeTheme === undefined) throw new Error('Native theme fixture is missing.');
+const doocsGraceTheme = BUILTIN_THEMES.find(theme => theme.manifest.id === 'doocs-grace');
+if (doocsGraceTheme === undefined) throw new Error('Doocs Grace theme fixture is missing.');
 
 describe('RenderArtifactBuilder', () => {
   it('removes scripts, raw images, event handlers, and javascript URLs', async () => {
@@ -84,5 +86,36 @@ describe('RenderArtifactBuilder', () => {
 
     expect(document.querySelector('p')?.textContent).toBe('不知道是不是今天用户多了起来。');
     expect(artifact.canonicalHtml).not.toContain('\u0008');
+  });
+
+  it('separates callout icon, title, and body without a green tip background', async () => {
+    const artifact = await new RenderArtifactBuilder().build(
+      snapshot('> [!tip] 一份内容，多处复用\n> 预览、复制和草稿同步使用同一份渲染结果。'),
+      doocsGraceTheme,
+    );
+    const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+    const callout = document.querySelector<HTMLElement>('.callout-tip');
+
+    expect(callout?.querySelector('.callout-icon')?.textContent).toBe('✦');
+    expect(callout?.querySelector('.callout-title-text')?.textContent).toBe('一份内容，多处复用');
+    expect(callout?.querySelector('.callout-body')?.textContent)
+      .toBe('预览、复制和草稿同步使用同一份渲染结果。');
+    expect(callout?.querySelector('.callout-title')?.nextElementSibling)
+      .toBe(callout?.querySelector('.callout-body'));
+    expect(callout?.getAttribute('style')).toContain('background: #eef8f9');
+    expect(callout?.getAttribute('style')).not.toContain('#eff9f0');
+  });
+
+  it('strikes only completed task-list items in the publish artifact', async () => {
+    const artifact = await new RenderArtifactBuilder().build(
+      snapshot('- [x] 已完成\n- [ ] 待确认'),
+      doocsGraceTheme,
+    );
+    const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+    const items = [...document.querySelectorAll<HTMLElement>('li.task-list-item')];
+
+    expect(items).toHaveLength(2);
+    expect(items[0]?.style.textDecoration).toBe('line-through');
+    expect(items[1]?.style.textDecoration).not.toBe('line-through');
   });
 });

@@ -13,7 +13,8 @@ export const DOOCS_COMMON_CSS = `.wechat-article {
 .wechat-article blockquote > p { margin: 0; letter-spacing: 0.04em; }
 .wechat-article .callout { margin: 1em 0; }
 .wechat-article .callout-note { background: #eef5ff; border-left-color: #478BE6; }
-.wechat-article .callout-tip { background: #eff9f0; border-left-color: #57AB5A; }
+.wechat-article .callout-tip { background: #eef8f9; border-left-color: #22aeb8; }
+.wechat-article .callout-tip .callout-title { color: #159ba6; }
 .wechat-article .callout-important { background: #f6f0ff; border-left-color: #986EE2; }
 .wechat-article .callout-warning { background: #fff8e8; border-left-color: #C69026; }
 .wechat-article .callout-caution { background: #fff0ef; border-left-color: #E5534B; }

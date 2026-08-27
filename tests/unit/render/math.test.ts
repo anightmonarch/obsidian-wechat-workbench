@@ -28,6 +28,8 @@ describe('KaTeX projection', () => {
     expect(first.assets.every(asset => asset.status === 'resolved')).toBe(true);
     expect(first.canonicalHtml).toContain('class="katex"');
     expect(first.canonicalHtml).toContain('math-display');
+    expect(first.canonicalHtml).not.toContain('katex-mathml');
+    expect(first.canonicalHtml).toContain('aria-label="E = mc^2"');
     expect(first.canonicalHtml).toBe(second.canonicalHtml);
     expect(first.assets).toEqual(second.assets);
   });

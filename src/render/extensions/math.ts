@@ -14,7 +14,7 @@ export interface MathProjection {
 function sanitizedKatexFragment(source: string, displayMode: boolean, document: Document): DocumentFragment {
   const html = katex.renderToString(source, {
     displayMode,
-    output: 'htmlAndMathml',
+    output: 'html',
     strict: 'error',
     throwOnError: false,
     trust: false,
@@ -58,6 +58,7 @@ export function renderMathExpressions(root: Element): MathProjection {
         message: 'A trusted KaTeX command was removed.', source: null,
       });
     } else {
+      wrapper.setAttribute('aria-label', source);
       wrapper.append(sanitizedKatexFragment(source, displayMode, code.ownerDocument));
     }
 

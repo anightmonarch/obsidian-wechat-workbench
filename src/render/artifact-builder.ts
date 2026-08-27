@@ -20,6 +20,17 @@ import {
 const ARTIFACT_VERSION = '1';
 const RENDERER_VERSION = '0.1.0';
 const CALLOUT_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/iu;
+const CALLOUT_PRESENTATION = Object.freeze({
+  note: Object.freeze({ icon: '✎', title: '备注' }),
+  tip: Object.freeze({ icon: '✦', title: '提示' }),
+  important: Object.freeze({ icon: '◆', title: '重要' }),
+  warning: Object.freeze({ icon: '⚠', title: '警告' }),
+  caution: Object.freeze({ icon: '!', title: '注意' }),
+});
+const SEMANTIC_CSS = `.wechat-article .callout-title { display: flex; align-items: center; gap: 0.4em; margin: 0 0 0.45em; font-style: normal; font-weight: 600; text-indent: 0; }
+.wechat-article .callout-icon { flex: 0 0 auto; font-style: normal; line-height: 1; }
+.wechat-article .callout-body { margin: 0; font-style: normal; text-indent: 0; }
+.wechat-article .task-list-item--checked { text-decoration: line-through; }`;
 
 function transformCallouts(root: Element): void {
   for (const blockquote of root.querySelectorAll('blockquote')) {
@@ -30,10 +41,37 @@ function transformCallouts(root: Element): void {
     const match = CALLOUT_PATTERN.exec(markerLine);
     if (match === null) continue;
 
-    const kind = match[1]?.toLowerCase() ?? 'note';
-    const body = [match[2] ?? '', ...remainingLines].join('\n').trim();
+    const kind = (match[1]?.toLowerCase() ?? 'note') as keyof typeof CALLOUT_PRESENTATION;
+    const presentation = CALLOUT_PRESENTATION[kind];
+    const titleText = match[2]?.trim() || presentation.title;
+    const bodyText = remainingLines.join('\n').trim();
+    const title = blockquote.ownerDocument.createElement('div');
+    title.className = 'callout-title';
+    const icon = blockquote.ownerDocument.createElement('span');
+    icon.className = 'callout-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = presentation.icon;
+    const titleLabel = blockquote.ownerDocument.createElement('span');
+    titleLabel.className = 'callout-title-text';
+    titleLabel.textContent = titleText;
+    title.append(icon, titleLabel);
     blockquote.classList.add('callout', `callout-${kind}`);
-    firstParagraph.textContent = body.length > 0 ? body : kind;
+    if (bodyText.length === 0) {
+      firstParagraph.replaceWith(title);
+      continue;
+    }
+    const body = blockquote.ownerDocument.createElement('p');
+    body.className = 'callout-body';
+    body.textContent = bodyText;
+    firstParagraph.replaceWith(title, body);
+  }
+}
+
+function projectTaskListState(root: Element): void {
+  for (const item of root.querySelectorAll('li.task-list-item')) {
+    if (item.querySelector(':scope > input[type="checkbox"][checked]') !== null) {
+      item.classList.add('task-list-item--checked');
+    }
   }
 }
 
@@ -87,6 +125,7 @@ export class RenderArtifactBuilder {
     const safeBody = await markdownToSafeHtml(snapshot.markdown);
     const structuralRoot = parseArticleRoot(`<section class="wechat-article">${safeBody}</section>`);
     transformCallouts(structuralRoot);
+    projectTaskListState(structuralRoot);
     const text = plainText(structuralRoot);
     if (style !== null) {
       applyReadingSummary(structuralRoot, snapshot.markdown, style.wordCount);
@@ -110,7 +149,7 @@ export class RenderArtifactBuilder {
       ...images.diagnostics,
       ...math.diagnostics,
     ];
-    const themed = juice.inlineContent(structuralRoot.outerHTML, theme.css, {
+    const themed = juice.inlineContent(structuralRoot.outerHTML, `${theme.css}\n${SEMANTIC_CSS}`, {
       applyHeightAttributes: false,
       applyStyleTags: false,
       removeStyleTags: true,
