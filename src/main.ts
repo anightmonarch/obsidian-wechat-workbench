@@ -147,12 +147,13 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       vaultPorts,
       diagrams,
     );
+    const systemClipboard = new ElectronClipboardPort();
     const clipboard = new ClipboardService(
       new ClipboardAssetResolver(
         vaultPorts,
         diagrams,
       ),
-      new ElectronClipboardPort(),
+      systemClipboard,
     );
     const wechatHttp = new TimeoutHttpTransport(new ObsidianHttpTransport(), 35_000);
     const textProviderHttp = createAiProviderHttpTransport(undefined, TEXT_PROVIDER_TIMEOUT_MS);
@@ -271,7 +272,13 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     this.registerView(
       WORKBENCH_VIEW_TYPE,
       leaf => {
-        const view = new WeChatWorkbenchView(leaf, previewAssets, openAccountSettings, openConsole);
+        const view = new WeChatWorkbenchView(
+          leaf,
+          previewAssets,
+          openAccountSettings,
+          openConsole,
+          value => systemClipboard.write({ text: value }),
+        );
         view.setController(new WorkbenchController(
           source,
           snapshots,

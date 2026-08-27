@@ -43,4 +43,40 @@ describe('ArticlePreviewRenderer', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('copies code without adding the preview control to the publish artifact', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const writeText = vi.fn(async (_value: string) => undefined);
+    const codeArtifact = Object.freeze({
+      ...artifact,
+      canonicalHtml: [
+        '<section class="wechat-article">',
+        '<pre class="code-window"><code>',
+        '<span class="code-window-dots" aria-hidden="true"></span>',
+        '<span class="code-line"><span class="code-line-number">1</span><span class="code-line-content">const answer = 42;</span></span>',
+        '<span class="code-line"><span class="code-line-number">2</span><span class="code-line-content">return answer;</span></span>',
+        '</code></pre>',
+        '</section>',
+      ].join(''),
+      assets: Object.freeze([]),
+    });
+    vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
+
+    try {
+      new ArticlePreviewRenderer(undefined, writeText).render(container, codeArtifact);
+      const copy = container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]');
+
+      expect(copy?.getAttribute('aria-label')).toBe('复制代码');
+      copy?.click();
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(
+        'const answer = 42;\nreturn answer;',
+      ));
+      expect(copy?.textContent).toBe('已复制');
+      expect(codeArtifact.canonicalHtml).not.toContain('code-copy');
+    } finally {
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
 });

@@ -6,6 +6,8 @@ export interface PreviewAssetResolver {
   resolveLocalImage?(path: string): Promise<string | null>;
 }
 
+export type PreviewCodeCopy = (value: string) => Promise<void> | void;
+
 function placeholder(className: string, text: string): HTMLButtonElement {
   const button = createEl('button');
   button.type = 'button';
@@ -20,10 +22,54 @@ function safePreviewUrl(value: string | null): string | null {
     : null;
 }
 
+function codeText(code: HTMLElement): string {
+  const projectedLines = [...code.querySelectorAll<HTMLElement>('.code-line-content')];
+  if (projectedLines.length > 0) {
+    return projectedLines.map(line => line.textContent ?? '').join('\n');
+  }
+  const clone = code.cloneNode(true) as HTMLElement;
+  for (const decoration of clone.querySelectorAll('.code-window-dots, .code-line-number')) {
+    decoration.remove();
+  }
+  return clone.textContent ?? '';
+}
+
+function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void {
+  for (const code of root.querySelectorAll<HTMLElement>('pre > code')) {
+    const pre = code.parentElement;
+    if (pre === null) continue;
+    const frame = root.ownerDocument.createElement('div');
+    frame.className = 'wechat-workbench__code-preview';
+    const copy = root.ownerDocument.createElement('button');
+    copy.type = 'button';
+    copy.className = 'wechat-workbench__code-copy';
+    copy.dataset.testid = 'code-copy';
+    copy.setAttribute('aria-label', '复制代码');
+    copy.setAttribute('aria-live', 'polite');
+    copy.textContent = '复制';
+    copy.addEventListener('click', () => {
+      copy.disabled = true;
+      copy.textContent = '复制中…';
+      void Promise.resolve(copyText(codeText(code))).then(() => {
+        copy.textContent = '已复制';
+      }).catch(() => {
+        copy.textContent = '复制失败';
+      }).finally(() => {
+        copy.disabled = false;
+      });
+    });
+    pre.replaceWith(frame);
+    frame.append(pre, copy);
+  }
+}
+
 export class ArticlePreviewRenderer {
   private generation = 0;
 
-  constructor(private readonly assets?: PreviewAssetResolver) {}
+  constructor(
+    private readonly assets?: PreviewAssetResolver,
+    private readonly copyText: PreviewCodeCopy = value => navigator.clipboard.writeText(value),
+  ) {}
 
   render(container: HTMLElement, artifact: Readonly<RenderArtifact>): void {
     this.generation += 1;
@@ -78,6 +124,8 @@ export class ArticlePreviewRenderer {
         }
       });
     }
+
+    decorateCodeBlocks(root, this.copyText);
 
     container.replaceChildren(root);
   }

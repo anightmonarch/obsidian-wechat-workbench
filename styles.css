@@ -189,6 +189,34 @@
   white-space: nowrap;
 }
 
+.wechat-workbench__code-preview {
+  position: relative;
+}
+
+.wechat-workbench__code-copy {
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  right: 0.5rem;
+  min-width: 3.25rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--radius-s);
+  color: #f3f4f6;
+  background: rgb(17 24 39 / 78%);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.2;
+  opacity: 0.88;
+}
+
+.wechat-workbench__code-copy:hover,
+.wechat-workbench__code-copy:focus-visible {
+  color: #ffffff;
+  background: rgb(17 24 39 / 96%);
+  opacity: 1;
+}
+
 .wechat-workbench__remote-placeholder,
 .wechat-workbench__asset-placeholder,
 .wechat-workbench__preview-error {

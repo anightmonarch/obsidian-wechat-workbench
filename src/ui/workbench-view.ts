@@ -25,7 +25,11 @@ import {
   UnlinkAssociationModal,
 } from './publish-dialog';
 import { PublishReportModal } from './publish-report-modal';
-import { ArticlePreviewRenderer, type PreviewAssetResolver } from './render-preview';
+import {
+  ArticlePreviewRenderer,
+  type PreviewAssetResolver,
+  type PreviewCodeCopy,
+} from './render-preview';
 import { renderPublishSettings } from './workbench-publish-settings';
 import { CoverPreviewModal } from './cover-preview-modal';
 import { StyleWorkbench } from './style-workbench';
@@ -181,9 +185,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     private readonly previewAssets?: PreviewAssetResolver,
     private readonly openSettings: () => void = () => undefined,
     private readonly openConsole: () => Promise<void> = () => openWeChatOfficialConsole(),
+    copyCode: PreviewCodeCopy = value => navigator.clipboard.writeText(value),
   ) {
     super(leaf);
-    this.previewRenderer = new ArticlePreviewRenderer(previewAssets);
+    this.previewRenderer = new ArticlePreviewRenderer(previewAssets, copyCode);
   }
 
   setController(controller: WorkbenchControllerBinding): void {
