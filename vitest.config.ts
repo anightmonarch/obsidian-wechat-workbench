@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['tests/setup/obsidian-dom.ts'],
     clearMocks: true,
     restoreMocks: true,
     // jsdom + KaTeX/Mermaid workers are memory-heavy. Serial file execution

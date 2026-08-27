@@ -10,6 +10,11 @@ function canonicalStyle(style: string): string {
 }
 
 function canonicalizeElement(element: Element): void {
+  if (element.matches('ol, ul')) {
+    for (const node of [...element.childNodes]) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim().length === 0) node.remove();
+    }
+  }
   if (element.hasAttribute('class')) {
     const className = [...element.classList].sort().join(' ');
     if (className.length > 0) element.setAttribute('class', className);

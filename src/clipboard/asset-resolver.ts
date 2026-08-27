@@ -2,6 +2,7 @@ import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort } from '../domain/ports';
 import { detectImageMime, imageDataUrl } from '../media/image-format';
 import { hashContent, parseArticleRoot } from '../render/canonicalize';
+import { applyDiagramImagePresentation } from '../render/diagram-image';
 import type { DiagramRenderer } from '../render/diagram-renderer';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -93,7 +94,7 @@ export class ClipboardAssetResolver {
         if (url === null || url === undefined) failure('ASSET_SLOT_UNRESOLVED', 'Diagram slot is unresolved.', asset.id);
         const image = node.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'img');
         image.setAttribute('src', url);
-        image.setAttribute('alt', 'Mermaid diagram');
+        applyDiagramImagePresentation(image, 'Mermaid diagram');
         node.replaceWith(image);
       } else {
         if (node.tagName !== 'IMG' || url === null || url === undefined) {

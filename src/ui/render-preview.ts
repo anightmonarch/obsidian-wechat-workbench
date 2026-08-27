@@ -1,4 +1,5 @@
 import type { AssetSlot, RenderArtifact } from '../domain/artifact';
+import { applyDiagramImagePresentation } from '../render/diagram-image';
 
 export interface PreviewAssetResolver {
   resolve(asset: Readonly<AssetSlot>): Promise<string | null>;
@@ -67,7 +68,8 @@ export class ArticlePreviewRenderer {
         }
         const image = createEl('img');
         image.src = url;
-        image.alt = asset.kind === 'local-image' ? '本地图片' : 'Mermaid 图表';
+        if (asset.kind === 'generated-diagram') applyDiagramImagePresentation(image, 'Mermaid 图表');
+        else image.alt = '本地图片';
         image.dataset.assetId = asset.id;
         pending.replaceWith(image);
       }).catch(() => {

@@ -52,6 +52,11 @@ describe('ClipboardAssetResolver', () => {
     expect(html).toContain('src="data:image/png;base64,');
     expect(html).toContain('src="https://example.test/image.png"');
     expect(html).not.toContain('data-asset-id');
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const diagram = document.querySelector<HTMLImageElement>('img[alt="Mermaid diagram"]');
+    expect(diagram?.style.width).toBe('100%');
+    expect(diagram?.style.maxWidth).toBe('100%');
+    expect(diagram?.style.height).toBe('auto');
     expect(binary.readBinary).toHaveBeenCalledOnce();
     expect(renderMermaid).toHaveBeenCalledOnce();
   });

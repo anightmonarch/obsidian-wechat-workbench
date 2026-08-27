@@ -96,6 +96,38 @@ describe('AssetUploadService', () => {
     expect(second).toEqual(first);
   });
 
+  it('keeps an uploaded Mermaid diagram full-width in the draft body', async () => {
+    const renderMermaid = vi.fn(async () => ({
+      id: 'asset:diagram', source: 'graph TD; A-->B', mimeType: 'image/png' as const,
+      bytes: png, contentHash: imageHash,
+    }));
+    const uploadBodyImage = vi.fn(async () => ({ url: 'https://mmbiz.qpic.cn/TEST_DIAGRAM_URL' }));
+    const service = new AssetUploadService(
+      { resolveLink: vi.fn(), readBinary: vi.fn() },
+      {} as RemoteImageFetcher,
+      { renderMermaid } as unknown as DiagramRenderer,
+      { uploadBodyImage, uploadCover: vi.fn() },
+      new AssetCache(new MemoryCacheData(), () => 1000),
+    );
+    const diagramArtifact: Readonly<RenderArtifact> = Object.freeze({
+      ...artifact(),
+      canonicalHtml: '<section class="wechat-article"><figure data-asset-id="asset:diagram" data-asset-kind="generated-diagram"></figure></section>',
+      assets: Object.freeze([Object.freeze({
+        id: 'asset:diagram', kind: 'generated-diagram', source: 'graph TD; A-->B',
+        status: 'unresolved', contentHash: null, resolvedUrl: null,
+      })]),
+    });
+
+    const resolved = await service.resolveBodyAssets(diagramArtifact, accountA);
+    const document = new DOMParser().parseFromString(resolved.html, 'text/html');
+    const image = document.querySelector<HTMLImageElement>('img[alt="Mermaid diagram"]');
+
+    expect(image?.style.width).toBe('100%');
+    expect(image?.style.maxWidth).toBe('100%');
+    expect(image?.style.height).toBe('auto');
+    expect(renderMermaid).toHaveBeenCalledWith('graph TD; A-->B');
+  });
+
   it('never caches a failed upload', async () => {
     const current = harness();
     current.uploadBodyImage.mockRejectedValueOnce(new Error('synthetic upload failure'));

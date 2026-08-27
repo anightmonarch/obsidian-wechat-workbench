@@ -95,14 +95,18 @@ describe('Mermaid resource slots', () => {
       .mockImplementation(() => ({ drawImage }) as unknown as CanvasRenderingContext2D);
     const toDataUrl = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
       .mockReturnValue('data:image/png;base64,iVBORw0KGgo=');
-    vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
+    const canvas = document.createElement('canvas');
+    vi.stubGlobal('createEl', (tag: string) => tag === 'canvas' ? canvas : document.createElement(tag));
 
     try {
       const bytes = await new ElectronSvgRasterizer().toPng(
         '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" fill="red" /></svg>',
       );
       expect(bytes).toEqual(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      expect(drawImage).toHaveBeenCalledWith(expect.any(image), 0, 0, 1200, 600);
       expect(drawImage).toHaveBeenCalledOnce();
+      expect(canvas.width).toBe(1200);
+      expect(canvas.height).toBe(600);
       expect(toDataUrl).toHaveBeenCalledWith('image/png');
     } finally {
       getContext.mockRestore();

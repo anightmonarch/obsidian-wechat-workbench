@@ -80,8 +80,10 @@ describe('Doocs style golden HTML', () => {
     async themeId => {
       const artifact = await buildStyleFixture(themeId, '- **第一项**\n- 第二项');
       const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+      const list = document.querySelector<HTMLUListElement>('ul');
 
-      expect(document.querySelector<HTMLUListElement>('ul')?.style.listStyle).toBe('disc');
+      expect(list?.style.listStyle).toBe('disc');
+      expect([...list?.childNodes ?? []].map(node => node.nodeName)).toEqual(['LI', 'LI']);
     },
   );
 

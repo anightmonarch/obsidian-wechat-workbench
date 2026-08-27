@@ -4,6 +4,23 @@ import type { MermaidConfig } from 'mermaid';
 import { hashContent } from './canonicalize';
 import { normalizeGeneratedSource, stableAssetId } from './assets';
 
+const MIN_RASTER_WIDTH = 1200;
+const MIN_RASTER_SCALE = 2;
+const MAX_RASTER_DIMENSION = 4096;
+
+function rasterSize(width: number, height: number): Readonly<{ width: number; height: number }> {
+  const desiredScale = Math.max(MIN_RASTER_SCALE, MIN_RASTER_WIDTH / width);
+  const boundedScale = Math.min(
+    desiredScale,
+    Math.max(1, MAX_RASTER_DIMENSION / width),
+    Math.max(1, MAX_RASTER_DIMENSION / height),
+  );
+  return Object.freeze({
+    width: Math.round(width * boundedScale),
+    height: Math.round(height * boundedScale),
+  });
+}
+
 export interface MermaidEnginePort {
   initialize(config: Readonly<MermaidConfig>): void;
   parse(source: string): Promise<unknown>;
@@ -64,13 +81,14 @@ export class ElectronSvgRasterizer implements SvgRasterizerPort {
     const width = image.naturalWidth;
     const height = image.naturalHeight;
     if (width <= 0 || height <= 0) throw new Error('Mermaid SVG could not be rasterized.');
+    const output = rasterSize(width, height);
 
     const canvas = createEl('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = output.width;
+    canvas.height = output.height;
     const context = canvas.getContext('2d');
     if (context === null) throw new Error('Mermaid SVG could not be rasterized.');
-    context.drawImage(image, 0, 0, width, height);
+    context.drawImage(image, 0, 0, output.width, output.height);
 
     const png = canvas.toDataURL('image/png');
     const separator = png.indexOf(',');

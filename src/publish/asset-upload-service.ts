@@ -4,6 +4,7 @@ import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort } from '../domain/ports';
 import { detectImageMime, type SupportedImageMime } from '../media/image-format';
 import { hashContent, parseArticleRoot } from '../render/canonicalize';
+import { applyDiagramImagePresentation } from '../render/diagram-image';
 import type { DiagramRenderer } from '../render/diagram-renderer';
 import type { RemoteImageFetcher } from '../security/remote-image-fetcher';
 import { AssetCache } from './asset-cache';
@@ -103,7 +104,7 @@ export class AssetUploadService {
       if (asset.kind === 'generated-diagram') {
         const image = node.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'img');
         image.setAttribute('src', url);
-        image.setAttribute('alt', 'Mermaid diagram');
+        applyDiagramImagePresentation(image, 'Mermaid diagram');
         node.replaceWith(image);
       } else {
         if (node.tagName !== 'IMG') throw new Error(`Image slot has invalid element: ${asset.source}`);
