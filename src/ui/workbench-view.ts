@@ -32,7 +32,7 @@ import { StyleWorkbench } from './style-workbench';
 
 interface WorkbenchControllerBinding {
   start(): void;
-  stop(): void;
+  stop(): void | Promise<void>;
   rebuild(reason: string): void;
   selectTheme(themeId: string): void;
   updateStyle?(patch: Readonly<Record<string, unknown>>): void;
@@ -316,7 +316,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   }
 
   async onClose(): Promise<void> {
-    this.controller?.stop();
+    await this.controller?.stop();
     this.previewRenderer.clear();
   }
 

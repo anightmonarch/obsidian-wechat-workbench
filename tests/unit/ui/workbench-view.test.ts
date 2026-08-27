@@ -52,6 +52,23 @@ const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
 });
 
 describe('WeChatWorkbenchView', () => {
+  it('waits for the previous controller to stop before finishing view close', async () => {
+    const view = new WeChatWorkbenchView({} as never);
+    let releaseStop: (() => void) | undefined;
+    const stop = vi.fn(() => new Promise<void>(resolve => { releaseStop = resolve; }));
+    view.setController({ stop } as never);
+
+    let closed = false;
+    const closing = view.onClose().then(() => { closed = true; });
+    await Promise.resolve();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(closed).toBe(false);
+
+    releaseStop?.();
+    await closing;
+    expect(closed).toBe(true);
+  });
+
   it('maps internal copy and account failures to specific Chinese actions', () => {
     expect(copyFailureMessage(Object.assign(new Error('raw oversized path'), {
       code: 'IMAGE_TOO_LARGE',

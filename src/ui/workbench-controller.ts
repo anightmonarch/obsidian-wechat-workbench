@@ -145,6 +145,37 @@ export class WorkbenchActionError extends Error {
 type HostEventRegistrar = (event: unknown) => void;
 type FallbackThemeSource = string | (() => string);
 
+const WORKBENCH_RENDER_TIMEOUT_MS = 15_000;
+
+class WorkbenchRenderTimeoutError extends Error {
+  constructor() {
+    super('Article rendering timed out.');
+    this.name = 'WorkbenchRenderTimeoutError';
+  }
+}
+
+function withinRenderDeadline<T>(operation: Promise<T>, timeoutMs = WORKBENCH_RENDER_TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new WorkbenchRenderTimeoutError());
+    }, timeoutMs);
+    void operation.then(value => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(value);
+    }, error => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
+}
+
 export class WorkbenchController {
   private readonly subscriptions: WorkbenchEventHandle[] = [];
   private timer: number | null = null;
@@ -179,7 +210,10 @@ export class WorkbenchController {
   ) {}
 
   start(): void {
-    if (this.started) return;
+    if (this.started) {
+      this.rebuild('view-reopened');
+      return;
+    }
     this.started = true;
     this.addSubscription(this.source.onActiveMarkdownChanged(() => {
       void this.flushStyleSave().finally(() => this.rebuild('active-file'));
@@ -499,36 +533,39 @@ export class WorkbenchController {
     if (!styleOnly && !preserveExistingView) this.view.showLoading(file.path);
 
     try {
-      const snapshot = await this.snapshots.snapshot(file);
-      let resolved: Readonly<ResolvedArticleStyle> | null = null;
-      let theme: Readonly<ThemeDefinition> | undefined;
-      let themeIsValid = true;
-      if (this.styles !== undefined) {
-        resolved = this.styles.resolve(snapshot);
-        if (this.previewStyleOverride?.path === file.path) {
-          resolved = Object.freeze({
-            ...resolved,
-            source: 'article',
-            renderMode: 'compiled',
-            themeId: this.previewStyleOverride.config.themeId,
-            config: this.previewStyleOverride.config,
-            unsupportedVersion: null,
-          });
+      const { snapshot, resolved, theme, themeIsValid, artifact } = await withinRenderDeadline((async () => {
+        const snapshot = await this.snapshots.snapshot(file);
+        let resolved: Readonly<ResolvedArticleStyle> | null = null;
+        let theme: Readonly<ThemeDefinition> | undefined;
+        let themeIsValid = true;
+        if (this.styles !== undefined) {
+          resolved = this.styles.resolve(snapshot);
+          if (this.previewStyleOverride?.path === file.path) {
+            resolved = Object.freeze({
+              ...resolved,
+              source: 'article',
+              renderMode: 'compiled',
+              themeId: this.previewStyleOverride.config.themeId,
+              config: this.previewStyleOverride.config,
+              unsupportedVersion: null,
+            });
+          }
+          theme = this.styles.materialize(resolved);
+        } else {
+          const requestedTheme = this.themes.get(snapshot.selectedThemeId);
+          theme = requestedTheme
+            ?? this.themes.get(this.currentFallbackThemeId())
+            ?? this.themes.list()[0];
+          themeIsValid = requestedTheme !== undefined;
         }
-        theme = this.styles.materialize(resolved);
-      } else {
-        const requestedTheme = this.themes.get(snapshot.selectedThemeId);
-        theme = requestedTheme
-          ?? this.themes.get(this.currentFallbackThemeId())
-          ?? this.themes.list()[0];
-        themeIsValid = requestedTheme !== undefined;
-      }
-      if (theme === undefined) throw new Error('No valid article theme is available.');
-      const artifact = await this.builder.build(
-        snapshot,
-        theme,
-        resolved?.renderMode === 'compiled' ? resolved.config : null,
-      );
+        if (theme === undefined) throw new Error('No valid article theme is available.');
+        const artifact = await this.builder.build(
+          snapshot,
+          theme,
+          resolved?.renderMode === 'compiled' ? resolved.config : null,
+        );
+        return { snapshot, resolved, theme, themeIsValid, artifact };
+      })());
       if (!this.isCurrent(requestedGeneration)) return;
 
       const report = this.preflight.run(artifact, {

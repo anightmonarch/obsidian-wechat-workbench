@@ -191,6 +191,20 @@ describe('WorkbenchController', () => {
     expect(harness.registered).toHaveLength(2);
   });
 
+  it('turns an unresponsive render into an error instead of keeping the workbench loading forever', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const harness = controller(source, view, async () => new Promise<Readonly<RenderArtifact>>(() => undefined));
+    source.active = file('stalled.md');
+
+    harness.instance.start();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(view.loadingCount).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(view.errors).toEqual(['Article rendering timed out.']);
+  });
+
   it('discards a completed older build after the active file changes', async () => {
     const source = new FakeSource();
     const view = new FakeView();
@@ -532,7 +546,9 @@ describe('WorkbenchController', () => {
 
     pending.get('#FA5151')?.(artifactFor(snapshotFor(file('article.md'))));
     await Promise.resolve();
+    await Promise.resolve();
     pending.get('#009874')?.(artifactFor(snapshotFor(file('article.md'))));
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(view.styles.at(-1)).toBe('#FA5151');
