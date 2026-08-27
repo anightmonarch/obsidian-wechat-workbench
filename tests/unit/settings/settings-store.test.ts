@@ -28,7 +28,7 @@ describe('SettingsStore', () => {
       recoveryReceipts: [],
     })).load();
 
-    expect(settings.schemaVersion).toBe(4);
+    expect(settings.schemaVersion).toBe(5);
     expect(settings.appId).toBe('wx-public-id');
     expect(settings.defaultThemeId).toBe('technical');
     expect(settings.defaultStyle).toEqual(DEFAULT_ARTICLE_STYLE);
@@ -46,7 +46,7 @@ describe('SettingsStore', () => {
     })).load();
 
     expect(settings).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       accountDisplayName: '',
       accountVerification: null,
       imageApiProtocol: 'openai-compatible',
@@ -65,7 +65,7 @@ describe('SettingsStore', () => {
     })).load();
 
     expect(settings).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       textApiEndpoint: '',
       textApiModel: '',
       imageApiEndpoint: 'https://images.example.test/custom/generate',
@@ -111,6 +111,33 @@ describe('SettingsStore', () => {
 
     expect(settings).toEqual(DEFAULT_SETTINGS);
     expect(Object.isFrozen(settings)).toBe(true);
+  });
+
+  it('pre-fills official Base URLs and drops advanced endpoint overrides', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 5,
+      aiProviders: {
+        text: {
+          activeProvider: 'deepseek',
+          providers: {
+            agnes: {},
+            deepseek: {
+              baseUrl: 'https://api.deepseek.com',
+              endpointOverride: 'https://api.deepseek.com/custom/chat',
+              model: 'deepseek-v4-flash',
+              requestFormat: 'agnes-images',
+            },
+          },
+        },
+        image: { activeProvider: null, providers: { agnes: {}, deepseek: {} } },
+      },
+    })).load();
+
+    expect(DEFAULT_SETTINGS.aiProviders.text.providers.agnes.baseUrl).toBe('https://apihub.agnes-ai.com/v1');
+    expect(DEFAULT_SETTINGS.aiProviders.text.providers.deepseek.baseUrl).toBe('https://api.deepseek.com');
+    expect(DEFAULT_SETTINGS.aiProviders.image.providers.agnes.baseUrl).toBe('https://apihub.agnes-ai.com/v1');
+    expect(settings.aiProviders.text.providers.deepseek).not.toHaveProperty('endpointOverride');
+    expect(settings.aiProviders.text.providers.deepseek.requestFormat).toBe('openai-chat-completions');
   });
 
   it('loads known non-secret fields and ignores unknown or secret-shaped fields', async () => {

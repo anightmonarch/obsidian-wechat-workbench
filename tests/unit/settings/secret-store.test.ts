@@ -42,6 +42,10 @@ describe('SecretStore', () => {
       accessToken: false,
       textApiKey: false,
       imageApiKey: false,
+      textAgnesApiKey: false,
+      textDeepseekApiKey: false,
+      imageAgnesApiKey: false,
+      imageDeepseekApiKey: false,
     });
   });
 

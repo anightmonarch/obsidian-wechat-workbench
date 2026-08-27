@@ -7,10 +7,26 @@ function createService() {
   const settings = {
     current: {
       ...DEFAULT_SETTINGS,
-      textApiEndpoint: 'https://text.example.test/v1/chat',
+      textApiEndpoint: 'https://apihub.agnes-ai.com/v1/chat/completions',
       textApiModel: 'saved-text-model',
-      imageApiEndpoint: 'https://images.example.test/v1/images',
+      imageApiEndpoint: 'https://apihub.agnes-ai.com/v1/images/generations',
       imageApiModel: 'saved-image-model',
+      aiProviders: {
+        text: {
+          activeProvider: 'agnes',
+          providers: {
+            agnes: { baseUrl: 'https://apihub.agnes-ai.com/v1', model: 'saved-text-model', requestFormat: 'openai-chat-completions', models: [] },
+            deepseek: { baseUrl: 'https://api.deepseek.com', model: '', requestFormat: 'openai-chat-completions', models: [] },
+          },
+        },
+        image: {
+          activeProvider: 'agnes',
+          providers: {
+            agnes: { baseUrl: 'https://apihub.agnes-ai.com/v1', model: 'saved-image-model', requestFormat: 'agnes-images', models: [] },
+            deepseek: { baseUrl: 'https://api.deepseek.com', model: '', requestFormat: 'openai-images', models: [] },
+          },
+        },
+      },
     } as PluginSettings,
     update: vi.fn(async (patch: Partial<PluginSettings>) => {
       settings.current = { ...settings.current, ...patch };
@@ -18,13 +34,13 @@ function createService() {
     }),
   };
   const values = new Map<string, string>([
-    ['textApiKey', 'stored-text-key'],
-    ['imageApiKey', 'stored-image-key'],
+    ['textAgnesApiKey', 'stored-text-key'],
+    ['imageAgnesApiKey', 'stored-image-key'],
   ]);
   const secrets = {
-    get: vi.fn((kind: 'textApiKey' | 'imageApiKey') => values.get(kind) ?? null),
-    set: vi.fn((kind: 'textApiKey' | 'imageApiKey', value: string) => values.set(kind, value)),
-    clear: vi.fn((kind: 'textApiKey' | 'imageApiKey') => values.delete(kind)),
+    get: vi.fn((kind: string) => values.get(kind) ?? null),
+    set: vi.fn((kind: string, value: string) => values.set(kind, value)),
+    clear: vi.fn((kind: string) => values.delete(kind)),
   };
   const service = new AiServiceSettingsService(
     { get: () => settings.current, update: settings.update },
@@ -34,46 +50,46 @@ function createService() {
 }
 
 describe('AiServiceSettingsService', () => {
-  it('saves text configuration without a network dependency', async () => {
+  it('saves text configuration from a Base URL without a network dependency', async () => {
     const current = createService();
 
-    await current.service.saveText({
-      endpoint: 'https://text.example.test/v1/chat/completions',
+    await current.service.saveProfile({
+      kind: 'text', provider: 'agnes', baseUrl: 'https://apihub.agnes-ai.com/v1',
       model: 'text-model',
       apiKey: 'new-text-key',
     });
 
     expect(current.settings.current.textApiEndpoint)
-      .toBe('https://text.example.test/v1/chat/completions');
+      .toBe('https://apihub.agnes-ai.com/v1/chat/completions');
     expect(current.settings.current.textApiModel).toBe('text-model');
-    expect(current.secrets.set).toHaveBeenCalledWith('textApiKey', 'new-text-key');
+    expect(current.secrets.set).toHaveBeenCalledWith('textAgnesApiKey', 'new-text-key');
   });
 
   it('saves image configuration independently from text configuration', async () => {
     const current = createService();
 
-    await current.service.saveImage({
-      endpoint: 'https://images.example.test/v1/images/generations',
+    await current.service.saveProfile({
+      kind: 'image', provider: 'agnes', baseUrl: 'https://apihub.agnes-ai.com/v1',
       model: 'image-model',
       apiKey: 'new-image-key',
     });
 
     expect(current.settings.current.imageApiEndpoint)
-      .toBe('https://images.example.test/v1/images/generations');
-    expect(current.settings.current.textApiEndpoint).toBe('https://text.example.test/v1/chat');
-    expect(current.secrets.set).toHaveBeenCalledWith('imageApiKey', 'new-image-key');
+      .toBe('https://apihub.agnes-ai.com/v1/images/generations');
+    expect(current.settings.current.textApiEndpoint).toBe('https://apihub.agnes-ai.com/v1/chat/completions');
+    expect(current.secrets.set).toHaveBeenCalledWith('imageAgnesApiKey', 'new-image-key');
   });
 
-  it('retains a stored key for a same-origin path change when the field is empty', async () => {
+  it('retains a stored key when the Base URL origin is unchanged and the field is empty', async () => {
     const current = createService();
 
-    await current.service.saveImage({
-      endpoint: 'https://images.example.test/custom/generate',
+    await current.service.saveProfile({
+      kind: 'image', provider: 'agnes', baseUrl: 'https://apihub.agnes-ai.com/v1',
       model: 'new-image-model',
       apiKey: '',
     });
 
-    expect(current.values.get('imageApiKey')).toBe('stored-image-key');
+    expect(current.values.get('imageAgnesApiKey')).toBe('stored-image-key');
     expect(current.secrets.set).not.toHaveBeenCalled();
   });
 
@@ -81,34 +97,34 @@ describe('AiServiceSettingsService', () => {
     const current = createService();
     const replacementImage = ['replacement', 'image', 'credential'].join('-');
 
-    await current.service.saveImage({
-      endpoint: 'https://images.example.test/custom/generate',
+    await current.service.saveProfile({
+      kind: 'image', provider: 'agnes', baseUrl: 'https://apihub.agnes-ai.com/v1',
       model: 'new-image-model',
       apiKey: replacementImage,
     });
 
-    expect(current.values.get('imageApiKey')).toBe(replacementImage);
+    expect(current.values.get('imageAgnesApiKey')).toBe(replacementImage);
   });
 
-  it('requires a new key when the endpoint origin changes', async () => {
+  it('requires a new key when the Base URL origin changes', async () => {
     const current = createService();
 
-    await expect(current.service.saveImage({
-      endpoint: 'https://new-images.example.test/v1/images',
+    await expect(current.service.saveProfile({
+      kind: 'image', provider: 'agnes', baseUrl: 'https://new-images.example.test/v1',
       model: 'image-model',
       apiKey: '',
     })).rejects.toMatchObject({ code: 'AI_ENDPOINT_NEW_KEY_REQUIRED' });
     expect(current.settings.update).not.toHaveBeenCalled();
   });
 
-  it('rejects a root endpoint path before any secret mutation', async () => {
+  it('rejects an insecure Base URL before any secret mutation', async () => {
     const current = createService();
 
-    await expect(current.service.saveText({
-      endpoint: 'https://text.example.test',
+    await expect(current.service.saveProfile({
+      kind: 'text', provider: 'agnes', baseUrl: 'http://text.example.test',
       model: 'text-model',
       apiKey: 'new-key',
-    })).rejects.toMatchObject({ code: 'AI_ENDPOINT_PATH_MISSING' });
+    })).rejects.toMatchObject({ code: 'AI_BASE_URL_INVALID' });
     expect(current.secrets.set).not.toHaveBeenCalled();
   });
 
@@ -117,11 +133,11 @@ describe('AiServiceSettingsService', () => {
     const replacementText = ['replacement', 'text', 'credential'].join('-');
     current.settings.update.mockRejectedValueOnce(new Error('synthetic save failure'));
 
-    await expect(current.service.saveText({
-      endpoint: 'https://text.example.test/v1/chat',
+    await expect(current.service.saveProfile({
+      kind: 'text', provider: 'agnes', baseUrl: 'https://apihub.agnes-ai.com/v1',
       model: 'text-model',
       apiKey: replacementText,
     })).rejects.toThrow('synthetic save failure');
-    expect(current.values.get('textApiKey')).toBe('stored-text-key');
+    expect(current.values.get('textAgnesApiKey')).toBe('stored-text-key');
   });
 });
