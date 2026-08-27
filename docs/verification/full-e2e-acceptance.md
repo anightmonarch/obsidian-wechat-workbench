@@ -1,6 +1,6 @@
 # Full End-to-End Acceptance Ledger
 
-Checkpoint: 2026-08-25. The settings UI isolation and verification-feedback updates have fresh automated and runtime-asset evidence; their real Obsidian click path remains pending because reloading can discard unsaved editor content.
+Checkpoint: 2026-08-27. The current release candidate has fresh automated evidence and a real Obsidian reload in the isolated test Vault. No remote draft mutation was performed during this checkpoint.
 
 Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wechat-workbench-test-vault`. The main `commit_note` Vault is outside the development plugin path.
 
@@ -8,13 +8,13 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 
 | Module | Current state | Direct evidence |
 | --- | --- | --- |
-| Build, typecheck, tests | PASS (automated) | 2026-08-25: `npm test` rebuilt the plugin, typechecked it, then passed 89 files / 460 tests |
-| Lint, release assets, secret scan | PASS (automated) | 2026-08-25: lint completed with no errors; release verifier passed; secret scan passed 265 files |
-| Plugin sync and load | PARTIAL | A prior 2026-08-25 `sync:test-vault` copied the three runtime assets and confirmed a matching `main.js` SHA-256; these later source changes still require a final sync and real Obsidian reload before current-runtime acceptance |
+| Build, typecheck, tests | PASS (automated) | 2026-08-27: `npm test` passed 90 files / 495 tests; current TypeScript and an isolated checkout using `obsidian@1.11.4` both passed `tsc --noEmit` |
+| Lint, release assets, secret scan | PASS (automated) | 2026-08-27: lint passed with zero warnings under `--max-warnings 0`; release verifier and secret scan passed |
+| Plugin sync and load | PASS | The current build's three runtime assets matched the isolated Vault copies by SHA-256. Obsidian `1.13.7` was reloaded and displayed WeChat Workbench `0.1.0`, author `anightmonarch` |
 | Workbench shell and tabs | PASS | Real Obsidian preview/settings pages and hidden prototype controls observed |
-| Account settings layout/status | PARTIAL | The unified account-card layout, 8px action gap, concise AI field copy, inline missing-AppSecret error, left-aligned headings, and wide AI-control CSS passed DOM/CSS tests but need a post-reload Obsidian visual check |
+| Account settings layout/status | PASS | After the 2026-08-27 reload, the real settings page rendered the WeChat account section, connection actions, normal connection status, and separate text/image AI configuration tabs. No credential values were recorded |
 | Account and AI settings refresh isolation | PASS (automated) | `createNonRenderingSettingsAccess` has no workbench-refresh dependency; `main.ts` no longer requests `requestRebuild('settings')`; focused settings tests pass |
-| Real account verification | BLOCKED | WeChat API IP whitelist condition; explicitly excluded by task scope |
+| Real account verification | PASS (historical) | The authorized 2026-08-20 flow obtained a token after the IP allowlist propagated. It was not repeated during this checkpoint |
 | Official-console external link | PASS | Fixed AX `mp.weixin.qq.com/`, tooltip/label, and external-browser action observed |
 | Article metadata/source compatibility | PASS | Real save preserved `content_source_url`; source-link editor absent |
 | Style workbench | PASS | Real `优雅` + `18px` + `活力橘` selection, right overlay, Esc close and Frontmatter persistence |
@@ -29,9 +29,10 @@ Environment: macOS Obsidian 1.13.7, isolated Vault `$HOME/workspace/Github/wecha
 | AI supplemental prompt / regenerate / cancel | PASS (real UI + automated) | Real UI retained the supplemental prompt through the confirmation request, exposed `重新生成` after a candidate, cancellation left the adopted cover unchanged, and `文章首图（默认）` then cleared the explicit `cover`. Focused tests cover session-only prompt reuse and cancellation failure handling |
 | Agnes provider contract probe | PASS (service only) | 2026-08-24 direct requests: text HTTP 200 with 3 unique titles + 1 digest; image HTTP 200 with HTTPS PNG URL, CDN HTTP 200, PNG signature and 4,736,610-byte response. This does not replace Obsidian UI acceptance |
 | Rich clipboard copy | PARTIAL | Independent real evidence is recorded in `doocs-style-workbench-parity.md`; this checkpoint's `pbpaste` readback is not accepted because Computer Use restored clipboard ownership |
-| Draft create/update/unchanged skip | BLOCKED | Previous real request reached WeChat, then was rejected by the IP whitelist; no new draft claim is made |
+| Draft create/update/unchanged skip | PASS (historical) | The authorized 2026-08-20 CREATE → UPDATE → unchanged SKIP path passed; see `wechat-draft-real.md`. It was not repeated during this checkpoint |
+| Official WeChat backend visual comparison | BLOCKED | The official console was unavailable in the current acceptance environment. No draft was created or changed; title, digest, hierarchy, links, images and cover still require visual confirmation |
 | Publish transaction/recovery semantics | PASS (automated) | Unit, integration and adversarial suites cover frozen artifacts, ambiguity and recovery states |
 
 ## Completion decision
 
-The prior AI content-generation acceptance remains historical evidence. The current settings UI isolation update is not yet accepted through the real macOS Obsidian path: it must be reloaded and checked with a ready workbench before the two `PARTIAL` rows can be promoted. The project as a whole is not marked complete; remaining rows are external blockers or require stronger evidence and must not be silently promoted to PASS.
+The current build is accepted on the latest public macOS Obsidian desktop path. Public release readiness is still blocked by a real minimum-version desktop run, Windows and Linux desktop smoke tests, and the official WeChat backend visual comparison. Historical remote-flow evidence remains valid but was not silently treated as a fresh remote run.

@@ -26,3 +26,4 @@ Never record AppID, AppSecret, Access Token, full media ID, private article text
 - CREATE and UPDATE both displayed `已同步到草稿箱`; the unchanged rerun displayed `内容未变化`.
 - Local verification found two cached media records and the seven expected `wechat-*` association fields. Recovery receipts were retained without recording their values here.
 - Credentials remained in Obsidian SecretStorage and were not entered into repository files, test fixtures or this record.
+- On 2026-08-27 the latest local build was reloaded in the isolated Vault and displayed the existing normal account-connection status. The official console was unavailable in the current acceptance environment, so the visual comparison remains outstanding. No remote draft was created, updated or deleted.
