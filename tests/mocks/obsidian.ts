@@ -41,6 +41,31 @@ Object.assign(globalThis, {
   },
 });
 
+Object.defineProperty(Document.prototype, 'win', {
+  configurable: true,
+  get(this: Document): Window | null {
+    return this.defaultView;
+  },
+});
+
+Object.assign(Window.prototype, {
+  createEl<K extends keyof HTMLElementTagNameMap>(
+    this: Window,
+    tag: K,
+    options?: { text?: string; cls?: string },
+  ): HTMLElementTagNameMap[K] {
+    const node = this.document.createElement(tag);
+    if (options?.text !== undefined) node.textContent = options.text;
+    if (options?.cls !== undefined) node.className = options.cls;
+    return node;
+  },
+  createDiv(this: Window, className?: string): HTMLDivElement {
+    const node = this.document.createElement('div');
+    if (className !== undefined) node.className = className;
+    return node;
+  },
+});
+
 export class ItemView {
   readonly containerEl: HTMLElement;
   readonly contentEl: HTMLElement;
@@ -179,6 +204,10 @@ export class Notice {
   constructor(_message: string) {}
 }
 
+export function setIcon(element: HTMLElement, icon: string): void {
+  element.dataset.icon = icon;
+}
+
 export class MenuItem {
   title = '';
   checked = false;
@@ -216,8 +245,4 @@ export class Menu {
   }
 
   showAtMouseEvent(_event: MouseEvent): this { return this; }
-}
-
-export function setIcon(target: HTMLElement, icon: string): void {
-  target.dataset.icon = icon;
 }

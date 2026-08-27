@@ -66,6 +66,11 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench-settings__section-title\s*\{[^}]*margin-left:\s*0[^}]*padding-left:\s*0/su);
     expect(css).toMatch(/wechat-workbench-settings__account-guidance\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su);
     expect(css).toMatch(/wechat-workbench-settings__account-guidance-copy\s*\{[^}]*min-width:\s*0/su);
+    expect(css).toMatch(/wechat-workbench-settings__ai-model-field\.has-fetched-models\s+\.wechat-workbench-settings__ai-model-control\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+2\.5rem/su);
+    expect(css).toMatch(/wechat-workbench-settings__ai-model-picker\s*\{[^}]*height:\s*auto/su);
+    expect(css).toMatch(/wechat-workbench-settings__ai-actions\s*>\s*button\.mod-cta\s*\{[^}]*background:\s*var\(--wechat-workbench-settings-accent\)[^}]*border-color:\s*var\(--wechat-workbench-settings-accent\)/su);
+    expect(css).not.toMatch(/@media\s*\(max-width:\s*900px\)[\s\S]*wechat-workbench-settings__ai-model-field\.has-fetched-models[^{]*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+    expect(css).toMatch(/wechat-workbench-settings__ai-model-menu\s*\{[^}]*overflow-y:\s*auto[^}]*position:\s*fixed/su);
     expect(css).toMatch(/wechat-workbench-settings__actions\s*>\s*\[data-testid="account-open-console"\]\s*\{[^}]*margin-left:\s*auto[^}]*border:\s*1px solid var\(--background-modifier-border\)[^}]*color:\s*var\(--text-normal\)[^}]*background:\s*var\(--background-modifier-hover\)[^}]*font-weight:\s*var\(--font-semibold\)/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-prompt-label select\s*\{[^}]*appearance:\s*none[^}]*background-image:\s*url\(/su);
     expect(css).toMatch(/wechat-workbench__cover-generation-config\s+\.wechat-workbench__cover-content-options\s*\{[^}]*justify-self:\s*start/su);

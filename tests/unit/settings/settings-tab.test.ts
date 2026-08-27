@@ -21,6 +21,10 @@ function createHarness() {
   };
   const secrets = {
     status: vi.fn(() => ({ appSecret: true, accessToken: false, textApiKey: false, imageApiKey: false })),
+    get: vi.fn((kind: string) => {
+      if (kind === 'appSecret') return 'synthetic-saved-app-secret';
+      return kind === 'textDeepseekApiKey' ? 'synthetic-saved-key' : null;
+    }),
   };
   const connection = {
     snapshot: vi.fn<() => ReturnType<AccountConnectionService['snapshot']>>(() => ({
@@ -47,8 +51,8 @@ function createHarness() {
     disconnect: vi.fn(async () => undefined),
   };
   const ai = {
-    saveText: vi.fn(async () => settings.current),
-    saveImage: vi.fn(async () => settings.current),
+    saveProfile: vi.fn(async () => settings.current),
+    listModels: vi.fn(async () => ['synthetic-model']),
   };
   const copyIp = vi.fn();
   const openConsole = vi.fn(async () => undefined);
@@ -66,7 +70,7 @@ function createHarness() {
   return { tab, settings, secrets, connection, access, ai, copyIp, openConsole };
 }
 
-function button(host: HTMLElement, testId: string): HTMLButtonElement {
+function button(host: ParentNode, testId: string): HTMLButtonElement {
   const element = host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
   if (element === null) throw new Error(`Missing button ${testId}`);
   return element;
@@ -88,12 +92,7 @@ describe('buildSettingsPresentation', () => {
     });
 
     expect(presentation.appIdValue).toBe('');
-    expect(presentation).toMatchObject({
-      textApiEndpoint: '',
-      textApiModel: '',
-      imageApiEndpoint: '',
-      imageApiModel: '',
-    });
+    expect(presentation).toMatchObject({ textProvider: null, imageProvider: null });
     expect(presentation.secretRows).toEqual([
       { kind: 'appSecret', label: 'AppSecret', status: '已配置', inputValue: '' },
       { kind: 'textApiKey', label: '文本 API Key', status: '未配置', inputValue: '' },
@@ -107,7 +106,7 @@ describe('buildSettingsPresentation', () => {
       document.body.replaceChildren();
     });
 
-    it('renders one compact account section without exposing secrets', () => {
+    it('renders one compact account section with its saved AppSecret masked', () => {
       const { tab } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
@@ -135,8 +134,25 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.textContent).not.toContain('文本和图片服务相互独立。');
       expect(tab.containerEl.textContent).not.toContain('插件默认封面');
       expect(tab.containerEl.querySelector('[data-testid="default-cover-path"]')).toBeNull();
-      expect(JSON.stringify(tab.containerEl.innerHTML)).not.toContain('SYNTHETIC_APP_SECRET');
-      expect(input(tab.containerEl, 'account-secret').value).toBe('');
+      const secret = input(tab.containerEl, 'account-secret');
+      expect(secret.type).toBe('password');
+      expect(secret.value).toBe('synthetic-saved-app-secret');
+      expect(button(tab.containerEl, 'account-secret-toggle').getAttribute('aria-label')).toBe('显示 AppSecret');
+    });
+
+    it('reveals and hides the saved AppSecret only in the current settings form', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      const secret = input(tab.containerEl, 'account-secret');
+      button(tab.containerEl, 'account-secret-toggle').click();
+      expect(secret.type).toBe('text');
+      expect(button(tab.containerEl, 'account-secret-toggle').getAttribute('aria-label')).toBe('隐藏 AppSecret');
+
+      button(tab.containerEl, 'account-secret-toggle').click();
+      expect(secret.type).toBe('password');
+      expect(button(tab.containerEl, 'account-secret-toggle').getAttribute('aria-label')).toBe('显示 AppSecret');
     });
 
     it('maps internal connection states to user-facing labels', () => {
@@ -232,63 +248,204 @@ describe('buildSettingsPresentation', () => {
       document.body.replaceChildren();
     });
 
-    it('renders two independent cards without protocol or model discovery controls', () => {
+    it('renders one active mode with independent provider profiles and one binding action', () => {
       const { tab } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
 
       expect(tab.containerEl.textContent).toContain('AI 内容生成');
-      expect(tab.containerEl.textContent).toContain('文本生成服务');
-      expect(tab.containerEl.textContent).toContain('图片生成服务');
-      expect(tab.containerEl.textContent).toContain('完整 Endpoint URL');
-      expect(tab.containerEl.textContent).not.toContain('OpenAI compatible；请填写包含接口路径的完整 HTTPS 地址。');
-      expect(tab.containerEl.textContent).not.toContain('已安全保存；输入新值以替换。');
-      expect(tab.containerEl.textContent).not.toContain('手动填写，不获取远程模型列表。');
-      expect(tab.containerEl.textContent).not.toContain('Anthropic');
-      expect(tab.containerEl.textContent).not.toContain('获取模型');
-      expect(tab.containerEl.textContent).not.toContain('可用模型');
-      expect(tab.containerEl.querySelector('select')).toBeNull();
-      expect(input(tab.containerEl, 'text-ai-endpoint')).toBeTruthy();
-      expect(input(tab.containerEl, 'image-ai-endpoint')).toBeTruthy();
-      expect(input(tab.containerEl, 'text-ai-model')).toBeTruthy();
-      expect(input(tab.containerEl, 'image-ai-model')).toBeTruthy();
-      expect(input(tab.containerEl, 'image-ai-endpoint').placeholder)
-        .toBe('https://api.example.com/v1/images/generations');
+      expect(tab.containerEl.textContent).toContain('文本模型配置');
+      expect(tab.containerEl.textContent).toContain('图片模型配置');
+      expect(tab.containerEl.textContent).not.toContain('选择一种模型用途，再配置并设为当前服务。');
+      expect(tab.containerEl.textContent).toContain('用于发布设置中的生成标题、生成摘要。');
+      expect(tab.containerEl.textContent).toContain('Agnes 供应商设置');
+      expect(tab.containerEl.textContent).toContain('Base URL');
+      expect(tab.containerEl.textContent).toContain('获取模型列表');
+      expect(tab.containerEl.textContent).toContain('保存并设为当前文本模型');
+      expect(tab.containerEl.textContent).not.toContain('API 请求格式（固定）');
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-provider-agnes"]')).not.toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-provider-deepseek"]')).not.toBeNull();
+      expect(input(tab.containerEl, 'ai-text-agnes-base-url')).toBeTruthy();
     });
 
-    it('saves text configuration locally without making a network request', async () => {
+    it('saves a text provider profile and makes it the current text binding', async () => {
       const { tab, ai } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
-      input(tab.containerEl, 'text-ai-endpoint').value = 'https://text.example.test/v1/chat';
-      input(tab.containerEl, 'text-ai-model').value = 'text-model';
-      input(tab.containerEl, 'text-ai-key').value = 'synthetic-text-key';
+      input(tab.containerEl, 'ai-text-agnes-base-url').value = 'https://text.example.test/v1';
+      input(tab.containerEl, 'ai-text-agnes-model').value = 'text-model';
+      input(tab.containerEl, 'ai-text-agnes-key').value = 'synthetic-text-key';
 
-      button(tab.containerEl, 'save-text-ai').click();
+      button(tab.containerEl, 'save-text-agnes').click();
 
-      await vi.waitFor(() => expect(ai.saveText).toHaveBeenCalledWith({
-        endpoint: 'https://text.example.test/v1/chat',
-        model: 'text-model',
-        apiKey: 'synthetic-text-key',
-      }));
-      expect(tab.containerEl.textContent).toContain('已保存到本机 · 尚未联网验证');
-      expect(input(tab.containerEl, 'text-ai-key').value).toBe('');
+      await vi.waitFor(() => expect(ai.saveProfile).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'text', provider: 'agnes', baseUrl: 'https://text.example.test/v1', model: 'text-model', apiKey: 'synthetic-text-key',
+      })));
+      expect(tab.containerEl.textContent).toContain('已保存并设为当前模型；尚未联网验证。');
+      expect(input(tab.containerEl, 'ai-text-agnes-key').value).toBe('synthetic-text-key');
     });
 
-    it('saves image configuration independently from text configuration', async () => {
+    it('switches to image mode and saves an independent image provider profile', async () => {
       const { tab, ai } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
-      input(tab.containerEl, 'image-ai-endpoint').value = 'https://images.example.test/v1/images';
-      input(tab.containerEl, 'image-ai-model').value = 'image-model';
-      button(tab.containerEl, 'save-image-ai').click();
+      button(tab.containerEl, 'ai-mode-image').click();
+      input(tab.containerEl, 'ai-image-agnes-base-url').value = 'https://images.example.test/v1';
+      input(tab.containerEl, 'ai-image-agnes-model').value = 'image-model';
+      button(tab.containerEl, 'save-image-agnes').click();
 
-      await vi.waitFor(() => expect(ai.saveImage).toHaveBeenCalledWith({
-        endpoint: 'https://images.example.test/v1/images',
-        model: 'image-model',
-        apiKey: '',
-      }));
-      expect(ai.saveText).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(ai.saveProfile).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'image', provider: 'agnes', baseUrl: 'https://images.example.test/v1', model: 'image-model',
+      })));
+    });
+
+    it('does not expose DeepSeek in image configuration', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'ai-mode-image').click();
+
+      expect(tab.containerEl.querySelector('[data-testid="ai-image-provider-agnes"]')).not.toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="ai-image-provider-deepseek"]')).toBeNull();
+      expect(tab.containerEl.textContent).not.toContain('DeepSeek 供应商设置');
+    });
+
+    it('pre-fills the official Base URL, removes endpoint override, and toggles a saved key locally', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+      button(tab.containerEl, 'ai-text-provider-deepseek').click();
+
+      const key = input(tab.containerEl, 'ai-text-deepseek-key');
+      expect(input(tab.containerEl, 'ai-text-deepseek-base-url').value).toBe('https://api.deepseek.com');
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-deepseek-endpoint"]')).toBeNull();
+      expect(key.type).toBe('password');
+      expect(key.value).toBe('synthetic-saved-key');
+      expect(key.parentElement?.classList.contains('wechat-workbench-settings__ai-key-control')).toBe(true);
+      expect(key.parentElement?.querySelector('[data-testid="ai-text-deepseek-key-toggle"]')).not.toBeNull();
+
+      button(tab.containerEl, 'ai-text-deepseek-key-toggle').click();
+      expect(key.type).toBe('text');
+      expect(button(tab.containerEl, 'ai-text-deepseek-key-toggle').getAttribute('aria-label')).toBe('隐藏 API Key');
+    });
+
+    it('keeps a compact fetched-model picker after writing a menu selection into the model input', async () => {
+      const { tab, ai } = createHarness();
+      ai.listModels.mockResolvedValueOnce(['agnes-2.5-flash', 'agnes-2.5-pro']);
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'fetch-text-agnes-models').click();
+
+      await vi.waitFor(() => expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull());
+      const picker = button(tab.containerEl, 'ai-text-agnes-fetched-model-toggle');
+      expect(picker.getAttribute('aria-expanded')).toBe('false');
+      picker.click();
+      expect(picker.getAttribute('aria-expanded')).toBe('true');
+      const menu = document.querySelector<HTMLElement>('[data-testid="ai-text-agnes-fetched-model-menu"]');
+      expect(menu?.parentElement).toBe(document.body);
+      expect(menu?.style.top).not.toBe('');
+      expect(menu?.style.left).not.toBe('');
+      expect(menu?.style.maxHeight).not.toBe('');
+      button(document, 'ai-text-agnes-fetched-model-option-agnes-2.5-pro').click();
+
+      expect(input(tab.containerEl, 'ai-text-agnes-model').value).toBe('agnes-2.5-pro');
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).toBeNull();
+      expect(tab.containerEl.querySelector('.wechat-workbench-settings__ai-model-field')?.classList.contains('has-fetched-models'))
+        .toBe(true);
+    });
+
+    it('opens the fetched-model menu in the settings window that owns the picker', async () => {
+      const { tab, ai } = createHarness();
+      ai.listModels.mockResolvedValueOnce(['agnes-2.5-flash', 'agnes-2.5-pro']);
+      const settingsWindow = document.createElement('iframe');
+      document.body.append(settingsWindow);
+      const settingsDocument = settingsWindow.contentDocument;
+      if (settingsDocument === null) throw new Error('Missing settings-window document');
+      const settingsDomWindow = settingsDocument.defaultView;
+      if (settingsDomWindow === null) throw new Error('Missing settings-window runtime');
+      Object.defineProperty(settingsDocument, 'win', { configurable: true, value: settingsDomWindow });
+      Object.assign(settingsDomWindow, {
+        createDiv: (className?: string): HTMLDivElement => {
+          const node = settingsDocument.createElement('div');
+          if (className !== undefined) node.className = className;
+          return node;
+        },
+        createEl: (tag: 'button', options?: { text?: string }): HTMLButtonElement => {
+          const node = settingsDocument.createElement(tag);
+          if (options?.text !== undefined) node.textContent = options.text;
+          return node;
+        },
+      });
+      settingsDocument.body.append(tab.containerEl);
+      tab.display();
+
+      button(settingsDocument, 'fetch-text-agnes-models').click();
+      await vi.waitFor(() => expect(settingsDocument.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull());
+      button(settingsDocument, 'ai-text-agnes-fetched-model-toggle').click();
+
+      expect(settingsDocument.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).toBeNull();
+      settingsWindow.remove();
+    });
+
+    it('keeps the fetched-model menu open while its own list scrolls', async () => {
+      const { tab, ai } = createHarness();
+      ai.listModels.mockResolvedValueOnce([
+        'agnes-2.0-flash',
+        'agnes-2.5-flash',
+        'agnes-2.5-pro',
+        'agnes-2.5-pro-alpha',
+        'agnes-image-2.1-flash',
+      ]);
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'fetch-text-agnes-models').click();
+      await vi.waitFor(() => expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull());
+      button(tab.containerEl, 'ai-text-agnes-fetched-model-toggle').click();
+      const menu = button(document, 'ai-text-agnes-fetched-model-option-agnes-2.0-flash').parentElement;
+      if (menu === null) throw new Error('Missing fetched-model menu');
+
+      menu.dispatchEvent(new Event('scroll'));
+
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).not.toBeNull();
+      button(document, 'ai-text-agnes-fetched-model-option-agnes-image-2.1-flash').click();
+      expect(input(tab.containerEl, 'ai-text-agnes-model').value).toBe('agnes-image-2.1-flash');
+    });
+
+    it('closes the fetched-model menu when the outer settings viewport scrolls', async () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'fetch-text-agnes-models').click();
+      await vi.waitFor(() => expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull());
+      button(tab.containerEl, 'ai-text-agnes-fetched-model-toggle').click();
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).not.toBeNull();
+
+      window.dispatchEvent(new Event('scroll'));
+
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).toBeNull();
+    });
+
+    it('clears temporary fetched models when the user switches provider or mode', async () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'fetch-text-agnes-models').click();
+      await vi.waitFor(() => expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).not.toBeNull());
+      button(tab.containerEl, 'ai-text-agnes-fetched-model-toggle').click();
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).not.toBeNull();
+
+      button(tab.containerEl, 'ai-text-provider-deepseek').click();
+      expect(tab.containerEl.querySelector('[data-testid="ai-text-agnes-fetched-model-toggle"]')).toBeNull();
+      expect(document.querySelector('[data-testid="ai-text-agnes-fetched-model-menu"]')).toBeNull();
+      button(tab.containerEl, 'ai-mode-image').click();
+      expect(tab.containerEl.querySelector('[data-testid="ai-image-agnes-fetched-model-toggle"]')).toBeNull();
     });
   });
 });
