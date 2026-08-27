@@ -27,6 +27,8 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench__preview-canvas\s*\{[^}]*background:\s*var\(--background-secondary\)/su);
     expect(css).toMatch(/wechat-workbench__preview-sheet\s*\{[^}]*max-width:\s*52rem/su);
     expect(css).toMatch(/wechat-workbench__preview-sheet\s+img[^}]*max-width:\s*100%/su);
+    expect(css).toMatch(/wechat-workbench__preview-sheet\s+img\s*\{[^}]*border-radius:\s*6px/su);
+    expect(css).toMatch(/wechat-workbench__preview-sheet\s+img\s*\{[^}]*box-shadow:\s*none/su);
     expect(css).toMatch(/wechat-workbench__cover-preview[^}]*aspect-ratio:\s*2\.35\s*\/\s*1/su);
     expect(css).toMatch(/wechat-workbench__cover-preview-modal\s*\{[^}]*width:\s*100%\s*!important[^}]*max-width:\s*100%\s*!important[^}]*max-height:\s*calc\(100vh - 2rem\)[^}]*overflow:\s*hidden/su);
     expect(css).toMatch(/wechat-workbench__cover-preview-modal-shell\s*\{[^}]*width:\s*min\(90vw,\s*57\.333rem\)\s*!important[^}]*max-width:\s*calc\(100vw - 2rem\)\s*!important/su);

@@ -63,7 +63,7 @@ describe('Doocs style golden HTML', () => {
   );
 
   it.each(['doocs-classic', 'doocs-grace', 'doocs-simple'])(
-    'gives article images a subtle rounded surface for %s',
+    'keeps light image corners without a shadow for %s',
     async themeId => {
       const artifact = await buildStyleFixture(themeId);
       const document = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
@@ -71,7 +71,7 @@ describe('Doocs style golden HTML', () => {
 
       expect(image).not.toBeNull();
       expect(image?.style.borderRadius).not.toBe('');
-      expect(image?.style.boxShadow).toBe('0 6px 18px rgba(15, 23, 42, 0.22)');
+      expect(image?.style.boxShadow).toBe('');
     },
   );
 
