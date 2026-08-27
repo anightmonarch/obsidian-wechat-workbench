@@ -455,7 +455,7 @@ function appendAiProviderPanel(
         })
         .catch(() => {
           clearFetchedModels();
-          message.textContent = '无法获取模型列表，请检查 Base URL、API Key 和网络。';
+          message.textContent = '无法获取模型列表，请检查 base URL、API Key 和网络。';
         })
         .finally(() => { fetch.disabled = false; });
     });
@@ -465,7 +465,7 @@ function appendAiProviderPanel(
         kind, provider: selected, baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value,
       })
         .then(() => { message.textContent = '已保存并设为当前模型；尚未联网验证。'; })
-        .catch(() => { message.textContent = '保存失败，请检查 Base URL、模型和 API Key。'; })
+        .catch(() => { message.textContent = '保存失败，请检查 base URL、模型和 API Key。'; })
         .finally(() => { save.disabled = false; });
     });
   };

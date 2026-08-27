@@ -33,8 +33,17 @@ export default defineConfig(
       'obsidianmd/ui/sentence-case': [
         'warn',
         {
-          brands: ['WeChat', 'WeChat Workbench', 'AppSecret', 'AppID'],
-          acronyms: ['API'],
+          brands: [
+            'WeChat',
+            'WeChat Workbench',
+            'AppSecret',
+            'AppID',
+            'Access Token',
+            'API Key',
+            'Frontmatter',
+            'WebP',
+          ],
+          acronyms: ['API', 'AI', 'IP', 'URL', 'PNG', 'JPEG'],
           enforceCamelCaseLower: true,
         },
       ],
@@ -49,11 +58,25 @@ export default defineConfig(
     },
   },
   {
+    files: ['src/cover/cover-workflow.ts', 'src/cover/openai-image-generator.ts'],
+    rules: {
+      // These reads intentionally migrate persisted schema v4 settings into the v5 provider model.
+      '@typescript-eslint/no-deprecated': 'off',
+    },
+  },
+  {
     files: ['tests/**/*.ts'],
     rules: {
       'obsidianmd/prefer-create-el': 'off',
       'obsidianmd/ui/sentence-case': 'off',
       'obsidianmd/no-global-this': 'off',
+    },
+  },
+  {
+    files: ['tests/unit/settings/settings-tab.test.ts'],
+    rules: {
+      // The minimum supported Obsidian version still exercises SettingTab.display().
+      '@typescript-eslint/no-deprecated': 'off',
     },
   },
   {
