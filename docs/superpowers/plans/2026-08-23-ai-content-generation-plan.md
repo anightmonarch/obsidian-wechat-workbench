@@ -23,6 +23,18 @@ If this plan conflicts with the approved design, stop and update the plan before
 
 AI cover generation sends only the current title, digest, and optional modal-only supplemental prompt. It does not send headings or a body excerpt. This supersedes earlier cover-specific examples in this plan that included `bodyExcerpt`.
 
+### 2026-08-26 implementation amendment: independent provider profiles
+
+This amendment supersedes this plan's old “full Endpoint only / no provider / no model list” tasks. Implement `Agnes` and `DeepSeek` for text; implement only `Agnes` for image generation. Do not surface OpenAI until its request and response contracts are independently tested.
+
+1. Update the schema to v5 with independent `text` and `image` provider profiles. A profile stores provider ID, Base URL, explicit request format, selected model, optional complete-endpoint override and discovered model IDs; it never stores API keys. Each mode stores exactly one active provider ID or `null`.
+2. Store `text/agnes`, `text/deepseek`, and `image/agnes` keys under separate fixed SecretStorage IDs. Migrate v4 only when an old host and purpose unambiguously identify a supported profile; historical DeepSeek image settings become inactive and unreachable, without deleting their existing secret. Otherwise leave no active provider and never send a legacy key to a new origin.
+3. Replace the two simultaneous service cards with mode tabs. The active mode has a left provider list and right detail pane. “保存并设为当前…” is the sole linkage from settings to workbench behavior. “获取模型列表” is an explicit request and cannot mutate selected/default models on failure.
+4. Add resolver/adapters before editing workbench calls: Agnes and DeepSeek text use an OpenAI-chat adapter; Agnes image keeps its known contract. DeepSeek has no image adapter: `deepseek-v4-flash-vision-exp` accepts image input for understanding and must never be routed to an image-generation endpoint. No model-name heuristic or generic arbitrary-JSON mapper is permitted.
+5. Make the three workbench actions resolve a frozen profile at click time: titles and digest use `text.activeProvider`; smart cover uses `image.activeProvider`. The confirmation dialog discloses resolved provider, endpoint, model, sent fields and possible cost.
+6. Red tests first for schema/migration, separate secrets, sole binding UI, resolver routing, Agnes image request, DeepSeek text request, and rejection of DeepSeek as an image provider. Then minimally implement to green.
+7. After automated gates, build and run `sync:test-vault`, close/restart Obsidian with `$HOME/workspace/Github/wechat-workbench-test-vault`, and execute title, digest and cover paths for Agnes plus title and digest for DeepSeek. Verify the image configuration has no DeepSeek option. Do not persist real credentials, raw JSON or remote image URLs in code or evidence.
+
 ## Global Constraints
 
 - Desktop only; keep `manifest.json.isDesktopOnly: true` and `minAppVersion >= 1.11.4`.
@@ -1961,6 +1973,22 @@ git commit -m "test(ai): verify content generation workflows"
 - [x] Restore-first-image clears Frontmatter only and does not delete files.
 - [x] Every task includes failing test, focused verification, secret scan, and focused commit.
 - [x] Real desktop and cross-platform outcomes distinguish `PASS`, `BLOCKED`, and `NOT RUN`.
+
+## 2026-08-26 渲染卡死修复批次
+
+- [x] 为永不返回的快照/构建 Promise 写失败测试：15 秒后退出“正在排版…”。
+- [x] 为 `ItemView` 快速关闭/恢复写失败测试：关闭等待控制器停止，重复启动重新请求当前渲染。
+- [x] 实现渲染截止时间与串行生命周期，保留代际丢弃语义。
+- [x] 在固定测试 Vault 复现截图笔记、重开工作台并验证不再停留在“正在排版…”。
+
+## 2026-08-26 临时模型下拉选择批次
+
+- [x] 为模型发现成功后“输入框 + 紧凑箭头”在窄弹窗仍同屏、页面级浮层不受卡片裁剪且可滚动、选择回写但保留箭头、切换模式或供应商清空临时结果写失败测试。
+- [x] 移除模型按钮列表，采用临时下拉框，并保证窄设置弹窗仍保持输入框与箭头同排。
+- [x] 增加独立设置窗口回归测试：浮层必须挂载到箭头按钮的 `ownerDocument`，监听和定位使用该文档的 `defaultView`，不能落到插件主窗口背后。
+- [x] 增加内部滚动回归测试：滚动模型列表不能关闭浮层，滚动后仍可选择底部模型；外层设置页滚动仍关闭浮层。
+- [x] 增加视觉约束：箭头按钮自动匹配模型输入框高度，“保存并设为当前…”使用设置页微信绿主题变量。
+- [ ] 在隔离测试 Vault 验证文本和图片模式的获取、选择、切换清空；不在验证中保存或暴露真实 Key。
 
 ## Session Batches and Acceptance Checkpoints
 
