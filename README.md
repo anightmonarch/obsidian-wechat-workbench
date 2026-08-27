@@ -18,6 +18,20 @@ WeChat Workbench 是一款仅支持桌面端的 Obsidian 社区插件。正文�
 - 本机直连微信公众号 API，支持创建草稿、更新已关联草稿、内容无变化时跳过以及结果不明确时的安全恢复。
 - AppSecret、Access Token 和 AI 服务 API Key 只保存到 Obsidian `SecretStorage`。
 
+## 界面预览
+
+### Markdown 编辑与公众号预览
+
+![WeChat Workbench 工作台总览](docs/assets/workbench-overview.jpeg)
+
+### 文章样式
+
+![WeChat Workbench 文章样式面板](docs/assets/style-panel.jpeg)
+
+### 文章信息、封面与草稿状态
+
+![WeChat Workbench 发布设置](docs/assets/publish-settings.jpeg)
+
 ## 产品边界
 
 - 仅支持 Obsidian 桌面端，最低版本为 `1.11.4`。
