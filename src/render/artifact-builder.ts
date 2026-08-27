@@ -32,6 +32,10 @@ const SEMANTIC_CSS = `.wechat-article .callout-title { display: flex; align-item
 .wechat-article .callout-body { margin: 0; font-style: normal; text-indent: 0; }
 .wechat-article .task-list-item--checked { text-decoration: line-through; }`;
 
+function createHtmlElement(document: Document, tagName: string): HTMLElement {
+  return document.createElementNS('http://www.w3.org/1999/xhtml', tagName);
+}
+
 function transformCallouts(root: Element): void {
   for (const blockquote of root.querySelectorAll('blockquote')) {
     const firstParagraph = blockquote.firstElementChild;
@@ -45,13 +49,13 @@ function transformCallouts(root: Element): void {
     const presentation = CALLOUT_PRESENTATION[kind];
     const titleText = match[2]?.trim() || presentation.title;
     const bodyText = remainingLines.join('\n').trim();
-    const title = blockquote.ownerDocument.createElement('div');
+    const title = createHtmlElement(blockquote.ownerDocument, 'div');
     title.className = 'callout-title';
-    const icon = blockquote.ownerDocument.createElement('span');
+    const icon = createHtmlElement(blockquote.ownerDocument, 'span');
     icon.className = 'callout-icon';
     icon.setAttribute('aria-hidden', 'true');
     icon.textContent = presentation.icon;
-    const titleLabel = blockquote.ownerDocument.createElement('span');
+    const titleLabel = createHtmlElement(blockquote.ownerDocument, 'span');
     titleLabel.className = 'callout-title-text';
     titleLabel.textContent = titleText;
     title.append(icon, titleLabel);
@@ -60,7 +64,7 @@ function transformCallouts(root: Element): void {
       firstParagraph.replaceWith(title);
       continue;
     }
-    const body = blockquote.ownerDocument.createElement('p');
+    const body = createHtmlElement(blockquote.ownerDocument, 'p');
     body.className = 'callout-body';
     body.textContent = bodyText;
     firstParagraph.replaceWith(title, body);

@@ -22,6 +22,10 @@ function safePreviewUrl(value: string | null): string | null {
     : null;
 }
 
+function createHtmlElement<T extends HTMLElement>(document: Document, tagName: string): T {
+  return document.createElementNS('http://www.w3.org/1999/xhtml', tagName) as T;
+}
+
 function codeText(code: HTMLElement): string {
   const projectedLines = [...code.querySelectorAll<HTMLElement>('.code-line-content')];
   if (projectedLines.length > 0) {
@@ -38,9 +42,9 @@ function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void 
   for (const code of root.querySelectorAll<HTMLElement>('pre > code')) {
     const pre = code.parentElement;
     if (pre === null) continue;
-    const frame = root.ownerDocument.createElement('div');
+    const frame = createHtmlElement<HTMLDivElement>(root.ownerDocument, 'div');
     frame.className = 'wechat-workbench__code-preview';
-    const copy = root.ownerDocument.createElement('button');
+    const copy = createHtmlElement<HTMLButtonElement>(root.ownerDocument, 'button');
     copy.type = 'button';
     copy.className = 'wechat-workbench__code-copy';
     copy.dataset.testid = 'code-copy';
