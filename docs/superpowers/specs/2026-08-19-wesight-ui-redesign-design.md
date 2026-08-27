@@ -3,7 +3,7 @@
 - 状态：用户已批准
 - 日期：2026-08-19
 - 适用版本：`0.1.x`
-- 参考项目：`reference-project/wesight-obsidian`，固定参考提交 `2315b4be2f4f680419b03fcc0914f1dde622666b`
+- 参考项目：`wesight-obsidian`，固定参考提交 `2315b4be2f4f680419b03fcc0914f1dde622666b`
 - 实现方式：clean-room 重写，不复制 WeSight 的 AGPL TypeScript、CSS、图片或品牌资产
 
 ## 1. 结论

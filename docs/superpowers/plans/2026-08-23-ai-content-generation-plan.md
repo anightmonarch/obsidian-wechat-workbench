@@ -658,7 +658,7 @@ it('removes private metadata, image destinations, html, code, and control charac
       markdown: `---\nappSecret: SECRET\nwechat-draft-id: MEDIA\n---\n# Heading\n<img src="https://signed.example/x?token=SECRET">\n![diagram](data:image/png;base64,SECRET)\n\`\`\`sh\necho SECRET\n\`\`\`\nVisible\u0000 text`,
     },
     artifact,
-    draft: { title: 'Draft title', author: 'anightmonarch', digest: 'Draft digest' },
+    draft: { title: 'Draft title', author: 'Demo Author', digest: 'Draft digest' },
     purpose: 'title',
   });
 

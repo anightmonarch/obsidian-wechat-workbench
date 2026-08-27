@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
@@ -56,7 +56,7 @@ describe('local development scripts', () => {
 
   it('refuses the primary knowledge vault', async () => {
     const result = await runNode('scripts/sync-test-vault.mjs', [], {
-      WECHAT_WORKBENCH_TEST_VAULT: '$HOME/workspace/Github/commit_note',
+      WECHAT_WORKBENCH_TEST_VAULT: join(homedir(), 'workspace', 'Github', 'commit_note'),
     });
 
     expect(result.exitCode).toBe(1);

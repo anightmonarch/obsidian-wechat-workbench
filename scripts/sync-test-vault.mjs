@@ -1,9 +1,10 @@
 import { copyFile, mkdir, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const primaryVault = resolve('$HOME/workspace/Github/commit_note');
+const primaryVault = resolve(homedir(), 'workspace', 'Github', 'commit_note');
 const runtimeAssets = ['main.js', 'manifest.json', 'styles.css'];
 
 function isInside(parent, candidate) {

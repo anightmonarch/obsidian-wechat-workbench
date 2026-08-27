@@ -9,7 +9,7 @@
 ## Build and install locally
 
 ```bash
-git clone https://github.com/reference-project/obsidian-wechat-workbench.git
+git clone https://github.com/anightmonarch/obsidian-wechat-workbench.git
 cd obsidian-wechat-workbench
 npm ci
 npm test

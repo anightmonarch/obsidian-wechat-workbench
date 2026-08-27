@@ -53,7 +53,7 @@ describe('publish settings', () => {
     expect(author.getAttribute('type')).toBe('text');
     expect(digest.maxLength).toBe(120);
     title.value = 'Updated title';
-    author.value = 'wbs';
+    author.value = 'Demo Author';
     digest.value = 'Updated digest';
     title.dispatchEvent(new Event('input', { bubbles: true }));
     author.dispatchEvent(new Event('input', { bubbles: true }));
@@ -65,7 +65,7 @@ describe('publish settings', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(saveArticle).toHaveBeenCalledWith({
       title: 'Updated title',
-      author: 'wbs',
+      author: 'Demo Author',
       digest: 'Updated digest',
       contentSourceUrl: '',
     });

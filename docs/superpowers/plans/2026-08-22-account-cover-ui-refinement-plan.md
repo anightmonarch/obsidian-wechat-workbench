@@ -739,13 +739,13 @@ it('does not render or submit the source URL field', () => {
   expect(host.querySelector('[data-testid="settings-source-url"]')).toBeNull();
   click('[data-testid="settings-save"]');
   expect(actions.saveArticle).toHaveBeenCalledWith({
-    title: 'Updated title', author: 'anightmonarch', digest: 'Updated digest',
+    title: 'Updated title', author: 'Demo Author', digest: 'Updated digest',
   });
 });
 
 it('preserves legacy content_source_url while saving editable fields', async () => {
   const frontmatter = { content_source_url: 'https://example.test/source', custom: 'keep' };
-  await service.update(file, { title: 'Title', author: 'anightmonarch', digest: 'Digest' });
+  await service.update(file, { title: 'Title', author: 'Demo Author', digest: 'Digest' });
   expect(frontmatter).toMatchObject({
     content_source_url: 'https://example.test/source', custom: 'keep', title: 'Title',
   });

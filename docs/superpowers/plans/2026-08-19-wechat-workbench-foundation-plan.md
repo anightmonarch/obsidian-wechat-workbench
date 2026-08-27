@@ -415,7 +415,7 @@ it('copies only Obsidian runtime assets into the plugin folder', async () => {
 
 it('refuses the known primary vault path', async () => {
   const result = await runNode('scripts/sync-test-vault.mjs', {
-    WECHAT_WORKBENCH_TEST_VAULT: '$HOME/workspace/Github/commit_note',
+    WECHAT_WORKBENCH_TEST_VAULT: join(homedir(), 'workspace', 'Github', 'commit_note'),
   });
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain('Refusing to use the primary vault');
@@ -439,7 +439,7 @@ Expected: FAIL because the scripts do not exist.
 ```js
 const vault = process.env.WECHAT_WORKBENCH_TEST_VAULT;
 if (!vault) throw new Error('WECHAT_WORKBENCH_TEST_VAULT is required');
-if (resolve(vault) === '$HOME/workspace/Github/commit_note') {
+if (resolve(vault) === resolve(homedir(), 'workspace', 'Github', 'commit_note')) {
   throw new Error('Refusing to use the primary vault');
 }
 const destination = join(vault, '.obsidian', 'plugins', 'wechat-workbench');

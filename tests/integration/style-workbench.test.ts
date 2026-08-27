@@ -15,7 +15,7 @@ function snapshot(frontmatter: Readonly<Record<string, unknown>>): Readonly<Note
   return Object.freeze({
     vaultPath: 'article.md', basename: 'article', modifiedAt: 1,
     markdown: '# Article\n\nA paragraph.', frontmatter: Object.freeze(frontmatter),
-    metadata: Object.freeze({ title: 'Article', author: 'wbs', digest: '', cover: null, contentSourceUrl: '' }),
+    metadata: Object.freeze({ title: 'Article', author: 'Demo Author', digest: '', cover: null, contentSourceUrl: '' }),
     selectedThemeId: 'native', sourceHash: 'article-source',
   });
 }

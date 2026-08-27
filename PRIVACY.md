@@ -1,30 +1,77 @@
-# Privacy
+# 隐私说明
 
-WeChat Workbench has no author-operated server, telemetry, advertising or analytics. Article processing and theme rendering occur locally unless the user explicitly requests a network action.
+WeChat Workbench 不提供作者运营的服务器，不包含遥测、广告或分析功能。文章解析、主题渲染和被动预览默认在本地完成。只有用户主动执行需要联网的操作时，插件才会发起网络请求。
 
-## Local data
+## 本地数据
 
-- AppSecret, Access Token and image API key: Obsidian `SecretStorage` only.
-- AppID, theme/default settings, non-secret token expiry, media cache hashes/IDs and recovery receipts: plugin `data.json`.
-- Draft association, content/theme/cover hashes and sync time: owned `wechat-*` fields in article Frontmatter.
-- Generated covers and custom themes: files inside the user's Vault.
+插件会在以下位置保存数据。
 
-Obsidian SecretStorage is a Vault-level credential facility, not a hardware enclave or per-plugin sandbox. Treat every third-party plugin installed in the same Vault as part of the local trust boundary.
+| 数据 | 保存位置 |
+| --- | --- |
+| AppSecret、Access Token、文本和图片服务 API Key | Obsidian `SecretStorage` |
+| AppID、主题和样式设置、AI 服务配置、非敏感的 Token 过期时间、媒体缓存信息和恢复摘要 | 插件 `data.json` |
+| 草稿 ID、账号标识哈希、内容和封面哈希、主题版本、同步时间 | 当前文章的 `wechat-*` Frontmatter 字段 |
+| 生成或处理后的封面 | Vault 内的 `.wechat-workbench/covers/` |
+| 用户自定义主题 | 用户配置的 Vault 主题目录 |
 
-## Network destinations
+完整渲染产物只保存在内存中，不会额外持久化文章正文副本。
 
-| Trigger | Destination | Data sent |
-| --- | --- | --- |
-| Obtain token | `api.weixin.qq.com` | AppID and AppSecret |
-| Upload images / create, update or inspect drafts | `api.weixin.qq.com` | Access Token, article metadata, final HTML, image bytes, cover bytes and draft media ID when updating |
-| Explicit publish with remote body images | The exact HTTPS image hosts referenced by the article | Image GET request only; private/local targets are blocked and DNS is pinned |
-| Explicit intelligent-cover generation | User-configured provider base URL | Model, title, digest and at most 1,500 Unicode characters of plain-text body excerpt |
-| Provider returns an image URL | The returned HTTPS image host | Image GET request only, under the same private-address and redirect policy |
+Obsidian `SecretStorage` 属于 Vault 级凭据设施，不是硬件安全区，也不是插件之间的独立沙箱。同一个 Vault 中安装的其他第三方插件属于本地信任边界的一部分。
 
-`mmbiz.qpic.cn` URLs may appear in final article HTML after WeChat image upload. Passive workbench preview does not automatically load remote article images.
+## 微信公众号请求
 
-Before intelligent-cover generation, the plugin displays the provider URL, model, exact text fields and a third-party cost notice. Cancelling the dialog sends nothing.
+插件只在用户配置账号、测试连接、处理资源或同步草稿时访问 `api.weixin.qq.com`。
 
-## No formal publication
+| 操作 | 发送的数据 |
+| --- | --- |
+| 获取 Access Token | AppID、AppSecret |
+| 上传正文图片 | Access Token、图片内容 |
+| 上传封面 | Access Token、封面内容 |
+| 创建草稿 | Access Token、文章标题、作者、摘要、原文链接、最终 HTML、图片地址和封面素材 ID |
+| 读取或更新草稿 | Access Token、草稿媒体 ID，以及更新时的文章内容 |
 
-The plugin calls token, material/image and draft APIs only. It does not call formal publish, mass-send or draft deletion APIs.
+插件不会调用正式发布、群发或删除草稿接口。
+
+## AI 服务请求
+
+AI 功能默认不启用。用户需要自行选择服务、配置模型和 API Key，并主动点击相关按钮。
+
+| 操作 | 发送的数据 |
+| --- | --- |
+| 获取模型列表 | API Key，不发送文章内容 |
+| 生成标题 | 模型、当前标题、当前摘要、文章标题层级和经过清理的正文摘录 |
+| 生成摘要 | 模型、当前标题、当前摘要、文章标题层级和经过清理的正文摘录 |
+| 生成封面 | 模型、用户选择包含的标题和摘要、封面风格模板、补充视觉要求 |
+
+标题和摘要生成会移除 Frontmatter、脚本、样式、注释、代码块内容和图片地址，并限制正文摘录长度。插件不会发送 Vault 绝对路径、微信公众号凭据或草稿 ID。
+
+第三方 AI 服务可能收费，也可能按其自身条款记录请求。插件无法控制第三方服务收到数据后的处理方式。使用前请查看所选服务的隐私政策和计费规则。
+
+## 远程图片
+
+被动预览不会自动读取文章中的远程图片。用户主动复制文章、选择远程首图、同步草稿或下载 AI 生成图片时，插件可能向对应 HTTPS 图片地址发送 GET 请求。
+
+远程图片请求会执行以下限制。
+
+- 只允许 HTTPS。
+- 最多跟随 3 次重定向。
+- 单张图片最大 10 MiB。
+- 限制连接、读取和总请求时间。
+- 校验响应声明的 MIME 类型和实际文件内容。
+- 阻止 localhost、回环地址、私网、链路本地地址及相关重定向目标。
+
+微信公众号上传后的图片地址可能使用 `mmbiz.qpic.cn`，并写入最终草稿 HTML。
+
+## 清除数据
+
+- 在插件设置中清除或替换 AI 服务 API Key，会更新保存在 `SecretStorage` 中的对应密钥。
+- 断开微信公众号账号会清除本地 AppSecret、缓存的 Access Token 和连接验证状态，不会删除已保存的 AppID，也不会删除微信公众号后台已有草稿。
+- 生成封面和自定义主题属于 Vault 文件，可由用户在 Vault 中自行管理。
+- 草稿关联状态保存在文章 Frontmatter 中。解除草稿关联时，插件只删除自己管理的 `wechat-*` 字段。
+- 禁用或卸载插件不会自动删除微信公众号后台数据。若要彻底清除本地插件数据，需要在关闭插件后删除对应插件目录及用户决定不再保留的 `.wechat-workbench` 文件。
+
+## 日志与错误
+
+插件会对错误信息进行统一脱敏，不应在日志、错误详情、恢复摘要或测试快照中记录 AppSecret、Access Token 和 AI 服务 API Key。
+
+如果怀疑凭据已经泄露，请立即在对应服务中重置凭据，并按照[安全策略](SECURITY.md)处理。

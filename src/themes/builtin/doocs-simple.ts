@@ -5,7 +5,7 @@ export const DOOCS_SIMPLE_MANIFEST: ThemeManifest = Object.freeze({
   id: 'doocs-simple',
   name: '简洁',
   version: '1.0.0',
-  author: 'Doocs, Doocs / WeChat Workbench',
+  author: 'Doocs / WeChat Workbench',
   description: 'Doocs 简洁主题的本地安全适配版。',
 });
 

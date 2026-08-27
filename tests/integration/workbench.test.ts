@@ -431,14 +431,14 @@ describe('WorkbenchController', () => {
 
     await harness.instance.saveArticleSettings(file('active.md'), {
       title: 'Updated title',
-      author: 'wbs',
+      author: 'Demo Author',
       digest: 'Updated digest',
       contentSourceUrl: 'https://example.com/source',
     });
 
     expect(update).toHaveBeenCalledWith(file('active.md'), {
       title: 'Updated title',
-      author: 'wbs',
+      author: 'Demo Author',
       digest: 'Updated digest',
       contentSourceUrl: 'https://example.com/source',
     });
@@ -462,7 +462,7 @@ describe('WorkbenchController', () => {
     const loadingBefore = view.loadingCount;
 
     await harness.instance.saveArticleSettings(file('active.md'), {
-      title: 'Updated title', author: 'wbs', digest: 'Updated digest', contentSourceUrl: '',
+      title: 'Updated title', author: 'Demo Author', digest: 'Updated digest', contentSourceUrl: '',
     });
     await vi.advanceTimersByTimeAsync(400);
 

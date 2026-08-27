@@ -5,7 +5,7 @@ export const DOOCS_GRACE_MANIFEST: ThemeManifest = Object.freeze({
   id: 'doocs-grace',
   name: '优雅',
   version: '1.0.0',
-  author: 'Doocs, Doocs / WeChat Workbench',
+  author: 'Doocs / WeChat Workbench',
   description: 'Doocs 优雅主题的本地安全适配版。',
 });
 

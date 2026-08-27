@@ -22,7 +22,7 @@ WeChat Workbench 不应再做一个“Markdown 转公众号 HTML”的普通插�
 
 ### 2.1 参考项目 WeSight
 
-参考仓库：[reference-project/wesight-obsidian](https://github.com/reference-project/wesight-obsidian)
+参考项目：`wesight-obsidian`
 
 其中 “WeChat Official Account drafts” 模块提供了以下可借鉴的产品形态：
 
@@ -47,11 +47,11 @@ WeChat Workbench 不应再做一个“Markdown 转公众号 HTML”的普通插�
 
 | 项目 | 已覆盖能力 | 本项目不能只重复的部分 |
 | --- | --- | --- |
-| [WeChat Publisher](https://github.com/reference-project/wechat-publisher) | 实时预览、复制、图片处理、草稿同步 | 通用 Markdown 转换与发布 |
-| [WeChatPB](https://github.com/reference-project/obsidian-wechat-publisher) | 多账号、内置/自定义主题、SecretStorage、代理、历史 | 主题数量和多账号不是首版差异化 |
-| [MP Publisher](https://github.com/reference-project/obsidian-mp-publisher) | 主题管理、实时预览、复制、创建/更新草稿 | 普通主题管理和 API 发布 |
-| [Wechat Converter](https://github.com/reference-project/obsidian-wechat-converter) | 预览、复制、微信/飞书/多平台同步 | 首版不做多平台扩张 |
-| [WeChat Article Composer](https://github.com/reference-project/wechat-article-obsidian) | 预览、封面与正文配图、草稿创建 | 单纯加入 AI 配图不足以形成壁垒 |
+| WeChat Publisher | 实时预览、复制、图片处理、草稿同步 | 通用 Markdown 转换与发布 |
+| WeChatPB | 多账号、内置/自定义主题、SecretStorage、代理、历史 | 主题数量和多账号不是首版差异化 |
+| MP Publisher | 主题管理、实时预览、复制、创建/更新草稿 | 普通主题管理和 API 发布 |
+| Wechat Converter | 预览、复制、微信/飞书/多平台同步 | 首版不做多平台扩张 |
+| WeChat Article Composer | 预览、封面与正文配图、草稿创建 | 单纯加入 AI 配图不足以形成壁垒 |
 
 结论：内置主题、自定义 CSS、实时预览、复制 HTML、图片上传、草稿同步都属于市场基础能力。WeChat Workbench 的产品价值必须来自确定性产物、发布预检、草稿关联更新和可恢复发布事务。
 

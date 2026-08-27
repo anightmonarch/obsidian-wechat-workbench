@@ -49,7 +49,7 @@ describe('buildAiArticleContext', () => {
     const context = buildAiArticleContext({
       snapshot: { ...snapshot, markdown },
       artifact: { ...artifact, plainText: markdown },
-      draft: { title: 'Draft title', author: 'wbs', digest: 'Draft digest' },
+      draft: { title: 'Draft title', author: 'Demo Author', digest: 'Draft digest' },
       purpose: 'title',
     });
 

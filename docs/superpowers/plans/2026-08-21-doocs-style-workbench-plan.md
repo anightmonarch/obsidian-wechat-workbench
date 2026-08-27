@@ -325,8 +325,8 @@ Required manifests:
 
 ```ts
 { id: 'doocs-classic', name: '经典', version: '1.0.0', author: 'Doocs / WeChat Workbench', description: '...' }
-{ id: 'doocs-grace', name: '优雅', version: '1.0.0', author: 'Doocs, Doocs / WeChat Workbench', description: '...' }
-{ id: 'doocs-simple', name: '简洁', version: '1.0.0', author: 'Doocs, Doocs / WeChat Workbench', description: '...' }
+{ id: 'doocs-grace', name: '优雅', version: '1.0.0', author: 'Doocs / WeChat Workbench', description: '...' }
+{ id: 'doocs-simple', name: '简洁', version: '1.0.0', author: 'Doocs / WeChat Workbench', description: '...' }
 ```
 
 - [ ] **Step 4: Register themes without changing existing IDs or custom-theme precedence**
