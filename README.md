@@ -15,8 +15,15 @@ WeChat Workbench 是一款仅支持桌面端的 Obsidian 社区插件。正文�
 - 一键复制微信公众号编辑器可识别的富文本，同时保留纯文本回退内容。
 - 支持文章首图、本地图片和可选的 AI 生成封面，封面统一处理为微信公众号常用比例。
 - 支持 AI 生成三个标题候选和一个摘要候选，采用后才写入文章信息。
+- 发布草稿时自动上传本地图片并替换为微信 CDN 地址，无需另外搭建图床。
 - 本机直连微信公众号 API，支持创建草稿、更新已关联草稿、内容无变化时跳过以及结果不明确时的安全恢复。
 - AppSecret、Access Token 和 AI 服务 API Key 只保存到 Obsidian `SecretStorage`。
+
+### 无需自建图床
+
+同步草稿时，插件会读取文章中的本地图片，调用微信公众号图片上传接口，再把微信返回的 HTTPS CDN 地址写入草稿正文。最终提交的 HTML 不再引用本机图片路径，也不依赖额外的对象存储或第三方图床。
+
+图片上传只属于用户确认后的草稿同步流程。被动预览不会把文章图片上传到网络。
 
 ## 界面预览
 
@@ -31,6 +38,10 @@ WeChat Workbench 是一款仅支持桌面端的 Obsidian 社区插件。正文�
 ### 文章信息、封面与草稿状态
 
 ![WeChat Workbench 发布设置](docs/assets/publish-settings.jpeg)
+
+### 插件后台设置
+
+![WeChat Workbench 插件后台设置](docs/assets/settings-page.png)
 
 ## 产品边界
 
