@@ -32,6 +32,7 @@ import { OpenAiTextGenerator } from './ai/openai-text-generator';
 import { createAiProviderHttpTransport } from './ai/provider-http-transport';
 import { accountHashForAppId } from './settings/account';
 import { AiServiceSettingsService } from './settings/ai-service-settings';
+import { OpenAiModelCatalog } from './settings/ai-model-catalog';
 import { ArticleSettingsService } from './settings/article-settings';
 import { AccountConnectionService } from './settings/account-connection-service';
 import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
@@ -176,10 +177,10 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       get: kind => secretStore.get(kind),
       set: (kind, value) => secretStore.set(kind, value),
       clear: kind => secretStore.clear(kind),
-    });
+    }, new OpenAiModelCatalog(textProviderHttp));
     const articleText = new ArticleTextGenerationService(
-      { get: () => ({ textApiEndpoint: currentSettings().textApiEndpoint, textApiModel: currentSettings().textApiModel }) },
-      { get: () => secretStore.get('textApiKey') },
+      { get: () => ({ aiProviders: currentSettings().aiProviders }) },
+      { get: kind => kind === undefined ? null : secretStore.get(kind) },
       new OpenAiTextGenerator(textProviderHttp),
     );
     const mediaCacheData: AssetCacheDataPort = {
@@ -228,14 +229,12 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       {
         get: () => ({
           globalDefaultCoverPath: this.pluginSettings.globalDefaultCoverPath,
-          imageApiProtocol: this.pluginSettings.imageApiProtocol,
-          imageApiEndpoint: this.pluginSettings.imageApiEndpoint,
-          imageApiModel: this.pluginSettings.imageApiModel,
+          aiProviders: this.pluginSettings.aiProviders,
         }),
       },
       {
-        get: () => secretStore.get('imageApiKey'),
-        has: () => secretStore.status().imageApiKey,
+        get: kind => kind === undefined ? null : secretStore.get(kind),
+        has: kind => kind !== undefined && secretStore.get(kind) !== null,
       },
       remoteImages,
     );

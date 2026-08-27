@@ -27,7 +27,7 @@ function aiFailureMessage(error: unknown): string {
     && typeof error.code === 'string' ? error.code : null;
   switch (code) {
     case 'IMAGE_PROVIDER_REJECTED':
-      return '图片服务拒绝请求，请检查完整 Endpoint、模型名称或服务商要求。';
+      return '图片服务拒绝请求，请检查 Base URL、模型名称或服务商要求。';
     case 'IMAGE_PROVIDER_TIMEOUT':
       return '图片服务响应超时，请稍后重试。';
     case 'IMAGE_PROVIDER_CONNECTION_RESET':

@@ -82,6 +82,25 @@ describe('OpenAiImageGenerator', () => {
     expect(body).not.toMatch(/vaultPath|appId|appSecret|wechat-account/iu);
   });
 
+  it('uses the standard OpenAI Images request shape when explicitly requested', async () => {
+    const imageUrl = 'https://cdn.example.test/openai-images.png';
+    const current = transport({ data: [{ url: imageUrl }] });
+    const generator = new OpenAiImageGenerator(current.http, {
+      fetch: vi.fn(async () => Object.freeze({
+        sourceUrl: imageUrl, finalUrl: imageUrl, mimeType: 'image/png' as const, bytes: png, contentHash: 'OPENAI_IMAGES_HASH',
+      })),
+    });
+
+    await generator.generate({
+      ...request,
+      requestFormat: 'openai-images',
+      model: 'synthetic-openai-images-model',
+    });
+
+    expect(current.requests[0]?.json).toMatchObject({ model: 'synthetic-openai-images-model' });
+    expect(Object.keys(current.requests[0]?.json as object).sort()).toEqual(['model', 'prompt']);
+  });
+
   it('rejects insecure remote providers and malformed image output', async () => {
     const current = transport({ data: [{ b64_json: Buffer.from('not an image').toString('base64') }] });
     const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
@@ -180,7 +199,7 @@ describe('OpenAiImageGenerator', () => {
     expect(current.requests).toHaveLength(0);
   });
 
-  it('rejects Anthropic requests before building image headers or sending a request', async () => {
+  it('keeps legacy Anthropic requests blocked before building image headers or sending a request', async () => {
     const current = transport({ data: [] });
     const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
 

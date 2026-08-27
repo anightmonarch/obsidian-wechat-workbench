@@ -114,7 +114,7 @@ export class OpenAiImageGenerator implements CoverGenerator {
 
   async generate(request: Readonly<AiCoverGenerationRequest>): Promise<Readonly<GeneratedCover>> {
     if (request.signal?.aborted === true) throw failure('IMAGE_GENERATION_CANCELLED', 'Image generation was cancelled.');
-    if (request.protocol !== 'openai-compatible') {
+    if (request.protocol === 'anthropic') {
       throw failure('AI_PROVIDER_IMAGE_UNSUPPORTED', 'Anthropic 当前只支持封面策划，未提供图片输出。');
     }
     if (request.model.trim().length === 0) throw failure('IMAGE_PROVIDER_MODEL_MISSING', 'Image provider model is not configured.');
@@ -129,13 +129,18 @@ export class OpenAiImageGenerator implements CoverGenerator {
           Authorization: `Bearer ${request.apiKey}`,
           'Content-Type': 'application/json',
         },
-        json: {
-          model: request.model.trim(),
-          prompt: prompt(request),
-          size: '2K',
-          ratio: '21:9',
-          extra_body: { response_format: 'url' },
-        },
+        json: (request.requestFormat ?? 'agnes-images') === 'agnes-images'
+          ? {
+            model: request.model.trim(),
+            prompt: prompt(request),
+            size: '2K',
+            ratio: '21:9',
+            extra_body: { response_format: 'url' },
+          }
+          : {
+            model: request.model.trim(),
+            prompt: prompt(request),
+          },
       }, request.signal);
     } catch (error) {
       if (error instanceof CoverGenerationError) throw error;

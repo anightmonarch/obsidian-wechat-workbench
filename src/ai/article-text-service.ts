@@ -1,6 +1,8 @@
 import type { ArticleDraftValues, NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
-import type { PluginSettings } from '../settings/model';
+import { aiSecretKind } from '../settings/ai-service-settings';
+import { resolveAiService, type PluginSettings } from '../settings/model';
+import type { SecretKind } from '../settings/secret-store';
 import { buildAiArticleContext, type AiArticleContext } from './article-context';
 import type { AiTextGenerationRequest, AiTextGenerator } from './openai-text-generator';
 
@@ -16,11 +18,11 @@ export interface ArticleTextGenerationPort {
 }
 
 interface TextSettingsPort {
-  get(): Readonly<Pick<PluginSettings, 'textApiEndpoint' | 'textApiModel'>>;
+  get(): Readonly<Partial<Pick<PluginSettings, 'textApiEndpoint' | 'textApiModel' | 'aiProviders'>>>;
 }
 
 interface TextSecretPort {
-  get(): string | null;
+  get(kind?: Extract<SecretKind, 'textAgnesApiKey' | 'textDeepseekApiKey'>): string | null;
 }
 
 export class ArticleTextGenerationService implements ArticleTextGenerationPort {
@@ -43,6 +45,7 @@ export class ArticleTextGenerationService implements ArticleTextGenerationPort {
     purpose: 'title' | 'digest',
   ): Readonly<AiTextGenerationRequest> {
     const settings = this.settings.get();
+    const service = settings.aiProviders === undefined ? null : resolveAiService({ aiProviders: settings.aiProviders }, 'text');
     const context: Readonly<AiArticleContext> = buildAiArticleContext({
       snapshot: input.snapshot,
       artifact: input.artifact,
@@ -50,9 +53,9 @@ export class ArticleTextGenerationService implements ArticleTextGenerationPort {
       purpose,
     });
     return Object.freeze({
-      endpoint: settings.textApiEndpoint,
-      model: settings.textApiModel,
-      apiKey: this.secret.get() ?? '',
+      endpoint: service?.endpoint ?? settings.textApiEndpoint ?? '',
+      model: service?.model ?? settings.textApiModel ?? '',
+      apiKey: service === null ? this.secret.get() ?? '' : this.secret.get(aiSecretKind('text', service.provider)) ?? '',
       context,
     });
   }

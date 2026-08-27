@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+
+import { aiSecretKind } from '../settings/ai-service-settings';
+import { resolveAiService, type AiProviderSettings } from '../settings/model';
 import { posix } from 'node:path';
 
 import type { NoteSnapshot } from '../domain/article';
@@ -8,7 +11,6 @@ import { detectImageMime, imageDataUrl, type SupportedImageMime } from '../media
 import type { FrontmatterMutationPort } from '../publish/publish-state-store';
 import { publishPayloadHash } from '../publish/publish-content';
 import type { CoverGenerator } from './cover-generator';
-import type { AiProviderProtocol } from './ai-provider';
 import { CoverService } from './cover-service';
 import type { RemoteGeneratedImagePort } from './openai-image-generator';
 
@@ -54,10 +56,14 @@ export interface GeneratedCoverStoragePort {
 }
 
 export interface CoverWorkflowSettings {
-  imageApiProtocol: AiProviderProtocol;
   globalDefaultCoverPath: string;
-  imageApiEndpoint: string;
-  imageApiModel: string;
+  aiProviders?: Readonly<AiProviderSettings>;
+  /** @deprecated schema v4 compatibility during migration. */
+  imageApiProtocol?: 'openai-compatible' | 'anthropic';
+  /** @deprecated schema v4 compatibility during migration. */
+  imageApiEndpoint?: string;
+  /** @deprecated schema v4 compatibility during migration. */
+  imageApiModel?: string;
 }
 
 export interface PreparedPublishCover {
@@ -80,8 +86,8 @@ export interface CoverWorkflowSettingsPort {
 }
 
 export interface CoverSecretPort {
-  get(): string | null;
-  has(): boolean;
+  get(kind?: 'imageAgnesApiKey' | 'imageDeepseekApiKey'): string | null;
+  has(kind?: 'imageAgnesApiKey' | 'imageDeepseekApiKey'): boolean;
 }
 
 export class CoverPathError extends Error {
@@ -92,6 +98,26 @@ export class CoverPathError extends Error {
     this.code = code;
     this.name = 'CoverPathError';
   }
+}
+
+function imageService(settings: Readonly<CoverWorkflowSettings>): Readonly<{
+  provider: 'agnes' | 'deepseek';
+  requestFormat: 'agnes-images' | 'openai-images';
+  endpoint: string;
+  model: string;
+}> | null {
+  if (settings.aiProviders !== undefined) {
+    const resolved = resolveAiService({ aiProviders: settings.aiProviders }, 'image');
+    if (resolved === null || (resolved.requestFormat !== 'agnes-images' && resolved.requestFormat !== 'openai-images')) return null;
+    return Object.freeze({
+      provider: resolved.provider,
+      requestFormat: resolved.requestFormat,
+      endpoint: resolved.endpoint,
+      model: resolved.model,
+    });
+  }
+  if (settings.imageApiProtocol === 'anthropic' || !settings.imageApiEndpoint || !settings.imageApiModel) return null;
+  return Object.freeze({ provider: 'agnes', requestFormat: 'agnes-images', endpoint: settings.imageApiEndpoint, model: settings.imageApiModel });
 }
 
 function safeVaultPath(value: string): string {
@@ -138,20 +164,18 @@ export class CoverWorkflow {
     snapshot: Readonly<NoteSnapshot>,
     artifact: Readonly<RenderArtifact>,
   ): Readonly<CoverPickerModel> {
-  const settings = this.settings.get();
-  const anthropicOnly = settings.imageApiProtocol === 'anthropic';
+    const settings = this.settings.get();
+    const service = imageService(settings);
     const firstImage = this.sources.firstImage(artifact)?.source ?? null;
-    const baseConfigured = settings.imageApiEndpoint.trim().length > 0;
-    const modelConfigured = settings.imageApiModel.trim().length > 0;
-    const keyConfigured = this.secret.has();
-  const aiEnabled = !anthropicOnly && baseConfigured && modelConfigured && keyConfigured;
-  const aiDisabledReason = aiEnabled ? null : (anthropicOnly
-    ? 'Anthropic 当前只支持封面策划，未提供图片输出。'
-    : [
-      !baseConfigured ? '图片服务地址' : '',
-      !modelConfigured ? '图片模型' : '',
-      !keyConfigured ? '图片 API Key' : '',
-    ].filter(Boolean).join('、') + '未配置');
+    const keyConfigured = service !== null && this.secret.has(
+      settings.aiProviders === undefined ? undefined : aiSecretKind('image', service.provider),
+    );
+    const aiEnabled = service !== null && keyConfigured;
+    const aiDisabledReason = aiEnabled ? null : settings.aiProviders === undefined && settings.imageApiProtocol === 'anthropic'
+      ? 'Anthropic 当前只支持封面策划，未提供图片输出。'
+      : service === null
+      ? '当前图片模型未配置'
+      : '当前图片模型的 API Key 未配置';
     return Object.freeze({
       options: Object.freeze([
         option('first-image', '文章首图（默认）', firstImage),
@@ -159,7 +183,7 @@ export class CoverWorkflow {
         Object.freeze({
           kind: 'ai',
           label: '智能生成封面',
-          sourcePath: settings.imageApiModel.trim() || null,
+          sourcePath: service?.model ?? null,
           enabled: aiEnabled,
           disabledReason: aiDisabledReason,
         }),
@@ -278,20 +302,28 @@ export class CoverWorkflow {
     },
     signal?: AbortSignal,
   ): Promise<Readonly<PreparedCover>> {
-    const apiKey = this.secret.get();
-    if (this.settings.get().imageApiProtocol !== 'openai-compatible') {
+    const settings = this.settings.get();
+    const service = imageService(settings);
+    if (settings.aiProviders === undefined && settings.imageApiProtocol === 'anthropic') {
       const error = new Error('Anthropic 当前只支持封面策划，未提供图片输出。') as Error & { code?: string };
       error.code = 'AI_PROVIDER_IMAGE_UNSUPPORTED';
       throw error;
     }
+    if (service === null) throw new Error('图片模型尚未配置。');
+    if (service.requestFormat !== 'agnes-images' && service.requestFormat !== 'openai-images') {
+      throw new Error('当前图片服务请求格式不受支持。');
+    }
+    const apiKey = this.secret.get(
+      settings.aiProviders === undefined ? undefined : aiSecretKind('image', service.provider),
+    );
     if (apiKey === null) throw new Error('Image API key is not configured.');
-    const settings = this.settings.get();
     const title = selection.includeTitle ? artifact.metadata.title : '';
     const digest = selection.includeDigest ? artifact.metadata.digest : '';
     const generated = await this.generator.generate({
-      protocol: settings.imageApiProtocol,
-      endpoint: settings.imageApiEndpoint,
-      model: settings.imageApiModel,
+      provider: service.provider,
+      requestFormat: service.requestFormat,
+      endpoint: service.endpoint,
+      model: service.model,
       apiKey,
       title,
       digest,
