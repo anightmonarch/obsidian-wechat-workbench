@@ -1,6 +1,13 @@
 import type { SupportedImageMime } from '../media/image-format';
 import type { AiProviderId, AiRequestFormat } from '../settings/model';
 
+export class CoverGenerationError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = 'CoverGenerationError';
+  }
+}
+
 export interface AiCoverGenerationRequest {
   provider?: AiProviderId;
   requestFormat?: Extract<AiRequestFormat, 'agnes-images' | 'openai-images'>;

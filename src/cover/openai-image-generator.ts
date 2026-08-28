@@ -6,11 +6,13 @@ import { detectImageMime } from '../media/image-format';
 import type { ValidatedImage } from '../security/remote-image-fetcher';
 import { redactSensitiveText } from '../wechat/errors';
 import type { HttpRequest, HttpResponse, HttpTransport } from '../wechat/http-transport';
-import type {
-  AiCoverGenerationRequest,
-  CoverGenerator,
-  GeneratedCover,
+import {
+  CoverGenerationError,
+  type AiCoverGenerationRequest,
+  type CoverGenerator,
+  type GeneratedCover,
 } from './cover-generator';
+export { CoverGenerationError } from './cover-generator';
 import { coverPromptPreset } from './cover-prompt-presets';
 
 export type { AiCoverGenerationRequest } from './cover-generator';
@@ -19,13 +21,6 @@ const MAX_BASE64_LENGTH = 28 * 1024 * 1024;
 
 export interface RemoteGeneratedImagePort {
   fetch(url: string): Promise<Readonly<ValidatedImage>>;
-}
-
-export class CoverGenerationError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = 'CoverGenerationError';
-  }
 }
 
 function failure(code: string, message: string): CoverGenerationError {
@@ -99,6 +94,15 @@ function transportFailure(error: unknown, apiKey: string): CoverGenerationError 
     : '';
   const message = redactedMessage(error, apiKey);
   const fingerprint = `${code} ${message}`.toUpperCase();
+  if (code === 'HTTP_REQUEST_TIMEOUT' || /TIMED OUT|TIMEOUT/u.test(fingerprint)) {
+    return failure('IMAGE_PROVIDER_TIMEOUT', 'Image provider request timed out.');
+  }
+  if (code === 'HTTP_RESPONSE_TOO_LARGE') {
+    return failure('IMAGE_PROVIDER_RESPONSE_TOO_LARGE', 'Image provider response is too large.');
+  }
+  if (code === 'ABORT_ERR') {
+    return failure('IMAGE_GENERATION_CANCELLED', 'Image generation was cancelled.');
+  }
   if (/CONNECTION_RESET|ECONNRESET|SOCKET HANG UP|CONNECTION ABORTED/u.test(fingerprint)) {
     return failure('IMAGE_PROVIDER_CONNECTION_RESET', message);
   }
@@ -142,6 +146,12 @@ export class OpenAiImageGenerator implements CoverGenerator {
     } catch (error) {
       if (error instanceof CoverGenerationError) throw error;
       throw transportFailure(error, request.apiKey);
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw failure('IMAGE_PROVIDER_AUTH_REJECTED', `Image provider returned HTTP ${response.status}.`);
+    }
+    if (response.status === 429) {
+      throw failure('IMAGE_PROVIDER_RATE_LIMITED', 'Image provider rate limit reached.');
     }
     if (response.status < 200 || response.status >= 300) {
       throw failure('IMAGE_PROVIDER_REJECTED', `Image provider returned HTTP ${response.status}.`);
@@ -193,7 +203,11 @@ export class OpenAiImageGenerator implements CoverGenerator {
       throw failure('IMAGE_PROVIDER_OUTPUT_INVALID', 'Image provider response contains no image.');
     } catch (error) {
       if (error instanceof CoverGenerationError) throw error;
-      throw failure('IMAGE_PROVIDER_OUTPUT_INVALID', redactedMessage(error, apiKey));
+      if (typeof error === 'object' && error !== null && 'code' in error
+        && String((error as { code?: unknown }).code).startsWith('REMOTE_')) {
+        throw error;
+      }
+      throw failure('REMOTE_IMAGE_REQUEST_FAILED', 'Generated image download failed.');
     }
   }
 

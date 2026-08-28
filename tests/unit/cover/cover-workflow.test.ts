@@ -194,4 +194,23 @@ describe('CoverWorkflow', () => {
     await expect(workflow.prepareAi(file, artifact)).rejects.toThrow('图片模型尚未配置。');
     expect(current.generate).not.toHaveBeenCalled();
   });
+
+  it('reports the missing provider-scoped image key with a stable error code', async () => {
+    const current = harness();
+    const workflow = new CoverWorkflow(
+      { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
+      { process: vi.fn(() => processed) },
+      { save: current.save },
+      { generate: current.generate },
+      { processFrontmatter: current.processFrontmatter },
+      { get: () => ({ globalDefaultCoverPath: '', aiProviders: imageProviders }) },
+      { get: vi.fn(() => null), has: vi.fn(() => false) },
+      { fetch: current.remoteFetch },
+    );
+
+    await expect(workflow.prepareAi(file, artifact)).rejects.toMatchObject({
+      code: 'IMAGE_PROVIDER_KEY_MISSING',
+    });
+    expect(current.generate).not.toHaveBeenCalled();
+  });
 });

@@ -10,7 +10,7 @@ import type { BinaryFilePort, VaultFileRef } from '../domain/ports';
 import { detectImageMime, imageDataUrl, type SupportedImageMime } from '../media/image-format';
 import type { FrontmatterMutationPort } from '../publish/publish-state-store';
 import { publishPayloadHash } from '../publish/publish-content';
-import type { CoverGenerator } from './cover-generator';
+import { CoverGenerationError, type CoverGenerator } from './cover-generator';
 import { CoverService } from './cover-service';
 import type { RemoteGeneratedImagePort } from './openai-image-generator';
 
@@ -295,7 +295,9 @@ export class CoverWorkflow {
       throw new Error('当前图片服务请求格式不受支持。');
     }
     const apiKey = this.secret.get(aiSecretKind('image', service.provider));
-    if (apiKey === null) throw new Error('Image API key is not configured.');
+    if (apiKey === null) {
+      throw new CoverGenerationError('IMAGE_PROVIDER_KEY_MISSING', 'Image provider API key is not configured.');
+    }
     const title = selection.includeTitle ? artifact.metadata.title : '';
     const digest = selection.includeDigest ? artifact.metadata.digest : '';
     const generated = await this.generator.generate({

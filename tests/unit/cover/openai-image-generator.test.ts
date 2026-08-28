@@ -111,6 +111,32 @@ describe('OpenAiImageGenerator', () => {
       .rejects.toMatchObject({ code: 'IMAGE_PROVIDER_OUTPUT_INVALID' });
   });
 
+  it('preserves a classified failure while downloading a generated image', async () => {
+    const imageUrl = 'https://cdn.example.test/generated.png';
+    const current = transport({ data: [{ url: imageUrl }] });
+    const generator = new OpenAiImageGenerator(current.http, {
+      fetch: vi.fn(async () => {
+        throw Object.assign(new Error('download timed out'), { code: 'REMOTE_IMAGE_TIMEOUT' });
+      }),
+    });
+
+    await expect(generator.generate(request)).rejects.toMatchObject({
+      code: 'REMOTE_IMAGE_TIMEOUT',
+    });
+  });
+
+  it('classifies an untyped generated-image download failure as a remote-image failure', async () => {
+    const imageUrl = 'https://cdn.example.test/generated.png';
+    const current = transport({ data: [{ url: imageUrl }] });
+    const generator = new OpenAiImageGenerator(current.http, {
+      fetch: vi.fn(async () => { throw new Error('socket closed'); }),
+    });
+
+    await expect(generator.generate(request)).rejects.toMatchObject({
+      code: 'REMOTE_IMAGE_REQUEST_FAILED',
+    });
+  });
+
   it('uses the selected built-in cover subject template', async () => {
     const imageUrl = 'https://cdn.example.test/cinematic.png';
     const current = transport({ data: [{ url: imageUrl }] });
@@ -185,6 +211,39 @@ describe('OpenAiImageGenerator', () => {
     const error = await generator.generate(request).catch((caught: unknown) => caught);
 
     expect(error).toMatchObject({ code: 'IMAGE_PROVIDER_CONNECTION_RESET' });
+    expect(String(error)).not.toContain(request.apiKey);
+  });
+
+  it('classifies an oversized provider response', async () => {
+    const http: HttpTransport = {
+      request: vi.fn(async () => {
+        throw Object.assign(new Error('response exceeded limit'), {
+          code: 'HTTP_RESPONSE_TOO_LARGE',
+        });
+      }),
+    };
+    const generator = new OpenAiImageGenerator(http, { fetch: vi.fn() });
+
+    await expect(generator.generate(request)).rejects.toMatchObject({
+      code: 'IMAGE_PROVIDER_RESPONSE_TOO_LARGE',
+    });
+  });
+
+  it.each([
+    [401, 'IMAGE_PROVIDER_AUTH_REJECTED'],
+    [403, 'IMAGE_PROVIDER_AUTH_REJECTED'],
+    [429, 'IMAGE_PROVIDER_RATE_LIMITED'],
+    [402, 'IMAGE_PROVIDER_REJECTED'],
+    [404, 'IMAGE_PROVIDER_REJECTED'],
+  ])('classifies HTTP %i without exposing the provider response', async (status, code) => {
+    const current = transport({
+      error: { message: `provider rejected ${request.apiKey}` },
+    }, status);
+    const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
+
+    const error = await generator.generate(request).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code });
     expect(String(error)).not.toContain(request.apiKey);
   });
 

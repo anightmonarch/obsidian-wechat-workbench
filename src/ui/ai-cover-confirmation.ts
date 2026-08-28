@@ -46,6 +46,47 @@ function supplemental(value: string | undefined): string {
   return [...sanitized].slice(0, 500).join('');
 }
 
+function errorCode(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : '';
+}
+
+export function aiCoverFailureMessage(error: unknown): string {
+  const code = errorCode(error);
+  if (code === 'IMAGE_PROVIDER_KEY_MISSING') {
+    return '请先在插件设置中保存当前图片供应商的 API Key。';
+  }
+  if (code === 'IMAGE_PROVIDER_AUTH_REJECTED') {
+    return '图片服务拒绝鉴权，请检查当前供应商的 API Key。';
+  }
+  if (code === 'IMAGE_PROVIDER_RATE_LIMITED') {
+    return '图片服务请求过于频繁，请稍后手动重试。';
+  }
+  if (code === 'IMAGE_PROVIDER_REJECTED') {
+    return '图片服务拒绝当前模型或请求参数，请检查模型权限、账户额度和模型名称。';
+  }
+  if (code === 'IMAGE_PROVIDER_TIMEOUT') {
+    return '图片服务响应超时，请手动重试。';
+  }
+  if (code === 'IMAGE_PROVIDER_CONNECTION_RESET' || code === 'IMAGE_PROVIDER_REQUEST_FAILED') {
+    return '图片服务连接失败，请检查网络或代理后手动重试。';
+  }
+  if (code === 'IMAGE_PROVIDER_RESPONSE_TOO_LARGE') {
+    return '图片服务响应超过安全上限，请更换模型后重试。';
+  }
+  if (code === 'IMAGE_PROVIDER_OUTPUT_INVALID') {
+    return '图片服务返回的结果格式不兼容，请更换模型或联系供应商。';
+  }
+  if (code === 'REMOTE_IMAGE_TIMEOUT') {
+    return '图片已生成，但下载生成结果超时，请手动重试。';
+  }
+  if (code.startsWith('REMOTE_')) {
+    return '图片已生成，但生成结果无法安全下载，请手动重试或更换模型。';
+  }
+  return '智能封面生成失败，请检查图片服务配置后重试。';
+}
+
 export function buildAiCoverDisclosure(
   source: Readonly<AiCoverSource>,
   settings: Readonly<AiCoverProviderSettings>,
@@ -184,8 +225,8 @@ export class AiCoverConfirmationModal extends Modal {
         includeDigest: this.includeDigest,
         presetId: this.presetId,
       });
-    } catch {
-      this.error = '智能封面生成失败，请检查图片服务配置后重试。';
+    } catch (error) {
+      this.error = aiCoverFailureMessage(error);
     } finally {
       this.busy = false;
       this.onOpen();
