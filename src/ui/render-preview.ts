@@ -10,6 +10,8 @@ export interface PreviewAssetResolver {
 
 export type PreviewCodeCopy = (value: string) => Promise<void> | void;
 
+const CODE_COPY_SUCCESS_FEEDBACK_MS = 1_000;
+
 function placeholder(className: string, text: string): HTMLButtonElement {
   const button = createEl('button');
   button.type = 'button';
@@ -53,12 +55,22 @@ function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void 
     copy.setAttribute('aria-label', '复制代码');
     copy.setAttribute('aria-live', 'polite');
     setIcon(copy, 'copy');
+    let resetTimer: number | null = null;
     copy.addEventListener('click', () => {
+      if (resetTimer !== null) {
+        window.clearTimeout(resetTimer);
+        resetTimer = null;
+      }
       copy.disabled = true;
       copy.setAttribute('aria-label', '正在复制代码');
       void Promise.resolve(copyText(codeText(code))).then(() => {
         setIcon(copy, 'check');
         copy.setAttribute('aria-label', '代码已复制');
+        resetTimer = window.setTimeout(() => {
+          setIcon(copy, 'copy');
+          copy.setAttribute('aria-label', '复制代码');
+          resetTimer = null;
+        }, CODE_COPY_SUCCESS_FEEDBACK_MS);
       }).catch(() => {
         setIcon(copy, 'circle-alert');
         copy.setAttribute('aria-label', '复制失败，点击重试');

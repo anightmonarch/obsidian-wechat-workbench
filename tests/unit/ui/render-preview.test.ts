@@ -45,6 +45,7 @@ describe('ArticlePreviewRenderer', () => {
   });
 
   it('copies code without adding the preview control to the publish artifact', async () => {
+    vi.useFakeTimers();
     const container = document.createElement('div');
     document.body.append(container);
     const writeText = vi.fn(async (_value: string) => undefined);
@@ -77,10 +78,16 @@ describe('ArticlePreviewRenderer', () => {
       expect(copy?.dataset.icon).toBe('check');
       expect(copy?.getAttribute('aria-label')).toBe('代码已复制');
       expect(copy?.textContent).toBe('');
+      await vi.advanceTimersByTimeAsync(999);
+      expect(copy?.dataset.icon).toBe('check');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(copy?.dataset.icon).toBe('copy');
+      expect(copy?.getAttribute('aria-label')).toBe('复制代码');
       expect(codeArtifact.canonicalHtml).not.toContain('code-copy');
     } finally {
       container.remove();
       vi.unstubAllGlobals();
+      vi.useRealTimers();
     }
   });
 });
