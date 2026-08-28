@@ -68,11 +68,15 @@ describe('ArticlePreviewRenderer', () => {
       const copy = container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]');
 
       expect(copy?.getAttribute('aria-label')).toBe('复制代码');
+      expect(copy?.dataset.icon).toBe('copy');
+      expect(copy?.textContent).toBe('');
       copy?.click();
       await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(
         'const answer = 42;\nreturn answer;',
       ));
-      expect(copy?.textContent).toBe('已复制');
+      expect(copy?.dataset.icon).toBe('check');
+      expect(copy?.getAttribute('aria-label')).toBe('代码已复制');
+      expect(copy?.textContent).toBe('');
       expect(codeArtifact.canonicalHtml).not.toContain('code-copy');
     } finally {
       container.remove();

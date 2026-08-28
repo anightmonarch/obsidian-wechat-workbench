@@ -1,3 +1,5 @@
+import { setIcon } from 'obsidian';
+
 import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import { applyDiagramImagePresentation } from '../render/diagram-image';
 
@@ -50,14 +52,16 @@ function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void 
     copy.dataset.testid = 'code-copy';
     copy.setAttribute('aria-label', '复制代码');
     copy.setAttribute('aria-live', 'polite');
-    copy.textContent = '复制';
+    setIcon(copy, 'copy');
     copy.addEventListener('click', () => {
       copy.disabled = true;
-      copy.textContent = '复制中…';
+      copy.setAttribute('aria-label', '正在复制代码');
       void Promise.resolve(copyText(codeText(code))).then(() => {
-        copy.textContent = '已复制';
+        setIcon(copy, 'check');
+        copy.setAttribute('aria-label', '代码已复制');
       }).catch(() => {
-        copy.textContent = '复制失败';
+        setIcon(copy, 'circle-alert');
+        copy.setAttribute('aria-label', '复制失败，点击重试');
       }).finally(() => {
         copy.disabled = false;
       });
