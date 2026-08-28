@@ -57,13 +57,7 @@ export interface GeneratedCoverStoragePort {
 
 export interface CoverWorkflowSettings {
   globalDefaultCoverPath: string;
-  aiProviders?: Readonly<AiProviderSettings>;
-  /** @deprecated schema v4 compatibility during migration. */
-  imageApiProtocol?: 'openai-compatible' | 'anthropic';
-  /** @deprecated schema v4 compatibility during migration. */
-  imageApiEndpoint?: string;
-  /** @deprecated schema v4 compatibility during migration. */
-  imageApiModel?: string;
+  aiProviders: Readonly<AiProviderSettings>;
 }
 
 export interface PreparedPublishCover {
@@ -106,18 +100,14 @@ function imageService(settings: Readonly<CoverWorkflowSettings>): Readonly<{
   endpoint: string;
   model: string;
 }> | null {
-  if (settings.aiProviders !== undefined) {
-    const resolved = resolveAiService({ aiProviders: settings.aiProviders }, 'image');
-    if (resolved === null || (resolved.requestFormat !== 'agnes-images' && resolved.requestFormat !== 'openai-images')) return null;
-    return Object.freeze({
-      provider: resolved.provider,
-      requestFormat: resolved.requestFormat,
-      endpoint: resolved.endpoint,
-      model: resolved.model,
-    });
-  }
-  if (settings.imageApiProtocol === 'anthropic' || !settings.imageApiEndpoint || !settings.imageApiModel) return null;
-  return Object.freeze({ provider: 'agnes', requestFormat: 'agnes-images', endpoint: settings.imageApiEndpoint, model: settings.imageApiModel });
+  const resolved = resolveAiService({ aiProviders: settings.aiProviders }, 'image');
+  if (resolved === null || (resolved.requestFormat !== 'agnes-images' && resolved.requestFormat !== 'openai-images')) return null;
+  return Object.freeze({
+    provider: resolved.provider,
+    requestFormat: resolved.requestFormat,
+    endpoint: resolved.endpoint,
+    model: resolved.model,
+  });
 }
 
 function safeVaultPath(value: string): string {
@@ -167,13 +157,9 @@ export class CoverWorkflow {
     const settings = this.settings.get();
     const service = imageService(settings);
     const firstImage = this.sources.firstImage(artifact)?.source ?? null;
-    const keyConfigured = service !== null && this.secret.has(
-      settings.aiProviders === undefined ? undefined : aiSecretKind('image', service.provider),
-    );
+    const keyConfigured = service !== null && this.secret.has(aiSecretKind('image', service.provider));
     const aiEnabled = service !== null && keyConfigured;
-    const aiDisabledReason = aiEnabled ? null : settings.aiProviders === undefined && settings.imageApiProtocol === 'anthropic'
-      ? 'Anthropic 当前只支持封面策划，未提供图片输出。'
-      : service === null
+    const aiDisabledReason = aiEnabled ? null : service === null
       ? '当前图片模型未配置'
       : '当前图片模型的 API Key 未配置';
     return Object.freeze({
@@ -304,18 +290,11 @@ export class CoverWorkflow {
   ): Promise<Readonly<PreparedCover>> {
     const settings = this.settings.get();
     const service = imageService(settings);
-    if (settings.aiProviders === undefined && settings.imageApiProtocol === 'anthropic') {
-      const error = new Error('Anthropic 当前只支持封面策划，未提供图片输出。') as Error & { code?: string };
-      error.code = 'AI_PROVIDER_IMAGE_UNSUPPORTED';
-      throw error;
-    }
     if (service === null) throw new Error('图片模型尚未配置。');
     if (service.requestFormat !== 'agnes-images' && service.requestFormat !== 'openai-images') {
       throw new Error('当前图片服务请求格式不受支持。');
     }
-    const apiKey = this.secret.get(
-      settings.aiProviders === undefined ? undefined : aiSecretKind('image', service.provider),
-    );
+    const apiKey = this.secret.get(aiSecretKind('image', service.provider));
     if (apiKey === null) throw new Error('Image API key is not configured.');
     const title = selection.includeTitle ? artifact.metadata.title : '';
     const digest = selection.includeDigest ? artifact.metadata.digest : '';

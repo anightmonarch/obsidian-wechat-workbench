@@ -1,4 +1,12 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, setIcon } from 'obsidian';
+import {
+  App,
+  Notice,
+  Plugin,
+  PluginSettingTab,
+  Setting,
+  setIcon,
+  type SettingDefinitionItem,
+} from 'obsidian';
 
 import { aiProvidersFor, type AiProviderId, type AiServiceKind, type PluginSettings } from './model';
 import type { AccountConnectionService } from './account-connection-service';
@@ -78,6 +86,41 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        name: '微信公众号',
+        desc: '配置公众号名称、AppID、AppSecret，验证连接并管理 IP 白名单。',
+        aliases: ['公众号账号', 'AppID', 'AppSecret', 'IP 白名单', '验证连接'],
+        searchable: true,
+        render: setting => {
+          setting.settingEl.addClass('wechat-workbench-settings__definition-host');
+          setting.settingEl.replaceChildren();
+          setting.settingEl.append(createEl('h2', {
+            cls: 'wechat-workbench-settings__section-title',
+            text: '微信公众号',
+          }));
+          this.renderAccountSection(setting.settingEl);
+        },
+      },
+      {
+        name: 'AI 内容生成',
+        desc: '配置文本和图片模型的服务地址、API Key 与模型。',
+        aliases: ['AI 服务', '文本模型', '图片模型', 'Base URL', 'API Key', '模型'],
+        searchable: true,
+        render: setting => {
+          setting.settingEl.addClass('wechat-workbench-settings__definition-host');
+          setting.settingEl.replaceChildren();
+          this.renderAiServiceSection(setting.settingEl);
+          return () => {
+            this.disposeAiSection?.();
+            this.disposeAiSection = null;
+          };
+        },
+      },
+    ];
+  }
+
   display(): void {
     this.disposeAiSection?.();
     this.disposeAiSection = null;
@@ -89,16 +132,18 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     });
     this.containerEl.append(heading);
 
-    this.renderAccountSection();
-    this.renderAiServiceSection();
+    this.renderAccountSection(this.containerEl);
+    this.renderAiServiceSection(this.containerEl);
   }
 
-  private renderAiServiceSection(): void {
-    const heading = createEl('h2', {
-      cls: 'wechat-workbench-settings__section-title',
-      text: 'AI 内容生成',
-    });
-    this.containerEl.append(heading);
+  private renderAiServiceSection(container: HTMLElement, includeHeading = true): void {
+    if (includeHeading) {
+      const heading = createEl('h2', {
+        cls: 'wechat-workbench-settings__section-title',
+        text: 'AI 内容生成',
+      });
+      container.append(heading);
+    }
     const shell = createDiv('wechat-workbench-settings__ai-shell');
     const modes = createDiv('wechat-workbench-settings__ai-modes');
     const content = createDiv('wechat-workbench-settings__ai-mode-content');
@@ -126,7 +171,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       disposeMode = appendAiProviderPanel(content, kind, this.settings.get(), this.secrets, this.aiService);
     };
     shell.append(modes, content);
-    this.containerEl.append(shell);
+    container.append(shell);
     renderMode('text');
     this.disposeAiSection = () => {
       disposeMode?.();
@@ -139,7 +184,13 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     this.disposeAiSection = null;
   }
 
-  private renderAccountSection(): void {
+  private refreshSettings(): void {
+    const modernUpdate = Reflect.get(this, 'update') as unknown;
+    if (typeof modernUpdate === 'function') modernUpdate.call(this);
+    else this.display();
+  }
+
+  private renderAccountSection(container: HTMLElement): void {
     const current = this.settings.get();
     let displayName = current.accountDisplayName;
     let appId = current.appId;
@@ -219,7 +270,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         pending = true;
         try {
           await this.connection.save({ displayName, appId, appSecret });
-          this.display();
+          this.refreshSettings();
         } finally {
           pending = false;
         }
@@ -243,7 +294,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         }, this.copyText);
         try {
           await this.connection.verify();
-          this.display();
+          this.refreshSettings();
         } catch (error) {
           const unconfigured = error instanceof PublicError
             && error.code === 'WECHAT_ACCOUNT_NOT_CONFIGURED';
@@ -274,7 +325,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         disconnectButton.disabled = true;
         try {
           await this.connection.disconnect();
-          this.display();
+          this.refreshSettings();
         } finally {
           pending = false;
         }
@@ -285,7 +336,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     actions.append(saveButton, verifyButton, disconnectButton, openConsoleButton);
     accountCard.append(actions);
     accountCard.append(statusBlock);
-    this.containerEl.append(accountCard);
+    container.append(accountCard);
   }
 }
 

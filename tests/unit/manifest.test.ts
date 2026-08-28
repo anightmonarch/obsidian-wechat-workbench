@@ -13,4 +13,10 @@ describe('manifest', () => {
     });
     expect(manifest.id).not.toContain('obsidian');
   });
+
+  it('does not expose direct filesystem access in the release bundle', () => {
+    const bundle = readFileSync('main.js', 'utf8');
+
+    expect(bundle).not.toMatch(/require\(["'](?:node:)?fs["']\)/u);
+  });
 });

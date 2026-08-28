@@ -6,7 +6,6 @@ import {
   type MediaCacheRecord,
   type PluginSettings,
   type RecoveryReceiptRecord,
-  type AiProviderProtocol,
   defaultAiProviders,
   providerRequestFormat,
   type AiModeProviderSettings,
@@ -65,11 +64,6 @@ function coverStrategy(value: unknown): DefaultCoverStrategy {
     : DEFAULT_SETTINGS.defaultCoverStrategy;
 }
 
-const AI_PROTOCOLS = new Set<AiProviderProtocol>([
-  'openai-compatible',
-  'anthropic',
-]);
-
 const AI_PROVIDERS = new Set<AiProviderId>(['agnes', 'deepseek']);
 
 function providerId(value: unknown): AiProviderId | null {
@@ -99,15 +93,6 @@ function providerProfile(
   });
 }
 
-function providerForLegacyEndpoint(endpoint: string): AiProviderId | null {
-  try {
-    const hostname = new URL(endpoint).hostname.toLowerCase();
-    if (hostname.includes('deepseek')) return 'deepseek';
-    if (hostname.includes('agnes')) return 'agnes';
-  } catch { /* Legacy values have already been sanitized. */ }
-  return null;
-}
-
 function modeSettings(
   value: unknown,
   kind: AiServiceKind,
@@ -128,56 +113,13 @@ function modeSettings(
   });
 }
 
-function migratedProviderSettings(
-  stored: Record<string, unknown>,
-  schemaVersion: number,
-  textEndpoint: string,
-  textModel: string,
-  imageEndpoint: string,
-  imageModel: string,
-): Readonly<AiProviderSettings> {
+function providerSettings(value: unknown): Readonly<AiProviderSettings> {
   const defaults = defaultAiProviders();
-  if (schemaVersion >= 5 && isRecord(stored.aiProviders)) {
-    return Object.freeze({
-      text: modeSettings(stored.aiProviders.text, 'text', defaults.text),
-      image: modeSettings(stored.aiProviders.image, 'image', defaults.image),
-    });
-  }
-  const patchMode = (kind: AiServiceKind, endpoint: string, model: string): Readonly<AiModeProviderSettings> => {
-    const fallback = defaults[kind];
-    const provider = providerForLegacyEndpoint(endpoint);
-    if (provider === null || !aiProvidersFor(kind).includes(provider)) return fallback;
-    const existing = fallback.providers[provider];
-    const expectedPath = kind === 'text' ? '/chat/completions' : '/images/generations';
-    let baseUrl = '';
-    try {
-      const url = new URL(endpoint);
-      if (url.pathname.endsWith(expectedPath)) {
-        url.pathname = url.pathname.slice(0, -expectedPath.length) || '/';
-        baseUrl = sanitizedProviderBaseUrl(url.toString());
-      }
-    } catch { /* The endpoint was sanitized before this migration. */ }
-    if (baseUrl.length === 0) return fallback;
-    const profile = Object.freeze({
-      ...existing,
-      baseUrl,
-      model: model.trim(),
-    });
-    return Object.freeze({
-      activeProvider: provider,
-      providers: Object.freeze({ ...fallback.providers, [provider]: profile }),
-    });
-  };
+  if (!isRecord(value)) return defaults;
   return Object.freeze({
-    text: patchMode('text', textEndpoint, textModel),
-    image: patchMode('image', imageEndpoint, imageModel),
+    text: modeSettings(value.text, 'text', defaults.text),
+    image: modeSettings(value.image, 'image', defaults.image),
   });
-}
-
-function aiProtocol(value: unknown): AiProviderProtocol {
-  return typeof value === 'string' && AI_PROTOCOLS.has(value as AiProviderProtocol)
-    ? value as AiProviderProtocol
-    : DEFAULT_SETTINGS.imageApiProtocol;
 }
 
 function accountVerification(value: unknown): Readonly<AccountVerificationRecord> | null {
@@ -286,19 +228,6 @@ function sanitizeSettings(value: unknown): PluginSettings {
     || schemaVersion === 3 || schemaVersion === 4 || schemaVersion === 5)
     ? value
     : {};
-  const legacyImageEndpoint = sanitizedProviderBaseUrl(stored.imageApiBaseUrl);
-
-  const textApiEndpoint = schemaVersion >= 4
-    ? sanitizedProviderBaseUrl(stored.textApiEndpoint)
-    : DEFAULT_SETTINGS.textApiEndpoint;
-  const textApiModel = schemaVersion >= 4
-    ? stringValue(stored.textApiModel, DEFAULT_SETTINGS.textApiModel)
-    : DEFAULT_SETTINGS.textApiModel;
-  const imageApiEndpoint = schemaVersion >= 4
-    ? sanitizedProviderBaseUrl(stored.imageApiEndpoint)
-    : legacyImageEndpoint;
-  const imageApiModel = stringValue(stored.imageApiModel, DEFAULT_SETTINGS.imageApiModel);
-
   return {
     schemaVersion: 5,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
@@ -321,15 +250,7 @@ function sanitizeSettings(value: unknown): PluginSettings {
       DEFAULT_SETTINGS.accountDisplayName,
     ),
     accountVerification: schemaVersion >= 3 ? accountVerification(stored.accountVerification) : null,
-    textApiEndpoint,
-    textApiModel,
-    imageApiEndpoint,
-    imageApiBaseUrl: legacyImageEndpoint,
-    imageApiProtocol: aiProtocol(stored.imageApiProtocol),
-    imageApiModel,
-    aiProviders: migratedProviderSettings(
-      stored, schemaVersion, textApiEndpoint, textApiModel, imageApiEndpoint, imageApiModel,
-    ),
+    aiProviders: schemaVersion >= 5 ? providerSettings(stored.aiProviders) : defaultAiProviders(),
     accessTokenExpiresAt: nullableNumber(
       stored.accessTokenExpiresAt,
       DEFAULT_SETTINGS.accessTokenExpiresAt,

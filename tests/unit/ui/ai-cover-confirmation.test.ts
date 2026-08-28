@@ -17,18 +17,20 @@ describe('AI cover disclosure', () => {
     previewDataUrl: 'data:image/png;base64,COVER',
     bytes: new Uint8Array([1]),
   });
+  const provider = Object.freeze({
+    provider: 'agnes' as const,
+    requestFormat: 'agnes-images' as const,
+    endpoint: 'https://images.example.test/v1/images/generations',
+    model: 'synthetic-image-model',
+  });
   it('discloses only title and digest, never the article body', () => {
     const disclosure = buildAiCoverDisclosure({
       title: 'Article title',
       digest: 'Article digest',
-    }, {
-      imageApiProtocol: 'openai-compatible',
-      imageApiEndpoint: 'https://images.example.test/v1/images/generations',
-      imageApiModel: 'synthetic-image-model',
-    });
+    }, provider);
 
     expect(disclosure).toMatchObject({
-      protocol: 'OpenAI 兼容',
+      provider: 'Agnes',
       endpoint: 'https://images.example.test/v1/images/generations',
       model: 'synthetic-image-model',
       sentFields: ['title', 'digest'],
@@ -43,10 +45,7 @@ describe('AI cover disclosure', () => {
     const adopt = vi.fn(async () => undefined);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: '',
-    }, {
-      imageApiProtocol: 'openai-compatible',
-      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
-    }), generateCover, adopt);
+    }, provider), generateCover, adopt);
 
     modal.open();
     expect(generateCover).not.toHaveBeenCalled();
@@ -80,10 +79,7 @@ describe('AI cover disclosure', () => {
     const generateCover = vi.fn(async () => candidate);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: '', supplementalPrompt: '暖色、留白、编辑感',
-    }, {
-      imageApiProtocol: 'openai-compatible',
-      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
-    }), generateCover, vi.fn(async () => undefined));
+    }, provider), generateCover, vi.fn(async () => undefined));
 
     modal.open();
     const prompt = modal.contentEl.querySelector<HTMLTextAreaElement>('[data-testid="ai-cover-supplemental-prompt"]');
@@ -103,10 +99,7 @@ describe('AI cover disclosure', () => {
     const generateCover = vi.fn(async () => candidate);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: 'Digest',
-    }, {
-      imageApiProtocol: 'openai-compatible',
-      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
-    }), generateCover, vi.fn(async () => undefined));
+    }, provider), generateCover, vi.fn(async () => undefined));
 
     modal.open();
     modal.contentEl.querySelector<HTMLInputElement>('[data-testid="ai-cover-include-title"]')!.checked = false;
@@ -126,10 +119,7 @@ describe('AI cover disclosure', () => {
   it('discloses the supplemental field only when it will be sent', () => {
     const disclosure = buildAiCoverDisclosure({
       title: 'Title', digest: '', supplementalPrompt: '蓝色调',
-    }, {
-      imageApiProtocol: 'openai-compatible',
-      imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'synthetic-image-model',
-    });
+    }, provider);
 
     expect(disclosure.sentFields).toContain('supplementalPrompt');
   });

@@ -37,55 +37,61 @@ describe('SettingsStore', () => {
     expect(settings.recentStyles).toEqual({});
   });
 
-  it('migrates v2 account and image settings into schema v4', async () => {
+  it('uses current provider defaults for pre-v5 data', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
       schemaVersion: 2,
       appId: 'wx-public-id',
-      imageApiBaseUrl: 'https://images.example.test/v1',
-      imageApiModel: 'image-model',
     })).load();
 
     expect(settings).toMatchObject({
       schemaVersion: 5,
       accountDisplayName: '',
       accountVerification: null,
-      imageApiProtocol: 'openai-compatible',
-      imageApiBaseUrl: 'https://images.example.test/v1',
-      imageApiEndpoint: 'https://images.example.test/v1',
-      imageApiModel: 'image-model',
     });
+    expect(settings.aiProviders).toEqual(DEFAULT_SETTINGS.aiProviders);
   });
 
-  it('migrates a v3 image URL without appending a provider path', async () => {
+  it('sanitizes schema v5 provider profiles', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
-      schemaVersion: 3,
-      imageApiProtocol: 'openai-compatible',
-      imageApiBaseUrl: 'https://images.example.test/custom/generate',
-      imageApiModel: 'saved-image-model',
+      schemaVersion: 5,
+      aiProviders: {
+        text: { activeProvider: null, providers: { agnes: {}, deepseek: {} } },
+        image: {
+          activeProvider: 'agnes',
+          providers: {
+            agnes: {
+              baseUrl: 'https://images.example.test/v1/',
+              model: ' saved-image-model ',
+              requestFormat: 'untrusted-format',
+            },
+            deepseek: {},
+          },
+        },
+      },
     })).load();
 
-    expect(settings).toMatchObject({
-      schemaVersion: 5,
-      textApiEndpoint: '',
-      textApiModel: '',
-      imageApiEndpoint: 'https://images.example.test/custom/generate',
-      imageApiModel: 'saved-image-model',
-      imageApiBaseUrl: 'https://images.example.test/custom/generate',
-      imageApiProtocol: 'openai-compatible',
+    expect(settings.aiProviders.image.activeProvider).toBe('agnes');
+    expect(settings.aiProviders.image.providers.agnes).toMatchObject({
+      baseUrl: 'https://images.example.test/v1',
+      model: 'saved-image-model',
+      requestFormat: 'agnes-images',
     });
   });
 
-  it('drops malformed verification records and unsupported protocols', async () => {
+  it('drops malformed verification records and unsupported provider selections', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
-      schemaVersion: 3,
-      imageApiProtocol: 'unknown',
+      schemaVersion: 5,
+      aiProviders: {
+        text: { activeProvider: 'unknown', providers: { agnes: {}, deepseek: {} } },
+        image: { activeProvider: null, providers: { agnes: {}, deepseek: {} } },
+      },
       accountVerification: {
         accountHash: 'x', outcome: 'SUCCESS', verifiedAt: 'now',
         errorCode: null, errcode: null,
       },
     })).load();
 
-    expect(settings.imageApiProtocol).toBe('openai-compatible');
+    expect(settings.aiProviders.text.activeProvider).toBeNull();
     expect(settings.accountVerification).toBeNull();
   });
 
@@ -176,10 +182,25 @@ describe('SettingsStore', () => {
     const adapter = new MemoryPluginData();
     const store = new SettingsStore(adapter);
 
-    await store.save({ ...DEFAULT_SETTINGS, textApiEndpoint: 'https://text.example.test/v1/chat' });
+    await store.save({ ...DEFAULT_SETTINGS });
 
     expect(adapter.saved).not.toHaveProperty('textApiKey');
     expect(adapter.saved).not.toHaveProperty('imageApiKey');
+  });
+
+  it('persists only the current provider profile model', async () => {
+    const adapter = new MemoryPluginData();
+    const store = new SettingsStore(adapter);
+
+    await store.save({ ...DEFAULT_SETTINGS });
+
+    expect(adapter.saved).toHaveProperty('aiProviders');
+    expect(adapter.saved).not.toHaveProperty('textApiEndpoint');
+    expect(adapter.saved).not.toHaveProperty('textApiModel');
+    expect(adapter.saved).not.toHaveProperty('imageApiEndpoint');
+    expect(adapter.saved).not.toHaveProperty('imageApiBaseUrl');
+    expect(adapter.saved).not.toHaveProperty('imageApiProtocol');
+    expect(adapter.saved).not.toHaveProperty('imageApiModel');
   });
 
   it('sanitizes recovery receipts and drops article or credential-shaped extras', async () => {
@@ -203,11 +224,23 @@ describe('SettingsStore', () => {
 
   it('does not persist credentials, query parameters, or fragments in provider URLs', async () => {
     const store = new SettingsStore(new MemoryPluginData({
-      schemaVersion: 1,
-      imageApiBaseUrl: 'https://user:password@images.example.test/v1?api_key=value#fragment',
+      schemaVersion: 5,
+      aiProviders: {
+        text: { activeProvider: null, providers: { agnes: {}, deepseek: {} } },
+        image: {
+          activeProvider: 'agnes',
+          providers: {
+            agnes: {
+              baseUrl: 'https://user:password@images.example.test/v1?api_key=value#fragment',
+              model: 'image-model',
+            },
+            deepseek: {},
+          },
+        },
+      },
     }));
 
-    expect((await store.load()).imageApiBaseUrl).toBe('');
-    expect((await store.load()).imageApiEndpoint).toBe('');
+    expect((await store.load()).aiProviders.image.providers.agnes.baseUrl)
+      .toBe(DEFAULT_SETTINGS.aiProviders.image.providers.agnes.baseUrl);
   });
 });

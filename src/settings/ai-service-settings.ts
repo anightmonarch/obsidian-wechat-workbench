@@ -148,13 +148,8 @@ export class AiServiceSettingsService {
       }),
     });
     try {
-      const resolved = resolveAiService({ aiProviders }, input.kind);
-      return await this.settings.update({
-        aiProviders,
-        ...(input.kind === 'text'
-          ? { textApiEndpoint: resolved?.endpoint ?? '', textApiModel: model }
-          : { imageApiEndpoint: resolved?.endpoint ?? '', imageApiModel: model }),
-      });
+      resolveAiService({ aiProviders }, input.kind);
+      return await this.settings.update({ aiProviders });
     } catch (error) {
       if (suppliedKey.length > 0) {
         if (previousKey === null) this.secrets.clear(keyKind);

@@ -1,0 +1,70 @@
+name: Verify and attest release assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify and attest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    name: Verify reproducibility and attest assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source and build release assets
+        run: |
+          npm run lint
+          npm test
+          npm run verify:release
+          npm run scan:secrets
+          npm audit --omit=dev
+
+      - name: Download published release assets
+        run: |
+          mkdir release-assets
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-assets \
+            --pattern main.js \
+            --pattern manifest.json \
+            --pattern styles.css
+
+      - name: Compare published assets with the release build
+        run: |
+          cmp main.js release-assets/main.js
+          cmp manifest.json release-assets/manifest.json
+          cmp styles.css release-assets/styles.css
+          (cd release-assets && sha256sum main.js manifest.json styles.css > SHA256SUMS)
+
+      - name: Generate build provenance attestations
+        uses: actions/attest@v4
+        with:
+          subject-checksums: release-assets/SHA256SUMS

@@ -10,10 +10,10 @@ describe('createNonRenderingSettingsAccess', () => {
     const access = createNonRenderingSettingsAccess(() => current, update);
 
     await access.update({ accountDisplayName: 'Commit 日记' });
-    await access.update({ textApiModel: 'agnes-2.5-flash' });
+    await access.update({ defaultAuthor: 'anightmonarch' });
 
     expect(access.get()).toBe(current);
     expect(update).toHaveBeenNthCalledWith(1, { accountDisplayName: 'Commit 日记' });
-    expect(update).toHaveBeenNthCalledWith(2, { textApiModel: 'agnes-2.5-flash' });
+    expect(update).toHaveBeenNthCalledWith(2, { defaultAuthor: 'anightmonarch' });
   });
 });

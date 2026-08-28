@@ -439,6 +439,13 @@
   background: var(--background-secondary);
 }
 
+.wechat-workbench-settings__definition-host {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+}
+
 .wechat-workbench-settings__account-card .setting-item {
   display: grid;
   grid-template-columns: minmax(8rem, 1fr) minmax(0, 18rem);
@@ -709,8 +716,7 @@
 .wechat-workbench-settings__account-secret-toggle {
   align-items: center;
   appearance: none;
-  background: transparent !important;
-  background-color: transparent !important;
+  background: transparent;
   border: 0;
   box-shadow: none;
   color: var(--text-muted);
@@ -943,18 +949,18 @@
 /* 封面大图预览 Modal：居中放大，不超过视口。 */
 .wechat-workbench__cover-preview-modal-shell {
   box-sizing: border-box;
-  width: min(90vw, 57.333rem) !important;
-  min-width: 0 !important;
-  max-width: calc(100vw - 2rem) !important;
-  max-height: calc(100vh - 2rem) !important;
-  overflow-x: hidden !important;
+  width: min(90vw, 57.333rem);
+  min-width: 0;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 2rem);
+  overflow-x: hidden;
 }
 
 .wechat-workbench__cover-preview-modal {
   box-sizing: border-box;
-  width: 100% !important;
+  width: 100%;
   min-width: 0;
-  max-width: 100% !important;
+  max-width: 100%;
   max-height: calc(100vh - 2rem);
   overflow: hidden;
 }
@@ -971,10 +977,10 @@
 .wechat-workbench__cover-preview-modal .wechat-workbench__cover-preview-image {
   box-sizing: border-box;
   display: block;
-  width: auto !important;
-  max-width: 100% !important;
-  height: auto !important;
-  max-height: calc(100vh - 8rem) !important;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(100vh - 8rem);
   margin-inline: auto;
   object-fit: contain;
   border-radius: var(--radius-m);
@@ -1259,7 +1265,7 @@
   border-radius: 8px;
   color: var(--text-normal);
   background: var(--wechat-style-option-bg);
-  background-color: var(--wechat-style-option-bg) !important;
+  background-color: var(--wechat-style-option-bg);
   background-image: none;
   font-family: var(--font-interface);
   font-size: var(--font-ui-small);
@@ -1273,14 +1279,14 @@
   padding: 0 7px;
   color: var(--text-normal);
   background: var(--wechat-style-option-selected-bg);
-  background-color: var(--wechat-style-option-selected-bg) !important;
+  background-color: var(--wechat-style-option-selected-bg);
   background-image: none;
   box-shadow: none;
 }
 
 .wechat-workbench__style-option:not([aria-pressed="true"]):hover {
   background: var(--wechat-style-option-hover-bg);
-  background-color: var(--wechat-style-option-hover-bg) !important;
+  background-color: var(--wechat-style-option-hover-bg);
 }
 
 .wechat-workbench__style-color-dot {
@@ -1406,7 +1412,7 @@
   border-radius: 0;
   color: var(--text-normal);
   background: var(--wechat-style-option-bg);
-  background-color: var(--wechat-style-option-bg) !important;
+  background-color: var(--wechat-style-option-bg);
   background-image: none;
   font-family: var(--font-interface);
   font-size: var(--font-ui-small);

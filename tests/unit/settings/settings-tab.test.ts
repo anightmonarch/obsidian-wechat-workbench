@@ -101,6 +101,24 @@ describe('buildSettingsPresentation', () => {
     expect(JSON.stringify(presentation)).not.toContain('accessToken');
   });
 
+  it('exposes searchable settings definitions without exposing stored secrets', () => {
+    const { tab } = createHarness();
+
+    const definitions = tab.getSettingDefinitions();
+    const searchableText = JSON.stringify(definitions, (_key, value: unknown) => (
+      typeof value === 'function' ? undefined : value
+    ));
+
+    expect(searchableText).toContain('微信公众号');
+    expect(searchableText).toContain('AppID');
+    expect(searchableText).toContain('AppSecret');
+    expect(searchableText).toContain('AI 内容生成');
+    expect(searchableText).toContain('Base URL');
+    expect(searchableText).toContain('API Key');
+    expect(searchableText.match(/"searchable":true/gu)).toHaveLength(2);
+    expect(searchableText).not.toContain('synthetic-saved-app-secret');
+  });
+
   describe('account section', () => {
     beforeEach(() => {
       document.body.replaceChildren();
@@ -198,6 +216,19 @@ describe('buildSettingsPresentation', () => {
         appSecret: 'synthetic-app-secret',
       }));
       expect(connection.verify).not.toHaveBeenCalled();
+    });
+
+    it('refreshes declarative settings through the host update lifecycle', async () => {
+      const { tab, connection } = createHarness();
+      const update = vi.fn();
+      Object.assign(tab, { update });
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'account-save').click();
+
+      await vi.waitFor(() => expect(connection.save).toHaveBeenCalledOnce());
+      expect(update).toHaveBeenCalledOnce();
     });
 
     it('verifies explicitly and disables duplicate actions while pending', async () => {

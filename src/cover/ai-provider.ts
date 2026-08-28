@@ -1,7 +1,8 @@
-export type AiProviderProtocol = 'openai-compatible' | 'anthropic';
+import type { AiProviderId, AiRequestFormat } from '../settings/model';
 
 export interface AiModelCatalogRequest {
-  protocol: AiProviderProtocol;
+  provider: AiProviderId;
+  requestFormat: Extract<AiRequestFormat, 'agnes-images' | 'openai-images'>;
   baseUrl: string;
   apiKey: string;
   signal?: AbortSignal;
@@ -9,7 +10,7 @@ export interface AiModelCatalogRequest {
 
 export interface AiModelOption {
   id: string;
-  capability: 'IMAGE_UNVERIFIED' | 'PROMPT_PLANNING_ONLY';
+  capability: 'IMAGE_UNVERIFIED';
 }
 
 export interface AiModelCatalogPort {

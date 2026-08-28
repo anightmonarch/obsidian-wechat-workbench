@@ -7,6 +7,7 @@ import {
 import type { AiTextGenerator } from '../../../src/ai/openai-text-generator';
 import type { NoteSnapshot } from '../../../src/domain/article';
 import type { RenderArtifact } from '../../../src/domain/artifact';
+import { DEFAULT_SETTINGS } from '../../../src/settings/model';
 
 const credential = ['SYNTHETIC', 'TEXT', 'SERVICE'].join('_');
 const snapshot: Readonly<NoteSnapshot> = Object.freeze({
@@ -35,8 +36,23 @@ describe('ArticleTextGenerationService', () => {
     });
     const generateDigest = vi.fn(async () => '摘要候选');
     const generator: AiTextGenerator = { generateTitles, generateDigest };
+    const aiProviders = {
+      ...DEFAULT_SETTINGS.aiProviders,
+      text: {
+        ...DEFAULT_SETTINGS.aiProviders.text,
+        activeProvider: 'agnes' as const,
+        providers: {
+          ...DEFAULT_SETTINGS.aiProviders.text.providers,
+          agnes: {
+            ...DEFAULT_SETTINGS.aiProviders.text.providers.agnes,
+            baseUrl: 'https://text.example.test/v1',
+            model: 'text-model',
+          },
+        },
+      },
+    };
     const service = new ArticleTextGenerationService(
-      { get: () => ({ textApiEndpoint: 'https://text.example.test/v1/chat/completions', textApiModel: 'text-model' }) },
+      { get: () => ({ aiProviders }) },
       { get: () => credential },
       generator,
     );

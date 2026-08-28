@@ -4,8 +4,6 @@ import type { AiProviderId, AiRequestFormat } from '../settings/model';
 export interface AiCoverGenerationRequest {
   provider?: AiProviderId;
   requestFormat?: Extract<AiRequestFormat, 'agnes-images' | 'openai-images'>;
-  /** @deprecated v4 request compatibility; ignored by the v5 resolver. */
-  protocol?: 'openai-compatible' | 'anthropic';
   endpoint: string;
   model: string;
   apiKey: string;

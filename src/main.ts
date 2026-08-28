@@ -35,7 +35,7 @@ import { AiServiceSettingsService } from './settings/ai-service-settings';
 import { OpenAiModelCatalog } from './settings/ai-model-catalog';
 import { ArticleSettingsService } from './settings/article-settings';
 import { AccountConnectionService } from './settings/account-connection-service';
-import { DEFAULT_SETTINGS, type PluginSettings } from './settings/model';
+import { DEFAULT_SETTINGS, resolveAiService, type PluginSettings } from './settings/model';
 import { SecretStore } from './settings/secret-store';
 import { SettingsStore } from './settings/settings-store';
 import { createNonRenderingSettingsAccess } from './settings/non-rendering-settings-access';
@@ -258,15 +258,23 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       prepareUpload: coverWorkflow.prepareUpload.bind(coverWorkflow),
       prepareAi: coverWorkflow.prepareAi.bind(coverWorkflow),
       confirm: coverWorkflow.confirm.bind(coverWorkflow),
-      disclosure: (artifact: Readonly<RenderArtifact>, supplementalPrompt = '') => buildAiCoverDisclosure({
-        title: artifact.metadata.title,
-        digest: artifact.metadata.digest,
-        supplementalPrompt,
-      }, {
-        imageApiProtocol: this.pluginSettings.imageApiProtocol,
-        imageApiEndpoint: this.pluginSettings.imageApiEndpoint,
-        imageApiModel: this.pluginSettings.imageApiModel,
-      }),
+      disclosure: (artifact: Readonly<RenderArtifact>, supplementalPrompt = '') => {
+        const service = resolveAiService(this.pluginSettings, 'image');
+        if (service === null || (service.requestFormat !== 'agnes-images'
+          && service.requestFormat !== 'openai-images')) {
+          throw new Error('图片模型尚未配置。');
+        }
+        return buildAiCoverDisclosure({
+          title: artifact.metadata.title,
+          digest: artifact.metadata.digest,
+          supplementalPrompt,
+        }, {
+          provider: service.provider,
+          requestFormat: service.requestFormat,
+          endpoint: service.endpoint,
+          model: service.model,
+        });
+      },
     };
 
     this.registerView(

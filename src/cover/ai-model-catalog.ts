@@ -2,7 +2,6 @@ import type {
   AiModelCatalogPort,
   AiModelCatalogRequest,
   AiModelOption,
-  AiProviderProtocol,
 } from './ai-provider';
 import type { HttpTransport } from '../wechat/http-transport';
 
@@ -35,10 +34,7 @@ function providerEndpoint(rawBaseUrl: string): string {
   return url.toString();
 }
 
-function modelOptions(
-  value: unknown,
-  protocol: AiProviderProtocol,
-): readonly Readonly<AiModelOption>[] {
+function modelOptions(value: unknown): readonly Readonly<AiModelOption>[] {
   const payload = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
@@ -56,7 +52,7 @@ function modelOptions(
   }
   return Object.freeze([...ids].sort((left, right) => left.localeCompare(right)).slice(0, 500).map(id => Object.freeze({
     id,
-    capability: protocol === 'anthropic' ? 'PROMPT_PLANNING_ONLY' as const : 'IMAGE_UNVERIFIED' as const,
+    capability: 'IMAGE_UNVERIFIED' as const,
   })));
 }
 
@@ -74,9 +70,7 @@ export class AiModelCatalogService implements AiModelCatalogPort {
       response = await this.http.request({
         method: 'GET',
         url,
-        headers: request.protocol === 'anthropic'
-          ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
-          : { Authorization: `Bearer ${apiKey}` },
+        headers: { Authorization: `Bearer ${apiKey}` },
       });
     } catch {
       throw new AiModelCatalogError('AI_MODEL_LIST_FAILED', 'Provider model list request failed.');
@@ -88,7 +82,7 @@ export class AiModelCatalogService implements AiModelCatalogPort {
       );
     }
     try {
-      return modelOptions(response.body, request.protocol);
+      return modelOptions(response.body);
     } catch (error) {
       if (error instanceof AiModelCatalogError) throw error;
       throw new AiModelCatalogError('AI_MODEL_LIST_INVALID', 'Provider returned an invalid model list.');

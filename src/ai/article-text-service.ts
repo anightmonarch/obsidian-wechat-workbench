@@ -18,7 +18,7 @@ export interface ArticleTextGenerationPort {
 }
 
 interface TextSettingsPort {
-  get(): Readonly<Partial<Pick<PluginSettings, 'textApiEndpoint' | 'textApiModel' | 'aiProviders'>>>;
+  get(): Readonly<Pick<PluginSettings, 'aiProviders'>>;
 }
 
 interface TextSecretPort {
@@ -45,7 +45,7 @@ export class ArticleTextGenerationService implements ArticleTextGenerationPort {
     purpose: 'title' | 'digest',
   ): Readonly<AiTextGenerationRequest> {
     const settings = this.settings.get();
-    const service = settings.aiProviders === undefined ? null : resolveAiService({ aiProviders: settings.aiProviders }, 'text');
+    const service = resolveAiService(settings, 'text');
     const context: Readonly<AiArticleContext> = buildAiArticleContext({
       snapshot: input.snapshot,
       artifact: input.artifact,
@@ -53,9 +53,9 @@ export class ArticleTextGenerationService implements ArticleTextGenerationPort {
       purpose,
     });
     return Object.freeze({
-      endpoint: service?.endpoint ?? settings.textApiEndpoint ?? '',
-      model: service?.model ?? settings.textApiModel ?? '',
-      apiKey: service === null ? this.secret.get() ?? '' : this.secret.get(aiSecretKind('text', service.provider)) ?? '',
+      endpoint: service?.endpoint ?? '',
+      model: service?.model ?? '',
+      apiKey: service === null ? '' : this.secret.get(aiSecretKind('text', service.provider)) ?? '',
       context,
     });
   }

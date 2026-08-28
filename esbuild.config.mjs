@@ -3,6 +3,8 @@ import { builtinModules } from 'node:module';
 import process from 'node:process';
 
 const production = process.argv[2] === 'production';
+const browserShimmedBuiltins = new Set(['fs']);
+const externalBuiltins = builtinModules.filter(module => !browserShimmedBuiltins.has(module));
 
 const context = await esbuild.context({
   banner: {
@@ -27,8 +29,8 @@ Source: https://github.com/anightmonarch/obsidian-wechat-workbench
     '@lezer/common',
     '@lezer/highlight',
     '@lezer/lr',
-    ...builtinModules,
-    ...builtinModules.map(module => `node:${module}`),
+    ...externalBuiltins,
+    ...externalBuiltins.map(module => `node:${module}`),
   ],
   format: 'cjs',
   target: 'es2021',

@@ -1,66 +1,68 @@
 # WeChat Workbench
 
-在 Obsidian 中完成微信公众号文章的写作、排版、预览、复制和草稿同步。
+English | [简体中文](README.zh-CN.md)
 
-WeChat Workbench 是一款仅支持桌面端的 Obsidian 社区插件。正文继续使用熟悉的 Markdown 编辑器，右侧工作台负责实时预览、样式调整、文章信息、封面和微信公众号草稿同步。
+Write, style, preview, copy, and sync WeChat Official Account drafts without leaving Obsidian.
 
-插件只创建或更新微信公众号草稿，不执行正式发布、群发或删除草稿。
+WeChat Workbench is a desktop-only Obsidian community plugin. You keep writing in the Markdown editor while a dedicated workbench provides live preview, composable styles, article metadata, cover management, and draft synchronization.
 
-## 功能
+The plugin only creates or updates drafts. It does not publish, broadcast, or delete WeChat content.
 
-- 实时预览当前 Markdown 笔记，编辑后自动刷新。
-- 提供 7 套内置文章主题和经过安全校验的 Vault 自定义主题。
-- 提供 Doocs 风格的组合式样式工作台，可独立调整字体、字号、主题色、标题、代码、图注和段落。
-- 支持 GFM 表格、Callout、代码高亮、KaTeX、Mermaid 和本地图片。
-- 一键复制微信公众号编辑器可识别的富文本，同时保留纯文本回退内容。
-- 支持文章首图、本地图片和可选的 AI 生成封面，封面统一处理为微信公众号常用比例。
-- 支持 AI 生成三个标题候选和一个摘要候选，采用后才写入文章信息。
-- 发布草稿时自动上传本地图片并替换为微信 CDN 地址，无需另外搭建图床。
-- 本机直连微信公众号 API，支持创建草稿、更新已关联草稿、内容无变化时跳过以及结果不明确时的安全恢复。
-- AppSecret、Access Token 和 AI 服务 API Key 只保存到 Obsidian `SecretStorage`。
+## Features
 
-### 无需自建图床
+- Live preview of the active Markdown note with automatic refresh after edits.
+- Seven built-in article themes plus security-validated custom themes stored in the Vault.
+- A Doocs-inspired composable style workbench for fonts, sizes, colors, headings, code blocks, captions, and paragraphs.
+- GFM tables, callouts, syntax highlighting, KaTeX, Mermaid, and local images.
+- One-click rich-text copy for the WeChat editor with a plain-text fallback.
+- Cover selection from the article's first image, a local upload, or an optional AI-generated image.
+- Optional AI generation of three title candidates and one digest candidate. Nothing is saved until you adopt a candidate.
+- Automatic upload of local article images to WeChat during draft synchronization, with the final HTML referencing WeChat CDN URLs.
+- Direct local access to the WeChat Official Account API for draft creation, linked-draft updates, unchanged-content skipping, and safe recovery from ambiguous results.
+- AppSecret, Access Token, and AI provider API keys stored only in Obsidian `SecretStorage`.
 
-同步草稿时，插件会读取文章中的本地图片，调用微信公众号图片上传接口，再把微信返回的 HTTPS CDN 地址写入草稿正文。最终提交的 HTML 不再引用本机图片路径，也不依赖额外的对象存储或第三方图床。
+### No separate image host required
 
-图片上传只属于用户确认后的草稿同步流程。被动预览不会把文章图片上传到网络。
+When you explicitly synchronize a draft, the plugin reads local article images, uploads them through the WeChat Official Account image API, and replaces local paths with the returned HTTPS CDN URLs. The submitted HTML therefore depends on neither local file paths nor a separate object-storage service or third-party image host.
 
-## 界面预览
+Image uploads are part of the user-confirmed draft synchronization flow. Passive preview never uploads article images.
 
-### Markdown 编辑与公众号预览
+## Screenshots
 
-![WeChat Workbench 工作台总览](docs/assets/workbench-overview.jpeg)
+### Markdown editing and WeChat preview
 
-### 文章样式
+![WeChat Workbench overview](docs/assets/workbench-overview.jpeg)
 
-![WeChat Workbench 文章样式面板](docs/assets/style-panel.jpeg)
+### Article styles
 
-### 文章信息、封面与草稿状态
+![WeChat Workbench style panel](docs/assets/style-panel.jpeg)
 
-![WeChat Workbench 发布设置](docs/assets/publish-settings.jpeg)
+### Article metadata, cover, and draft status
 
-### 插件后台设置
+![WeChat Workbench publishing settings](docs/assets/publish-settings.jpeg)
 
-![WeChat Workbench 插件后台设置](docs/assets/settings-page.png)
+### Plugin settings
 
-## 产品边界
+![WeChat Workbench plugin settings](docs/assets/settings-page.png)
 
-- 仅支持 Obsidian 桌面端，最低版本为 `1.11.4`。
-- 当前界面只支持一个微信公众号账号。
-- 作者不提供云端中转服务，不收集遥测和分析数据，不展示广告。
-- 被动预览在本地完成，不会自动请求远程图片。
-- AI 功能默认不启用，只有用户配置服务并主动点击生成时才会联网。
-- 微信公众号草稿同步需要对应接口权限，并要求当前公网出口 IP 已加入公众号后台白名单。
+## Scope and limitations
 
-## 安装
+- Desktop only. Minimum supported Obsidian version: `1.11.4`.
+- The current interface supports one WeChat Official Account. The UI and user guides are primarily in Simplified Chinese.
+- No author-operated relay service, telemetry, analytics, or advertising.
+- Passive preview is local and does not automatically fetch remote images.
+- AI features are disabled until you configure a provider and explicitly request generation.
+- Draft synchronization requires the relevant WeChat API permissions and a public egress IP added to the account's IP allowlist.
 
-### Obsidian 社区插件
+## Installation
 
-插件通过社区审核后，可在 Obsidian 中打开“设置 → 第三方插件 → 浏览”，搜索 `WeChat Workbench` 并安装。
+### Obsidian Community Plugins
+
+After the plugin is accepted into the community directory, open **Settings → Community plugins → Browse**, search for `WeChat Workbench`, and install it.
 
 ### GitHub Release
 
-从对应版本的 GitHub Release 下载以下文件。
+Download these files from the matching [GitHub Release](https://github.com/anightmonarch/obsidian-wechat-workbench/releases):
 
 ```text
 main.js
@@ -68,17 +70,17 @@ manifest.json
 styles.css
 ```
 
-将它们放入 Vault 的插件目录。
+Place them in the plugin directory of your Vault:
 
 ```text
 <VAULT>/.obsidian/plugins/wechat-workbench/
 ```
 
-重新加载 Obsidian，在“设置 → 第三方插件”中启用 `WeChat Workbench`。
+Reload Obsidian, then enable `WeChat Workbench` under **Settings → Community plugins**.
 
-### 从源码构建
+### Build from source
 
-源码构建需要 Node.js `22.13` 或更高版本。
+Building from source requires Node.js `22.13` or later.
 
 ```bash
 npm ci
@@ -86,91 +88,93 @@ npm test
 npm run build
 ```
 
-开发和真实账号测试应使用独立测试 Vault。详细步骤见[入门指南](docs/user-guide/getting-started.md)。
+Use a separate test Vault for development and live-account testing. See the [getting started guide](docs/user-guide/getting-started.md) for details.
 
-## 快速上手
+## Quick start
 
-1. 打开一篇 Markdown 笔记。
-2. 点击左侧 Ribbon 的报纸图标，或从命令面板运行 `Open workbench`。
-3. 在“样式”中选择主题并调整字体、颜色和标题样式。
-4. 点击“复制”，将富文本粘贴到微信公众号编辑器。
-5. 如需同步草稿，在插件设置或工作台账号入口填写 AppID，并把 AppSecret 保存到 `SecretStorage`。
-6. 在“发布设置”中填写文章信息、选择封面，随后点击“发文章”确认草稿同步。
+1. Open a Markdown note.
+2. Select the newspaper icon in the left ribbon, or run `Open workbench` from the command palette.
+3. Open **Styles** to choose a theme and adjust typography, colors, and heading styles.
+4. Select **Copy** and paste the generated rich text into the WeChat editor.
+5. To synchronize drafts, enter the AppID in plugin settings or the workbench account entry, then save the AppSecret to `SecretStorage`.
+6. Complete the article metadata and cover under **Publish settings**, then confirm the draft synchronization action.
 
-“发文章”只创建或更新微信公众号后台草稿，不会正式群发。
+The synchronization action only creates or updates a draft in the WeChat backend. It never broadcasts the article.
 
-## AI 功能
+## AI features
 
-AI 功能可选。当前设置提供 Agnes 和 DeepSeek 文本服务配置，以及 Agnes 图片服务配置。用户需要自行提供相应服务的 API Key，并承担第三方服务可能产生的费用。
+AI support is optional. The current settings support Agnes and DeepSeek for text generation and Agnes for image generation. You provide the provider API keys and are responsible for any third-party charges.
 
-- 获取模型列表时，插件向所选服务发送 API Key，不发送文章内容。
-- 生成标题或摘要时，插件发送当前标题、摘要、文章标题层级和经过清理的正文摘录。
-- 生成封面时，插件发送模型、用户选择包含的标题和摘要、封面风格模板以及补充视觉要求。
-- 每次请求均由用户主动操作触发。插件不会在后台自动生成内容。
+- Fetching a model list sends the API key to the selected provider but does not send article content.
+- Generating titles or a digest sends the current title, digest, heading hierarchy, and a sanitized body excerpt.
+- Generating a cover sends the selected model, any title or digest fields you chose to include, the cover-style template, and your supplemental visual instructions.
+- Every request requires an explicit user action. The plugin does not generate content in the background.
 
-更完整的数据说明见[隐私说明](PRIVACY.md)。
+See the [privacy policy](PRIVACY.md) for the complete data-handling description.
 
-## 联网说明
+## Network access
 
-| 用户操作 | 联网目标 | 用途 |
+| User action | Destination | Purpose |
 | --- | --- | --- |
-| 连接微信公众号账号 | `api.weixin.qq.com` | 获取 Access Token |
-| 复制并处理远程图片 | 文章引用的 HTTPS 图片地址 | 读取并校验图片 |
-| 同步微信公众号草稿 | `api.weixin.qq.com` | 上传正文图片和封面，创建、读取或更新草稿 |
-| 获取 AI 模型列表 | 用户选择的 AI 服务 | 获取可用模型 |
-| 生成标题、摘要或封面 | 用户选择的 AI 服务 | 执行用户主动发起的生成请求 |
-| 下载 AI 生成结果 | 服务返回的 HTTPS 图片地址 | 读取并校验生成图片 |
+| Connect a WeChat account | `api.weixin.qq.com` | Obtain an Access Token |
+| Copy and process remote images | HTTPS image URLs referenced by the article | Fetch and validate images |
+| Synchronize a WeChat draft | `api.weixin.qq.com` | Upload body images and covers; create, read, or update drafts |
+| Fetch AI models | User-selected AI provider | Retrieve available models |
+| Generate titles, a digest, or a cover | User-selected AI provider | Complete the explicitly requested generation task |
+| Download an AI-generated image | HTTPS URL returned by the provider | Fetch and validate the generated image |
 
-远程图片请求会限制协议、重定向次数、超时、响应大小和真实文件类型，并阻止回环地址、私网地址及链路本地地址。
+Remote-image requests restrict protocols, redirects, timeouts, response sizes, and detected file types. Loopback, private, and link-local destinations are blocked.
 
-## 文章 Frontmatter
+## Article frontmatter
 
-插件读取常见文章信息字段，并使用独立的 `wechat-*` 字段保存草稿关联状态。写入时会保留其他未知字段。
+The plugin reads common article metadata and stores draft associations in dedicated `wechat-*` fields. Unknown fields are preserved when frontmatter is updated.
 
 ```yaml
 ---
-title: 文章标题
-author: 作者名称
-digest: 文章摘要
+title: Article title
+author: Author name
+digest: Article digest
 cover: .wechat-workbench/covers/example/cover.png
 content_source_url: https://example.com/source
 wechat-theme-id: native
 ---
 ```
 
-## 常见问题
+## Troubleshooting
 
-### 无法连接微信公众号
+### The plugin cannot connect to WeChat
 
-检查 AppID、AppSecret、公众号接口权限和 [IP 白名单](docs/user-guide/wechat-ip-whitelist.md)。切换网络后，公网出口 IP 可能发生变化。
+Check the AppID, AppSecret, account API permissions, and [IP allowlist](docs/user-guide/wechat-ip-whitelist.md). Your public egress IP may change when you switch networks.
 
-### 草稿同步结果不明确
+### The result of draft synchronization is ambiguous
 
-不要连续点击创建草稿。先查看[草稿恢复说明](docs/user-guide/recovery.md)，再到微信公众号后台核对最近草稿。
+Do not repeatedly create another draft. Read the [recovery guide](docs/user-guide/recovery.md), then check recent drafts in the WeChat backend.
 
-### 远程图片无法处理
+### A remote image cannot be processed
 
-确认图片使用公开 HTTPS 地址，响应内容确实是受支持的图片，并且没有跳转到本机或私网地址。
+Confirm that the image uses a public HTTPS URL, returns a supported image type, and does not redirect to a local or private address.
 
-### AI 生成失败
+### AI generation fails
 
-检查所选服务的 Base URL、模型、API Key、余额、限流状态和网络连接。插件不会把已保存的 API Key 回填到输入框。
+Check the selected provider's Base URL, model, API key, balance, rate limits, and network connectivity. Saved API keys are never copied back into input fields.
 
-## 文档
+## Documentation
 
-- [入门与本地安装](docs/user-guide/getting-started.md)
-- [主题和自定义样式](docs/user-guide/themes.md)
-- [文章封面](docs/user-guide/covers.md)
-- [草稿恢复](docs/user-guide/recovery.md)
-- [微信公众号 IP 白名单](docs/user-guide/wechat-ip-whitelist.md)
-- [隐私说明](PRIVACY.md)
-- [安全策略](SECURITY.md)
-- [第三方许可证](THIRD_PARTY_NOTICES.md)
+The current user guides are written in Simplified Chinese.
 
-## 问题反馈
+- [Getting started and local installation](docs/user-guide/getting-started.md)
+- [Themes and custom styles](docs/user-guide/themes.md)
+- [Article covers](docs/user-guide/covers.md)
+- [Draft recovery](docs/user-guide/recovery.md)
+- [WeChat Official Account IP allowlist](docs/user-guide/wechat-ip-whitelist.md)
+- [Privacy policy](PRIVACY.md)
+- [Security policy](SECURITY.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
-普通功能问题和建议请使用 [GitHub Issues](https://github.com/anightmonarch/obsidian-wechat-workbench/issues)。安全漏洞请按[安全策略](SECURITY.md)私下报告，不要在公开 Issue 中提交凭据、未公开文章或漏洞利用细节。
+## Support
 
-## 许可证
+Use [GitHub Issues](https://github.com/anightmonarch/obsidian-wechat-workbench/issues) for normal bug reports and feature requests. Report security vulnerabilities privately as described in the [security policy](SECURITY.md). Never include credentials, unpublished articles, or exploit details in a public issue.
 
-本项目采用 [MIT License](LICENSE)。第三方资源的许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+## License
+
+Released under the [MIT License](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party licenses.

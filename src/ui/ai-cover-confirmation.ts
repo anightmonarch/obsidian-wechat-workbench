@@ -1,7 +1,7 @@
 import { type App, Modal } from 'obsidian';
 
-import type { AiProviderProtocol } from '../cover/ai-provider';
 import type { PreparedCover } from '../cover/cover-workflow';
+import type { AiProviderId, AiRequestFormat } from '../settings/model';
 import {
   COVER_PROMPT_PRESETS,
   DEFAULT_COVER_PROMPT_PRESET_ID,
@@ -14,13 +14,14 @@ export interface AiCoverSource {
 }
 
 export interface AiCoverProviderSettings {
-  imageApiProtocol: AiProviderProtocol;
-  imageApiEndpoint: string;
-  imageApiModel: string;
+  provider: AiProviderId;
+  requestFormat: Extract<AiRequestFormat, 'agnes-images' | 'openai-images'>;
+  endpoint: string;
+  model: string;
 }
 
 export interface AiCoverDisclosure {
-  protocol: string;
+  provider: string;
   endpoint: string;
   model: string;
   sentFields: readonly string[];
@@ -51,9 +52,9 @@ export function buildAiCoverDisclosure(
 ): Readonly<AiCoverDisclosure> {
   const supplementalPrompt = supplemental(source.supplementalPrompt);
   return Object.freeze({
-    protocol: settings.imageApiProtocol === 'anthropic' ? 'Anthropic' : 'OpenAI 兼容',
-    endpoint: settings.imageApiEndpoint.trim(),
-    model: settings.imageApiModel.trim(),
+    provider: settings.provider === 'agnes' ? 'Agnes' : 'DeepSeek',
+    endpoint: settings.endpoint.trim(),
+    model: settings.model.trim(),
     sentFields: Object.freeze([
       'title', 'digest',
       ...(supplementalPrompt.length > 0 ? ['supplementalPrompt'] : []),

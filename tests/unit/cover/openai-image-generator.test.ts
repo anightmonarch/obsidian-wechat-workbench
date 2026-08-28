@@ -199,12 +199,4 @@ describe('OpenAiImageGenerator', () => {
     expect(current.requests).toHaveLength(0);
   });
 
-  it('keeps legacy Anthropic requests blocked before building image headers or sending a request', async () => {
-    const current = transport({ data: [] });
-    const generator = new OpenAiImageGenerator(current.http, { fetch: vi.fn() });
-
-    await expect(generator.generate({ ...request, protocol: 'anthropic' }))
-      .rejects.toMatchObject({ code: 'AI_PROVIDER_IMAGE_UNSUPPORTED' });
-    expect(current.requests).toHaveLength(0);
-  });
 });

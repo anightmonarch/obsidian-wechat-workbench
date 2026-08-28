@@ -114,9 +114,6 @@ export class OpenAiImageGenerator implements CoverGenerator {
 
   async generate(request: Readonly<AiCoverGenerationRequest>): Promise<Readonly<GeneratedCover>> {
     if (request.signal?.aborted === true) throw failure('IMAGE_GENERATION_CANCELLED', 'Image generation was cancelled.');
-    if (request.protocol === 'anthropic') {
-      throw failure('AI_PROVIDER_IMAGE_UNSUPPORTED', 'Anthropic 当前只支持封面策划，未提供图片输出。');
-    }
     if (request.model.trim().length === 0) throw failure('IMAGE_PROVIDER_MODEL_MISSING', 'Image provider model is not configured.');
     if (request.apiKey.length === 0) throw failure('IMAGE_PROVIDER_KEY_MISSING', 'Image provider API key is not configured.');
     const url = providerUrl(request.endpoint);

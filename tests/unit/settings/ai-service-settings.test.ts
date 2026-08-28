@@ -7,10 +7,6 @@ function createService() {
   const settings = {
     current: {
       ...DEFAULT_SETTINGS,
-      textApiEndpoint: 'https://apihub.agnes-ai.com/v1/chat/completions',
-      textApiModel: 'saved-text-model',
-      imageApiEndpoint: 'https://apihub.agnes-ai.com/v1/images/generations',
-      imageApiModel: 'saved-image-model',
       aiProviders: {
         text: {
           activeProvider: 'agnes',
@@ -59,9 +55,8 @@ describe('AiServiceSettingsService', () => {
       apiKey: 'new-text-key',
     });
 
-    expect(current.settings.current.textApiEndpoint)
-      .toBe('https://apihub.agnes-ai.com/v1/chat/completions');
-    expect(current.settings.current.textApiModel).toBe('text-model');
+    expect(current.settings.current.aiProviders.text.activeProvider).toBe('agnes');
+    expect(current.settings.current.aiProviders.text.providers.agnes.model).toBe('text-model');
     expect(current.secrets.set).toHaveBeenCalledWith('textAgnesApiKey', 'new-text-key');
   });
 
@@ -74,9 +69,9 @@ describe('AiServiceSettingsService', () => {
       apiKey: 'new-image-key',
     });
 
-    expect(current.settings.current.imageApiEndpoint)
-      .toBe('https://apihub.agnes-ai.com/v1/images/generations');
-    expect(current.settings.current.textApiEndpoint).toBe('https://apihub.agnes-ai.com/v1/chat/completions');
+    expect(current.settings.current.aiProviders.image.activeProvider).toBe('agnes');
+    expect(current.settings.current.aiProviders.image.providers.agnes.model).toBe('image-model');
+    expect(current.settings.current.aiProviders.text.providers.agnes.model).toBe('saved-text-model');
     expect(current.secrets.set).toHaveBeenCalledWith('imageAgnesApiKey', 'new-image-key');
   });
 

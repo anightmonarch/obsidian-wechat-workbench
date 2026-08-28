@@ -2,8 +2,6 @@ import type { ArticleStyleConfig } from '../domain/style';
 
 export type DefaultCoverStrategy = 'article' | 'first-image' | 'global-default';
 
-export type AiProviderProtocol = 'openai-compatible' | 'anthropic';
-
 export type AiServiceKind = 'text' | 'image';
 
 export type AiProviderId = 'agnes' | 'deepseek';
@@ -157,12 +155,6 @@ export interface PluginSettings {
   globalDefaultCoverPath: string;
   accountDisplayName: string;
   accountVerification: Readonly<AccountVerificationRecord> | null;
-  textApiEndpoint: string;
-  textApiModel: string;
-  imageApiEndpoint: string;
-  imageApiBaseUrl: string;
-  imageApiProtocol: AiProviderProtocol;
-  imageApiModel: string;
   aiProviders: Readonly<AiProviderSettings>;
   accessTokenExpiresAt: number | null;
   accountHash: string | null;
@@ -201,12 +193,6 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   globalDefaultCoverPath: '',
   accountDisplayName: '',
   accountVerification: null,
-  textApiEndpoint: '',
-  textApiModel: '',
-  imageApiEndpoint: '',
-  imageApiBaseUrl: '',
-  imageApiProtocol: 'openai-compatible',
-  imageApiModel: '',
   aiProviders: defaultAiProviders(),
   accessTokenExpiresAt: null,
   accountHash: null,

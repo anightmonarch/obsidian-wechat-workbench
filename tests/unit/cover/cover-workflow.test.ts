@@ -5,6 +5,7 @@ import type { RenderArtifact } from '../../../src/domain/artifact';
 import type { VaultFileRef } from '../../../src/domain/ports';
 import { CoverWorkflow } from '../../../src/cover/cover-workflow';
 import { publishPayloadHash } from '../../../src/publish/publish-content';
+import { DEFAULT_SETTINGS } from '../../../src/settings/model';
 
 const file: VaultFileRef = { path: '01-公众号/article.md', basename: 'article', modifiedAt: 1 };
 const snapshot: Readonly<NoteSnapshot> = Object.freeze({
@@ -27,6 +28,20 @@ const artifact: Readonly<RenderArtifact> = Object.freeze({
 });
 const processed = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const credential = ['SYNTHETIC', 'RUNTIME', 'CREDENTIAL'].join('_');
+const imageProviders = Object.freeze({
+  ...DEFAULT_SETTINGS.aiProviders,
+  image: Object.freeze({
+    ...DEFAULT_SETTINGS.aiProviders.image,
+    activeProvider: 'agnes' as const,
+    providers: Object.freeze({
+      ...DEFAULT_SETTINGS.aiProviders.image.providers,
+      agnes: Object.freeze({
+        ...DEFAULT_SETTINGS.aiProviders.image.providers.agnes,
+        model: 'model',
+      }),
+    }),
+  }),
+});
 
 function harness() {
   const frontmatter: Record<string, unknown> = { title: 'Article', custom: 'keep' };
@@ -50,32 +65,11 @@ function harness() {
     { save },
     { generate },
     { processFrontmatter },
-    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', imageApiProtocol: 'openai-compatible' as const, imageApiEndpoint: 'https://images.example.test/v1/images/generations', imageApiModel: 'model' }) },
+    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', aiProviders: imageProviders }) },
     { get: vi.fn(() => credential), has: vi.fn(() => true) },
     { fetch: remoteFetch },
   );
   return { workflow, frontmatter, processFrontmatter, save, generate, remoteFetch };
-}
-
-function anthropicHarness() {
-  const current = harness();
-  const settings = { get: () => ({
-    globalDefaultCoverPath: 'assets/default.png',
-    imageApiProtocol: 'anthropic' as const,
-    imageApiEndpoint: 'https://api.anthropic.test/v1/images/generations',
-    imageApiModel: 'claude-model',
-  }) };
-  const workflow = new CoverWorkflow(
-    { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
-    { process: vi.fn(() => processed) },
-    { save: current.save },
-    { generate: current.generate },
-    { processFrontmatter: current.processFrontmatter },
-    settings,
-    { get: vi.fn(() => credential), has: vi.fn(() => true) },
-    { fetch: current.remoteFetch },
-  );
-  return { ...current, workflow };
 }
 
 describe('CoverWorkflow', () => {
@@ -147,7 +141,7 @@ describe('CoverWorkflow', () => {
     expect(generated.source).toBe('ai-generated');
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Article', digest: '', apiKey: credential,
-      endpoint: 'https://images.example.test/v1/images/generations',
+      endpoint: 'https://apihub.agnes-ai.com/v1/images/generations',
       supplementalPrompt: '',
     }));
     expect(current.save).not.toHaveBeenCalled();
@@ -177,19 +171,27 @@ describe('CoverWorkflow', () => {
     }));
   });
 
-  it('disables Anthropic image generation without invoking the image generator', async () => {
-    const current = anthropicHarness();
+  it('disables image generation when no image provider is active', async () => {
+    const current = harness();
+    const workflow = new CoverWorkflow(
+      { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
+      { process: vi.fn(() => processed) },
+      { save: current.save },
+      { generate: current.generate },
+      { processFrontmatter: current.processFrontmatter },
+      { get: () => ({ globalDefaultCoverPath: '', aiProviders: DEFAULT_SETTINGS.aiProviders }) },
+      { get: vi.fn(() => credential), has: vi.fn(() => true) },
+      { fetch: current.remoteFetch },
+    );
 
-    const model = current.workflow.model(snapshot, artifact);
+    const model = workflow.model(snapshot, artifact);
 
     expect(model.options.find(option => option.kind === 'ai')).toMatchObject({
       enabled: false,
-      disabledReason: 'Anthropic 当前只支持封面策划，未提供图片输出。',
+      disabledReason: '当前图片模型未配置',
     });
     expect(model.aiEnabled).toBe(false);
-    await expect(current.workflow.prepareAi(file, artifact)).rejects.toMatchObject({
-      code: 'AI_PROVIDER_IMAGE_UNSUPPORTED',
-    });
+    await expect(workflow.prepareAi(file, artifact)).rejects.toThrow('图片模型尚未配置。');
     expect(current.generate).not.toHaveBeenCalled();
   });
 });
