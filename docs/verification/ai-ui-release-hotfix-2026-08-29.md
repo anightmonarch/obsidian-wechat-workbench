@@ -77,3 +77,10 @@ secrets     Sensitive information scan passed (277 files)
 2. 在线封面若未出现候选预览，只能记录明确的安全错误分类，不得宣称生图链路通过。
 3. GitHub Release 发布后下载三份资产复核哈希。
 4. 官方社区插件清单仍无条目时，只能报告 GitHub Release/BRAT 更新可用，不能声称社区市场自动更新可用。
+
+## 发布结果
+
+- GitHub Release `0.1.1` 已发布，非草稿、非预发布。
+- 外部重新下载的三份资产与本地最终构建逐字节一致。
+- GitHub 可复现构建、资产比较和 provenance attestation 工作流成功。
+- 官方 `community-plugins.json` 复核仍无插件条目；社区插件市场自动更新保持 `NOT_LISTED`。

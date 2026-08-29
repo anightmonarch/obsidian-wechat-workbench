@@ -35,7 +35,13 @@ Version: `0.1.1`
 - `manifest.json`: `5493fbaae05a684b994a9f6fdd217b119c1930dfe3a39a99649c7990ead365e0`
 - `styles.css`: `2dfc7ea3844ea1eb7f605d58e2d061d99e88fc7583b971945d4eb302b725f00b`
 
-The `0.1.1` push, tag and GitHub Release remain pending until the release commit is created. The official community plugin directory still has no `wechat-workbench` entry.
+## GitHub delivery
+
+- `main` pushed through release commit `e73642f7277a114a8a23948dcec955d1ba50f2e9`.
+- Exact tag and non-draft/non-prerelease Release: [`0.1.1`](https://github.com/anightmonarch/obsidian-wechat-workbench/releases/tag/0.1.1).
+- The three downloaded Release assets matched the local build byte-for-byte and by the SHA-256 values above.
+- [Verify and attest release assets](https://github.com/anightmonarch/obsidian-wechat-workbench/actions/runs/33248150887) completed successfully, including clean checkout build, asset comparison and provenance attestation.
+- The official community plugin directory still has no `wechat-workbench` entry, so GitHub Release delivery is complete but Obsidian community-directory update availability is not established.
 
 ## Current official release contract
 
