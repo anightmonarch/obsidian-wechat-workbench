@@ -406,12 +406,14 @@
 
 .wechat-workbench__ai-candidate {
   width: 100%;
+  height: auto;
   min-width: 0;
   max-width: 100%;
   padding: var(--size-4-2);
   border: 0;
   border-radius: var(--radius-s);
   background: var(--background-primary-alt);
+  overflow: visible;
   overflow-wrap: anywhere;
   text-align: left;
   white-space: normal;

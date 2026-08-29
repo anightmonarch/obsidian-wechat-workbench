@@ -395,6 +395,7 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       useFirstImageCover: () => void this.useFirstImageCover(),
       uploadCover: bytes => void this.uploadCover(bytes),
       generateAiCover: () => void this.generateAiCover(),
+      coverAiDisabledReason: this.controller?.coverPickerModel().aiDisabledReason ?? '封面服务不可用',
       saveArticle: settings => this.saveArticleSettings(file, settings),
       generateTitles: draft => this.controller?.generateTitles?.(draft)
         ?? Promise.reject(new Error('文本生成服务不可用。')),

@@ -121,6 +121,22 @@ describe('publish settings', () => {
     expect(host.querySelector('[data-testid="settings-digest"]')?.closest('label')).toBeNull();
   });
 
+  it('shows an inline image-service configuration message instead of opening the cover generator', () => {
+    const host = document.createElement('section');
+    const generateAiCover = vi.fn();
+    renderPublishSettings(host, renderState, {
+      saveArticle: vi.fn(async () => undefined),
+      generateAiCover,
+      coverAiDisabledReason: '当前图片模型的 API Key 未配置',
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-cover-ai"]')?.click();
+
+    expect(generateAiCover).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-testid="settings-cover-ai-status"]')?.textContent)
+      .toBe('图片服务未配置完整，请到插件设置检查');
+  });
+
   it('allows adopting and regenerating title and digest candidates in the current session', async () => {
     const host = document.createElement('section');
     const generateTitles = vi.fn()

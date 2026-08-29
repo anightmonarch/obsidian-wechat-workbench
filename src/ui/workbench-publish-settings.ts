@@ -9,6 +9,7 @@ export interface PublishSettingsActions extends ArticleSettingsFormActions {
   useFirstImageCover?(): void;
   uploadCover?(bytes: Uint8Array): void;
   generateAiCover?(): void;
+  coverAiDisabledReason?: string | null;
   resolveCoverPreview?(source: Readonly<AssetSlot> | string): Promise<string | null>;
   /**
    * 打开封面图大图预览 Modal。由宿主（workbench-view）提供，因为它持有
@@ -49,6 +50,8 @@ export function renderPublishSettings(
   const thumbnail = createDiv('wechat-workbench__cover-thumb');
   thumbnail.dataset.testid = 'settings-cover-thumbnail';
   const coverActions = createDiv('wechat-workbench__cover-actions');
+  const coverAiStatus = createDiv('wechat-workbench__ai-candidates');
+  coverAiStatus.dataset.testid = 'settings-cover-ai-status';
   const uploadInput = createEl('input');
   uploadInput.type = 'file';
   uploadInput.accept = 'image/png,image/jpeg,image/webp';
@@ -66,7 +69,17 @@ export function renderPublishSettings(
   for (const [label, testId, action] of [
     ['文章首图', 'settings-cover-first-image', () => actions.useFirstImageCover?.() ?? actions.chooseCover?.('first-image')],
     ['本地上传', 'settings-cover-upload', () => uploadInput.click()],
-    ['智能生成', 'settings-cover-ai', () => actions.generateAiCover?.() ?? actions.chooseCover?.('ai')],
+    ['智能生成', 'settings-cover-ai', () => {
+      if (actions.coverAiDisabledReason !== undefined && actions.coverAiDisabledReason !== null) {
+        coverAiStatus.replaceChildren(createSpan({
+          cls: 'wechat-workbench__error',
+          text: '图片服务未配置完整，请到插件设置检查',
+        }));
+        return;
+      }
+      coverAiStatus.replaceChildren();
+      actions.generateAiCover?.() ?? actions.chooseCover?.('ai');
+    }],
   ] as const) {
     const button = createEl('button', { text: label });
     button.type = 'button';
@@ -76,7 +89,7 @@ export function renderPublishSettings(
   }
   coverActions.append(uploadInput);
   coverLayout.append(thumbnail, coverActions);
-  cover.append(coverTitle, coverLayout);
+  cover.append(coverTitle, coverLayout, coverAiStatus);
   const coverSource = state.artifact.metadata.cover ?? firstImage;
   if (coverSource !== null && actions.resolveCoverPreview !== undefined) {
     renderCoverPreview(thumbnail, coverSource, actions.resolveCoverPreview, actions.openCoverPreview);
