@@ -1,6 +1,6 @@
 {
   "name": "obsidian-wechat-workbench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A verifiable publishing workbench for WeChat Official Accounts.",
   "private": true,
   "type": "module",

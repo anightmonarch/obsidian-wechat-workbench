@@ -1,7 +1,7 @@
 {
   "id": "wechat-workbench",
   "name": "WeChat Workbench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.11.4",
   "description": "A verifiable publishing workbench for WeChat Official Account drafts.",
   "author": "anightmonarch",

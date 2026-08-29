@@ -66,14 +66,14 @@ secrets     Sensitive information scan passed (277 files)
 - Obsidian：`1.13.7`
 - 同步后仓库与 Vault 资产 SHA-256 一致：
   - `main.js`: `bc0b7c3f92c10aa1ab9071ec257b517f0205a405a28518214dc84514b6fbafb7`
-  - `manifest.json`: `89fc46d6a10a73c57265905de7be0a404d06e395682ef18edd3d13f13df52b7f`
+  - `manifest.json` before the version bump: `89fc46d6a10a73c57265905de7be0a404d06e395682ef18edd3d13f13df52b7f`
   - `styles.css`: `2dfc7ea3844ea1eb7f605d58e2d061d99e88fc7583b971945d4eb302b725f00b`
 - 使用 Obsidian `Force Reload` 重载后，新开样式面板首先显示主题、字体、字号和主题色，后续控件完整。
 - 未在 `commit_note` 主 Vault 写入测试凭据、修改文章或执行生成请求。
 
 ## 发布前剩余门槛
 
-1. 将版本统一升级到 `0.1.1` 后重新构建，重新计算最终三资产哈希。
+1. `0.1.1` 最终本地资产哈希见 `docs/verification/release-candidate.md`。
 2. 在线封面若未出现候选预览，只能记录明确的安全错误分类，不得宣称生图链路通过。
 3. GitHub Release 发布后下载三份资产复核哈希。
 4. 官方社区插件清单仍无条目时，只能报告 GitHub Release/BRAT 更新可用，不能声称社区市场自动更新可用。
