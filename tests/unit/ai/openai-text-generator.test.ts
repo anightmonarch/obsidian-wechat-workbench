@@ -78,6 +78,47 @@ describe('OpenAiTextGenerator', () => {
       .rejects.toMatchObject({ code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
   });
 
+  it('accepts exactly three titles returned as a JSON array', async () => {
+    const current = transport({
+      choices: [{ message: { content: '["标题一","标题二","标题三"]' } }],
+    });
+
+    await expect(new OpenAiTextGenerator(current.http).generateTitles(request))
+      .resolves.toEqual(['标题一', '标题二', '标题三']);
+  });
+
+  it('accepts exactly three plain-text title lines', async () => {
+    const current = transport({
+      choices: [{ message: { content: '标题一\n标题二\n标题三' } }],
+    });
+
+    await expect(new OpenAiTextGenerator(current.http).generateTitles(request))
+      .resolves.toEqual(['标题一', '标题二', '标题三']);
+  });
+
+  it('accepts exactly three numbered title lines', async () => {
+    const current = transport({
+      choices: [{ message: { content: '1. 标题一\n2、标题二\n3) 标题三' } }],
+    });
+
+    await expect(new OpenAiTextGenerator(current.http).generateTitles(request))
+      .resolves.toEqual(['标题一', '标题二', '标题三']);
+  });
+
+  it('rejects explanatory prose and the wrong number of title lines', async () => {
+    const prose = transport({
+      choices: [{ message: { content: '以下是标题：\n1. 标题一\n2. 标题二\n3. 标题三' } }],
+    });
+    const twoTitles = transport({
+      choices: [{ message: { content: '标题一\n标题二' } }],
+    });
+
+    await expect(new OpenAiTextGenerator(prose.http).generateTitles(request))
+      .rejects.toMatchObject({ code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
+    await expect(new OpenAiTextGenerator(twoTitles.http).generateTitles(request))
+      .rejects.toMatchObject({ code: 'AI_TEXT_PROVIDER_OUTPUT_INVALID' });
+  });
+
   it('rejects malformed JSON instead of treating it as a plain-text digest', async () => {
     const current = transport({ choices: [{ message: { content: '{"digest":"缺少结束符"' } }] });
     const generator = new OpenAiTextGenerator(current.http);

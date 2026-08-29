@@ -143,13 +143,29 @@ function plainDigestContent(content: string): string | null {
   return withoutLabel.length > 0 ? withoutLabel : null;
 }
 
+function plainTitleContent(content: string): readonly string[] | null {
+  const trimmed = content.trim();
+  if (trimmed.length === 0 || /[{}]/u.test(trimmed) || trimmed.startsWith('```')) return null;
+  const lines = trimmed.split(/\r?\n/u).map(line => line.trim()).filter(Boolean);
+  if (lines.length !== 3) return null;
+  const listPrefix = /^(?:(?:[1-3][.)、：:])|[-*•])\s*/u;
+  const prefixed = lines.map(line => listPrefix.test(line));
+  if (!prefixed.every(Boolean) && prefixed.some(Boolean)) return null;
+  const titles = lines.map(line => line.replace(listPrefix, '').trim());
+  return titles.every(Boolean) ? Object.freeze(titles) : null;
+}
+
 function parsedMessage(body: unknown, purpose: 'title' | 'digest'): Record<string, unknown> {
   const content = responseContent(body);
   try {
-    return object(parseJsonContent(content));
+    const parsed = parseJsonContent(content);
+    if (purpose === 'title' && Array.isArray(parsed)) return { titles: parsed };
+    return object(parsed);
   } catch (error) {
     const digest = purpose === 'digest' ? plainDigestContent(content) : null;
     if (digest !== null) return { digest };
+    const titles = purpose === 'title' ? plainTitleContent(content) : null;
+    if (titles !== null) return { titles };
     throw error;
   }
 }
