@@ -29,6 +29,10 @@ import { NoteSnapshotService } from './render/note-snapshot-service';
 import { RemoteImageFetcher } from './security/remote-image-fetcher';
 import { ArticleTextGenerationService } from './ai/article-text-service';
 import { OpenAiTextGenerator } from './ai/openai-text-generator';
+import { CodexTextGenerator } from './ai/codex-text-generator';
+import { CodexExecClient } from './codex/codex-exec-client';
+import { CodexLocator } from './codex/codex-locator';
+import { CodexProcessRunner } from './codex/codex-process-runner';
 import { createAiProviderHttpTransport } from './ai/provider-http-transport';
 import { accountHashForAppId } from './settings/account';
 import { AiServiceSettingsService } from './settings/ai-service-settings';
@@ -179,10 +183,16 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       set: (kind, value) => secretStore.set(kind, value),
       clear: kind => secretStore.clear(kind),
     }, new OpenAiModelCatalog(textProviderHttp));
+    const codexProcess = new CodexProcessRunner();
+    const codexExec = new CodexExecClient(new CodexLocator(codexProcess), codexProcess);
     const articleText = new ArticleTextGenerationService(
-      { get: () => ({ aiProviders: currentSettings().aiProviders }) },
+      { get: () => ({
+        aiProviders: currentSettings().aiProviders,
+        textGenerationBackend: currentSettings().textGenerationBackend,
+      }) },
       { get: kind => kind === undefined ? null : secretStore.get(kind) },
       new OpenAiTextGenerator(textProviderHttp),
+      new CodexTextGenerator(codexExec, () => currentSettings().localCodex.executablePath),
     );
     const mediaCacheData: AssetCacheDataPort = {
       get entries() { return currentSettings().mediaCache; },

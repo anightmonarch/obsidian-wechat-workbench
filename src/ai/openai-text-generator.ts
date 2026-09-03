@@ -155,8 +155,10 @@ function plainTitleContent(content: string): readonly string[] | null {
   return titles.every(Boolean) ? Object.freeze(titles) : null;
 }
 
-function parsedMessage(body: unknown, purpose: 'title' | 'digest'): Record<string, unknown> {
-  const content = responseContent(body);
+export function parseGeneratedTextContent(
+  content: string,
+  purpose: 'title' | 'digest',
+): Record<string, unknown> {
   try {
     const parsed = parseJsonContent(content);
     if (purpose === 'title' && Array.isArray(parsed)) return { titles: parsed };
@@ -170,6 +172,30 @@ function parsedMessage(body: unknown, purpose: 'title' | 'digest'): Record<strin
   }
 }
 
+function parsedMessage(body: unknown, purpose: 'title' | 'digest'): Record<string, unknown> {
+  return parseGeneratedTextContent(responseContent(body), purpose);
+}
+
+export function validatedGeneratedTitles(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || value.length !== 3 || value.some(item => typeof item !== 'string')) {
+    throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider must return exactly three titles.');
+  }
+  const cleaned = value.map(item => cleanText(item as string, MAX_TITLE_LENGTH));
+  if (cleaned.some(item => item.length === 0) || new Set(cleaned).size !== 3) {
+    throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider returned empty or duplicate titles.');
+  }
+  return Object.freeze(cleaned);
+}
+
+export function validatedGeneratedDigest(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider must return one digest.');
+  }
+  const cleaned = cleanText(value, MAX_DIGEST_LENGTH);
+  if (cleaned.length === 0) throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider returned an empty digest.');
+  return cleaned;
+}
+
 function redactedMessage(error: unknown, apiKey: string): string {
   const raw = error instanceof Error ? error.message : 'Unknown text provider failure.';
   const withoutKey = apiKey.length > 0 ? raw.split(apiKey).join('[REDACTED_SECRET]') : raw;
@@ -181,26 +207,12 @@ export class OpenAiTextGenerator implements AiTextGenerator {
 
   async generateTitles(request: Readonly<AiTextGenerationRequest>): Promise<readonly string[]> {
     const body = await this.generate(request, 'title');
-    const titles = object(body).titles;
-    if (!Array.isArray(titles) || titles.length !== 3 || titles.some(value => typeof value !== 'string')) {
-      throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider must return exactly three titles.');
-    }
-    const cleaned = titles.map(value => cleanText(value as string, MAX_TITLE_LENGTH));
-    if (cleaned.some(value => value.length === 0) || new Set(cleaned).size !== 3) {
-      throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider returned empty or duplicate titles.');
-    }
-    return Object.freeze(cleaned);
+    return validatedGeneratedTitles(object(body).titles);
   }
 
   async generateDigest(request: Readonly<AiTextGenerationRequest>): Promise<string> {
     const body = await this.generate(request, 'digest');
-    const digest = object(body).digest;
-    if (typeof digest !== 'string') {
-      throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider must return one digest.');
-    }
-    const cleaned = cleanText(digest, MAX_DIGEST_LENGTH);
-    if (cleaned.length === 0) throw failure('AI_TEXT_PROVIDER_OUTPUT_INVALID', 'Text provider returned an empty digest.');
-    return cleaned;
+    return validatedGeneratedDigest(object(body).digest);
   }
 
   private async generate(

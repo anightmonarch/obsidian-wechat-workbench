@@ -16,6 +16,7 @@ import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../styles/style-config
 import type { ResolvedArticleStyle } from '../styles/style-resolver';
 import type { AiCoverDisclosure } from './ai-cover-confirmation';
 import type { AiCoverGenerationSelection } from './ai-cover-confirmation';
+import type { GenerationBackend } from '../settings/model';
 
 export interface WorkbenchEventHandle {
   hostEvent?: unknown;
@@ -127,11 +128,13 @@ export interface WorkbenchAiTextPort {
     snapshot: Readonly<NoteSnapshot>;
     artifact: Readonly<RenderArtifact>;
     draft: Readonly<ArticleDraftValues>;
+    backend?: GenerationBackend;
   }>): Promise<readonly string[]>;
   generateDigest(input: Readonly<{
     snapshot: Readonly<NoteSnapshot>;
     artifact: Readonly<RenderArtifact>;
     draft: Readonly<ArticleDraftValues>;
+    backend?: GenerationBackend;
   }>): Promise<string>;
 }
 
@@ -485,16 +488,22 @@ export class WorkbenchController {
     this.rebuild('article-settings');
   }
 
-  async generateTitles(draft: Readonly<ArticleDraftValues>): Promise<readonly string[]> {
+  async generateTitles(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+  ): Promise<readonly string[]> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
-    return this.aiText.generateTitles({ ...current, draft });
+    return this.aiText.generateTitles({ ...current, draft, ...(backend === undefined ? {} : { backend }) });
   }
 
-  async generateDigest(draft: Readonly<ArticleDraftValues>): Promise<string> {
+  async generateDigest(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+  ): Promise<string> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
-    return this.aiText.generateDigest({ ...current, draft });
+    return this.aiText.generateDigest({ ...current, draft, ...(backend === undefined ? {} : { backend }) });
   }
 
   private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {
