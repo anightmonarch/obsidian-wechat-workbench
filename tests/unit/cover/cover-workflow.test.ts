@@ -6,6 +6,7 @@ import type { VaultFileRef } from '../../../src/domain/ports';
 import { CoverWorkflow } from '../../../src/cover/cover-workflow';
 import { publishPayloadHash } from '../../../src/publish/publish-content';
 import { DEFAULT_SETTINGS } from '../../../src/settings/model';
+import type { LocalCoverGenerator } from '../../../src/cover/codex-image-generator';
 
 const file: VaultFileRef = { path: '01-公众号/article.md', basename: 'article', modifiedAt: 1 };
 const snapshot: Readonly<NoteSnapshot> = Object.freeze({
@@ -52,6 +53,9 @@ function harness() {
   const generate = vi.fn(async () => ({
     bytes: processed, mimeType: 'image/png' as const, contentHash: 'AI_HASH', source: 'base64' as const,
   }));
+  const generateLocal = vi.fn(async () => ({
+    bytes: processed, mimeType: 'image/png' as const, contentHash: 'LOCAL_HASH', source: 'local-codex' as const,
+  }));
   const remoteFetch = vi.fn(async () => ({
     sourceUrl: 'https://cdn.example.test/first.png',
     finalUrl: 'https://cdn.example.test/first.png',
@@ -65,11 +69,16 @@ function harness() {
     { save },
     { generate },
     { processFrontmatter },
-    { get: () => ({ globalDefaultCoverPath: 'assets/default.png', aiProviders: imageProviders }) },
+    { get: () => ({
+      globalDefaultCoverPath: 'assets/default.png',
+      aiProviders: imageProviders,
+      imageGenerationBackend: 'api' as const,
+    }) },
     { get: vi.fn(() => credential), has: vi.fn(() => true) },
     { fetch: remoteFetch },
+    { generate: generateLocal } satisfies LocalCoverGenerator,
   );
-  return { workflow, frontmatter, processFrontmatter, save, generate, remoteFetch };
+  return { workflow, frontmatter, processFrontmatter, save, generate, generateLocal, remoteFetch };
 }
 
 describe('CoverWorkflow', () => {
@@ -179,7 +188,11 @@ describe('CoverWorkflow', () => {
       { save: current.save },
       { generate: current.generate },
       { processFrontmatter: current.processFrontmatter },
-      { get: () => ({ globalDefaultCoverPath: '', aiProviders: DEFAULT_SETTINGS.aiProviders }) },
+      { get: () => ({
+        globalDefaultCoverPath: '',
+        aiProviders: DEFAULT_SETTINGS.aiProviders,
+        imageGenerationBackend: 'api' as const,
+      }) },
       { get: vi.fn(() => credential), has: vi.fn(() => true) },
       { fetch: current.remoteFetch },
     );
@@ -203,7 +216,11 @@ describe('CoverWorkflow', () => {
       { save: current.save },
       { generate: current.generate },
       { processFrontmatter: current.processFrontmatter },
-      { get: () => ({ globalDefaultCoverPath: '', aiProviders: imageProviders }) },
+      { get: () => ({
+        globalDefaultCoverPath: '',
+        aiProviders: imageProviders,
+        imageGenerationBackend: 'api' as const,
+      }) },
       { get: vi.fn(() => null), has: vi.fn(() => false) },
       { fetch: current.remoteFetch },
     );
@@ -211,6 +228,52 @@ describe('CoverWorkflow', () => {
     await expect(workflow.prepareAi(file, artifact)).rejects.toMatchObject({
       code: 'IMAGE_PROVIDER_KEY_MISSING',
     });
+    expect(current.generate).not.toHaveBeenCalled();
+  });
+
+  it('routes a Codex cover without resolving an API key or invoking the API generator', async () => {
+    const current = harness();
+    const secretGet = vi.fn(() => credential);
+    const workflow = new CoverWorkflow(
+      { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
+      { process: vi.fn(() => processed) },
+      { save: current.save },
+      { generate: current.generate },
+      { processFrontmatter: current.processFrontmatter },
+      { get: () => ({
+        globalDefaultCoverPath: '',
+        aiProviders: DEFAULT_SETTINGS.aiProviders,
+        imageGenerationBackend: 'codex' as const,
+      }) },
+      { get: secretGet, has: vi.fn(() => false) },
+      { fetch: current.remoteFetch },
+      { generate: current.generateLocal },
+    );
+
+    const generated = await workflow.prepareAi(file, artifact, '暖白背景', {
+      includeTitle: true,
+      includeDigest: false,
+      backend: 'codex',
+    });
+
+    expect(generated.source).toBe('ai-generated');
+    expect(current.generateLocal).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Article', digest: '', supplementalPrompt: '暖白背景',
+      includeTitle: true, includeDigest: false,
+    }));
+    expect(secretGet).not.toHaveBeenCalled();
+    expect(current.generate).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to API when local cover generation fails', async () => {
+    const current = harness();
+    current.generateLocal.mockRejectedValueOnce(Object.assign(new Error('failed'), { code: 'CODEX_PROCESS_FAILED' }));
+
+    await expect(current.workflow.prepareAi(file, artifact, '', {
+      includeTitle: true,
+      includeDigest: true,
+      backend: 'codex',
+    })).rejects.toMatchObject({ code: 'CODEX_PROCESS_FAILED' });
     expect(current.generate).not.toHaveBeenCalled();
   });
 });

@@ -38,7 +38,11 @@ describe('adversarial network and asset paths', () => {
       { save: vi.fn(async () => '.wechat-workbench/covers/test/cover.png') },
       { generate: vi.fn() },
       { processFrontmatter: vi.fn() },
-      { get: () => ({ globalDefaultCoverPath: '', aiProviders: DEFAULT_SETTINGS.aiProviders }) },
+      { get: () => ({
+        globalDefaultCoverPath: '',
+        aiProviders: DEFAULT_SETTINGS.aiProviders,
+        imageGenerationBackend: 'api' as const,
+      }) },
       { get: () => null, has: () => false },
       { fetch: vi.fn() },
     );

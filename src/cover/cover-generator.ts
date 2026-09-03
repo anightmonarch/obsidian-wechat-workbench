@@ -25,7 +25,7 @@ export interface GeneratedCover {
   bytes: Uint8Array;
   mimeType: SupportedImageMime;
   contentHash: string;
-  source: 'base64' | 'remote-url';
+  source: 'base64' | 'remote-url' | 'local-codex';
 }
 
 export interface CoverGenerator {

@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 
 import { aiSecretKind } from '../settings/ai-service-settings';
-import { resolveAiService, type AiProviderSettings } from '../settings/model';
+import {
+  resolveAiService,
+  type AiProviderSettings,
+  type GenerationBackend,
+} from '../settings/model';
 import { posix } from 'node:path';
 
 import type { NoteSnapshot } from '../domain/article';
@@ -13,6 +17,8 @@ import { publishPayloadHash } from '../publish/publish-content';
 import { CoverGenerationError, type CoverGenerator } from './cover-generator';
 import { CoverService } from './cover-service';
 import type { RemoteGeneratedImagePort } from './openai-image-generator';
+import { CodexRuntimeError } from '../codex/codex-errors';
+import type { LocalCoverGenerator } from './codex-image-generator';
 
 export type PreparedCoverSource =
   | 'dynamic-first-image'
@@ -58,6 +64,7 @@ export interface GeneratedCoverStoragePort {
 export interface CoverWorkflowSettings {
   globalDefaultCoverPath: string;
   aiProviders: Readonly<AiProviderSettings>;
+  imageGenerationBackend: GenerationBackend;
 }
 
 export interface PreparedPublishCover {
@@ -148,6 +155,7 @@ export class CoverWorkflow {
   private readonly settings: CoverWorkflowSettingsPort,
     private readonly secret: CoverSecretPort,
     private readonly remoteImages: RemoteGeneratedImagePort,
+    private readonly localGenerator?: LocalCoverGenerator,
   ) {}
 
   model(
@@ -157,11 +165,12 @@ export class CoverWorkflow {
     const settings = this.settings.get();
     const service = imageService(settings);
     const firstImage = this.sources.firstImage(artifact)?.source ?? null;
+    const codexSelected = settings.imageGenerationBackend === 'codex';
     const keyConfigured = service !== null && this.secret.has(aiSecretKind('image', service.provider));
-    const aiEnabled = service !== null && keyConfigured;
-    const aiDisabledReason = aiEnabled ? null : service === null
-      ? '当前图片模型未配置'
-      : '当前图片模型的 API Key 未配置';
+    const aiEnabled = codexSelected ? this.localGenerator !== undefined : service !== null && keyConfigured;
+    const aiDisabledReason = aiEnabled ? null : codexSelected
+      ? '本地 Codex 图片生成服务不可用'
+      : service === null ? '当前图片模型未配置' : '当前图片模型的 API Key 未配置';
     return Object.freeze({
       options: Object.freeze([
         option('first-image', '文章首图（默认）', firstImage),
@@ -169,7 +178,7 @@ export class CoverWorkflow {
         Object.freeze({
           kind: 'ai',
           label: '智能生成封面',
-          sourcePath: service?.model ?? null,
+          sourcePath: codexSelected ? '本地 Codex' : service?.model ?? null,
           enabled: aiEnabled,
           disabledReason: aiDisabledReason,
         }),
@@ -282,13 +291,36 @@ export class CoverWorkflow {
     file: VaultFileRef,
     artifact: Readonly<RenderArtifact>,
     supplementalPrompt = '',
-    selection: Readonly<{ includeTitle: boolean; includeDigest: boolean; presetId?: string }> = {
+    selection: Readonly<{
+      includeTitle: boolean;
+      includeDigest: boolean;
+      presetId?: string;
+      backend?: GenerationBackend;
+    }> = {
       includeTitle: true,
       includeDigest: true,
     },
     signal?: AbortSignal,
   ): Promise<Readonly<PreparedCover>> {
     const settings = this.settings.get();
+    const backend = selection.backend ?? settings.imageGenerationBackend;
+    const title = selection.includeTitle ? artifact.metadata.title : '';
+    const digest = selection.includeDigest ? artifact.metadata.digest : '';
+    if (backend === 'codex') {
+      if (this.localGenerator === undefined) {
+        throw new CodexRuntimeError('CODEX_IMAGEGEN_UNAVAILABLE');
+      }
+      const generated = await this.localGenerator.generate({
+        title,
+        digest,
+        supplementalPrompt,
+        includeTitle: selection.includeTitle,
+        includeDigest: selection.includeDigest,
+        ...(selection.presetId === undefined ? {} : { presetId: selection.presetId }),
+        ...(signal === undefined ? {} : { signal }),
+      });
+      return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));
+    }
     const service = imageService(settings);
     if (service === null) throw new Error('图片模型尚未配置。');
     if (service.requestFormat !== 'agnes-images' && service.requestFormat !== 'openai-images') {
@@ -298,8 +330,6 @@ export class CoverWorkflow {
     if (apiKey === null) {
       throw new CoverGenerationError('IMAGE_PROVIDER_KEY_MISSING', 'Image provider API key is not configured.');
     }
-    const title = selection.includeTitle ? artifact.metadata.title : '';
-    const digest = selection.includeDigest ? artifact.metadata.digest : '';
     const generated = await this.generator.generate({
       provider: service.provider,
       requestFormat: service.requestFormat,

@@ -6,6 +6,7 @@ import {
   COVER_PROMPT_PRESETS,
   DEFAULT_COVER_PROMPT_PRESET_ID,
 } from '../cover/cover-prompt-presets';
+import type { GenerationBackend } from '../settings/model';
 
 export interface AiCoverSource {
   title: string;
@@ -34,6 +35,7 @@ export interface AiCoverGenerationSelection {
   includeTitle: boolean;
   includeDigest: boolean;
   presetId: string;
+  backend?: GenerationBackend;
 }
 
 function supplemental(value: string | undefined): string {

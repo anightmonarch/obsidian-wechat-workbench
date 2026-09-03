@@ -8,6 +8,8 @@ import { CoverStorage } from './cover/cover-storage';
 import { CoverWorkflow } from './cover/cover-workflow';
 import { ElectronImagePort } from './cover/electron-image-port';
 import { OpenAiImageGenerator } from './cover/openai-image-generator';
+import { CodexGeneratedImageStore } from './cover/codex-generated-image-store';
+import { CodexImageGenerator } from './cover/codex-image-generator';
 import {
   IMAGE_PROVIDER_TIMEOUT_MS,
   TEXT_PROVIDER_TIMEOUT_MS,
@@ -241,6 +243,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         get: () => ({
           globalDefaultCoverPath: this.pluginSettings.globalDefaultCoverPath,
           aiProviders: this.pluginSettings.aiProviders,
+          imageGenerationBackend: this.pluginSettings.imageGenerationBackend,
         }),
       },
       {
@@ -248,6 +251,11 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         has: kind => kind !== undefined && secretStore.get(kind) !== null,
       },
       remoteImages,
+      new CodexImageGenerator(
+        codexExec,
+        new CodexGeneratedImageStore(),
+        () => currentSettings().localCodex.executablePath,
+      ),
     );
     const publisher = new PublishWorkflow(
       {
