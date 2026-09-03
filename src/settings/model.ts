@@ -4,6 +4,12 @@ export type DefaultCoverStrategy = 'article' | 'first-image' | 'global-default';
 
 export type AiServiceKind = 'text' | 'image';
 
+export type GenerationBackend = 'api' | 'codex';
+
+export interface LocalCodexSettings {
+  executablePath: string;
+}
+
 export type AiProviderId = 'agnes' | 'deepseek';
 
 export type AiRequestFormat = 'openai-chat-completions' | 'agnes-images' | 'openai-images';
@@ -143,7 +149,7 @@ export interface RecoveryReceiptRecord {
 }
 
 export interface PluginSettings {
-  readonly schemaVersion: 5;
+  readonly schemaVersion: 6;
   appId: string;
   defaultThemeId: string;
   defaultStyle: Readonly<ArticleStyleConfig>;
@@ -155,6 +161,9 @@ export interface PluginSettings {
   globalDefaultCoverPath: string;
   accountDisplayName: string;
   accountVerification: Readonly<AccountVerificationRecord> | null;
+  textGenerationBackend: GenerationBackend;
+  imageGenerationBackend: GenerationBackend;
+  localCodex: Readonly<LocalCodexSettings>;
   aiProviders: Readonly<AiProviderSettings>;
   accessTokenExpiresAt: number | null;
   accountHash: string | null;
@@ -163,7 +172,7 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
-  schemaVersion: 5,
+  schemaVersion: 6,
   appId: '',
   defaultThemeId: 'native',
   defaultStyle: Object.freeze({
@@ -193,6 +202,9 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   globalDefaultCoverPath: '',
   accountDisplayName: '',
   accountVerification: null,
+  textGenerationBackend: 'api',
+  imageGenerationBackend: 'api',
+  localCodex: Object.freeze({ executablePath: '' }),
   aiProviders: defaultAiProviders(),
   accessTokenExpiresAt: null,
   accountHash: null,

@@ -28,7 +28,7 @@ describe('SettingsStore', () => {
       recoveryReceipts: [],
     })).load();
 
-    expect(settings.schemaVersion).toBe(5);
+    expect(settings.schemaVersion).toBe(6);
     expect(settings.appId).toBe('wx-public-id');
     expect(settings.defaultThemeId).toBe('technical');
     expect(settings.defaultStyle).toEqual(DEFAULT_ARTICLE_STYLE);
@@ -44,7 +44,7 @@ describe('SettingsStore', () => {
     })).load();
 
     expect(settings).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       accountDisplayName: '',
       accountVerification: null,
     });
@@ -76,6 +76,56 @@ describe('SettingsStore', () => {
       model: 'saved-image-model',
       requestFormat: 'agnes-images',
     });
+  });
+
+  it('migrates schema v5 to API backends without changing providers', async () => {
+    const storedProviders = {
+      text: {
+        activeProvider: 'deepseek',
+        providers: {
+          agnes: {},
+          deepseek: {
+            baseUrl: 'https://api.deepseek.com',
+            model: 'deepseek-v4-flash',
+          },
+        },
+      },
+      image: {
+        activeProvider: 'agnes',
+        providers: {
+          agnes: {
+            baseUrl: 'https://apihub.agnes-ai.com/v1',
+            model: 'agnes-image-2.1-flash',
+          },
+          deepseek: {},
+        },
+      },
+    };
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 5,
+      aiProviders: storedProviders,
+    })).load();
+
+    expect(settings.schemaVersion).toBe(6);
+    expect(settings.textGenerationBackend).toBe('api');
+    expect(settings.imageGenerationBackend).toBe('api');
+    expect(settings.localCodex).toEqual({ executablePath: '' });
+    expect(settings.aiProviders.text.activeProvider).toBe('deepseek');
+    expect(settings.aiProviders.image.activeProvider).toBe('agnes');
+  });
+
+  it('sanitizes schema v6 backends and trims the configured Codex path', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      ...DEFAULT_SETTINGS,
+      schemaVersion: 6,
+      textGenerationBackend: 'unknown',
+      imageGenerationBackend: 'codex',
+      localCodex: { executablePath: '  /opt/homebrew/bin/codex  ' },
+    })).load();
+
+    expect(settings.textGenerationBackend).toBe('api');
+    expect(settings.imageGenerationBackend).toBe('codex');
+    expect(settings.localCodex).toEqual({ executablePath: '/opt/homebrew/bin/codex' });
   });
 
   it('drops malformed verification records and unsupported provider selections', async () => {

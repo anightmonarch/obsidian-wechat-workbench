@@ -3,6 +3,7 @@ import {
   DEFAULT_SETTINGS,
   type AccountVerificationRecord,
   type DefaultCoverStrategy,
+  type GenerationBackend,
   type MediaCacheRecord,
   type PluginSettings,
   type RecoveryReceiptRecord,
@@ -34,6 +35,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
+}
+
+function generationBackend(value: unknown): GenerationBackend {
+  return value === 'codex' ? 'codex' : 'api';
+}
+
+function localCodexSettings(value: unknown): Readonly<PluginSettings['localCodex']> {
+  const stored = isRecord(value) ? value : {};
+  return Object.freeze({
+    executablePath: stringValue(stored.executablePath, '').trim(),
+  });
 }
 
 function sanitizedProviderBaseUrl(value: unknown): string {
@@ -221,15 +233,17 @@ function sanitizeSettings(value: unknown): PluginSettings {
   const schemaVersion = isRecord(value) && (
     value.schemaVersion === 1 || value.schemaVersion === 2
     || value.schemaVersion === 3 || value.schemaVersion === 4 || value.schemaVersion === 5
+    || value.schemaVersion === 6
   )
     ? value.schemaVersion
     : 0;
   const stored = isRecord(value) && (schemaVersion === 1 || schemaVersion === 2
-    || schemaVersion === 3 || schemaVersion === 4 || schemaVersion === 5)
+    || schemaVersion === 3 || schemaVersion === 4 || schemaVersion === 5
+    || schemaVersion === 6)
     ? value
     : {};
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
     defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
@@ -250,6 +264,15 @@ function sanitizeSettings(value: unknown): PluginSettings {
       DEFAULT_SETTINGS.accountDisplayName,
     ),
     accountVerification: schemaVersion >= 3 ? accountVerification(stored.accountVerification) : null,
+    textGenerationBackend: schemaVersion >= 6
+      ? generationBackend(stored.textGenerationBackend)
+      : DEFAULT_SETTINGS.textGenerationBackend,
+    imageGenerationBackend: schemaVersion >= 6
+      ? generationBackend(stored.imageGenerationBackend)
+      : DEFAULT_SETTINGS.imageGenerationBackend,
+    localCodex: schemaVersion >= 6
+      ? localCodexSettings(stored.localCodex)
+      : DEFAULT_SETTINGS.localCodex,
     aiProviders: schemaVersion >= 5 ? providerSettings(stored.aiProviders) : defaultAiProviders(),
     accessTokenExpiresAt: nullableNumber(
       stored.accessTokenExpiresAt,
