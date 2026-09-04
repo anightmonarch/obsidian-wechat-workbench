@@ -98,13 +98,14 @@ export class CodexExecClient implements CodexExecPort {
           'exec', '--ephemeral', '--sandbox', request.sandbox, '--skip-git-repo-check',
           '--ignore-rules', '--ignore-user-config', '--disable', 'shell_tool',
           '--disable', 'apps', '--disable', 'browser_use', '--disable', 'computer_use',
-          '--disable', 'plugins', ...imageArguments, '--json', request.prompt,
+          '--disable', 'plugins', ...imageArguments, '--json', '-',
         ],
         cwd,
         timeoutMs: request.timeoutMs,
         maxStdoutBytes: 2 * 1024 * 1024,
         maxStderrBytes: 512 * 1024,
         env: codexEnvironment(this.environment()),
+        stdin: request.prompt,
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
       if (result.exitCode !== 0) {

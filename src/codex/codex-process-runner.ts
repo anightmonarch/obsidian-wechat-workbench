@@ -11,6 +11,7 @@ export interface CodexRunRequest {
   maxStdoutBytes: number;
   maxStderrBytes: number;
   env: Readonly<Record<string, string>>;
+  stdin?: string;
   signal?: AbortSignal;
 }
 
@@ -122,7 +123,7 @@ export class CodexProcessRunner implements CodexProcessRunnerPort {
         }));
       }));
       request.signal?.addEventListener('abort', onAbort, { once: true });
-      child.stdin.end();
+      child.stdin.end(request.stdin);
     });
   }
 }

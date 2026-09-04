@@ -21,7 +21,7 @@ function clientFor(result: Awaited<ReturnType<CodexProcessRunnerPort['run']>>) {
 }
 
 describe('CodexExecClient', () => {
-  it('uses stable restricted arguments and a minimal environment', async () => {
+  it('uses stable restricted arguments, sends the prompt through stdin, and keeps a minimal environment', async () => {
     const fixture = clientFor({
       exitCode: 0,
       stdout: [
@@ -45,8 +45,10 @@ describe('CodexExecClient', () => {
       'exec', '--ephemeral', '--sandbox', 'read-only', '--skip-git-repo-check',
       '--ignore-rules', '--ignore-user-config', '--disable', 'shell_tool',
       '--disable', 'apps', '--disable', 'browser_use', '--disable', 'computer_use',
-      '--disable', 'plugins', '--disable', 'image_generation', '--json', 'synthetic prompt',
+      '--disable', 'plugins', '--disable', 'image_generation', '--json', '-',
     ]);
+    expect(request?.stdin).toBe('synthetic prompt');
+    expect(request?.args).not.toContain('synthetic prompt');
     expect(request?.env).toEqual({ HOME: '/home/user', PATH: '/bin' });
     expect(fixture.temporary.remove).toHaveBeenCalledWith('/tmp/wechat-workbench-codex-test');
   });

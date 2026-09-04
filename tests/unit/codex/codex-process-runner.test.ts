@@ -35,7 +35,7 @@ describe('CodexProcessRunner', () => {
     const spawn = spawnMock as unknown as CodexSpawn;
     const runner = new CodexProcessRunner(spawn);
 
-    const pending = runner.run(request());
+    const pending = runner.run(request({ stdin: 'private prompt' }));
     child.stdout.end('codex-cli 0.141.0');
     child.stderr.end('warning');
     child.emit('close', 0, null);
@@ -52,7 +52,7 @@ describe('CodexProcessRunner', () => {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    expect(child.stdin.end).toHaveBeenCalledOnce();
+    expect(child.stdin.end).toHaveBeenCalledWith('private prompt');
     expect(JSON.stringify(spawnMock.mock.calls[0]?.[2])).not.toContain('API_KEY');
   });
 
