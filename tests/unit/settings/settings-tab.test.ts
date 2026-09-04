@@ -10,6 +10,7 @@ import type { AccountConnectionService } from '../../../src/settings/account-con
 import type { SecretStore } from '../../../src/settings/secret-store';
 import type { AiServiceSettingsService } from '../../../src/settings/ai-service-settings';
 import { PublicError } from '../../../src/wechat/errors';
+import type { CodexCapabilityPort } from '../../../src/codex/codex-capability-service';
 
 function createHarness() {
   const settings = {
@@ -56,6 +57,14 @@ function createHarness() {
   };
   const copyIp = vi.fn();
   const openConsole = vi.fn(async () => undefined);
+  const detectCodex = vi.fn(async () => ({
+    available: true,
+    executablePath: '/opt/homebrew/bin/codex',
+    version: 'codex-cli 0.141.0',
+    imageGeneration: true,
+    errorCode: null,
+  }));
+  const codex: CodexCapabilityPort = { detect: detectCodex };
   const access: SettingsAccess = { get: () => settings.current, update: settings.update };
   const tab = new WeChatWorkbenchSettingTab(
     {} as never,
@@ -66,8 +75,9 @@ function createHarness() {
     ai as unknown as AiServiceSettingsService,
     copyIp,
     openConsole,
+    codex,
   );
-  return { tab, settings, secrets, connection, access, ai, copyIp, openConsole };
+  return { tab, settings, secrets, connection, access, ai, copyIp, openConsole, detectCodex };
 }
 
 function button(host: ParentNode, testId: string): HTMLButtonElement {
@@ -297,6 +307,61 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.querySelector('[data-testid="ai-text-provider-agnes"]')).not.toBeNull();
       expect(tab.containerEl.querySelector('[data-testid="ai-text-provider-deepseek"]')).not.toBeNull();
       expect(input(tab.containerEl, 'ai-text-agnes-base-url')).toBeTruthy();
+      expect(button(tab.containerEl, 'ai-text-backend-api').classList.contains('is-active')).toBe(true);
+      expect(button(tab.containerEl, 'ai-text-backend-codex').textContent).toBe('本地 Codex');
+    });
+
+    it('persists text and image backend defaults independently', async () => {
+      const { tab, settings } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'ai-text-backend-codex').click();
+      await vi.waitFor(() => expect(settings.update).toHaveBeenCalledWith({
+        textGenerationBackend: 'codex',
+      }));
+      expect(tab.containerEl.querySelector('[data-testid="codex-card-text"]')).not.toBeNull();
+
+      button(tab.containerEl, 'ai-mode-image').click();
+      button(tab.containerEl, 'ai-image-backend-codex').click();
+      await vi.waitFor(() => expect(settings.update).toHaveBeenCalledWith({
+        imageGenerationBackend: 'codex',
+      }));
+      expect(settings.current.textGenerationBackend).toBe('codex');
+      expect(settings.current.imageGenerationBackend).toBe('codex');
+    });
+
+    it('auto-detects the local Codex path, version and image capability without generation', async () => {
+      const { tab, detectCodex } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'ai-text-backend-codex').click();
+
+      await vi.waitFor(() => expect(detectCodex).toHaveBeenCalledWith(''));
+      const status = tab.containerEl.querySelector<HTMLElement>('[data-testid="codex-status-text"]');
+      expect(status?.textContent).toContain('已发现本地 Codex');
+      expect(status?.textContent).toContain('codex-cli 0.141.0');
+      expect(status?.textContent).toContain('图片生成已启用');
+      expect(input(tab.containerEl, 'codex-executable-path').placeholder).toContain('/opt/homebrew/bin/codex');
+    });
+
+    it('saves a custom executable path before re-detecting', async () => {
+      const { tab, settings, detectCodex } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+      button(tab.containerEl, 'ai-text-backend-codex').click();
+      await vi.waitFor(() => expect(detectCodex).toHaveBeenCalledWith(''));
+      await vi.waitFor(() => expect(button(tab.containerEl, 'codex-detect').disabled).toBe(false));
+      const path = input(tab.containerEl, 'codex-executable-path');
+      path.value = '/custom/codex';
+
+      button(tab.containerEl, 'codex-detect').click();
+
+      await vi.waitFor(() => expect(settings.update).toHaveBeenCalledWith({
+        localCodex: { executablePath: '/custom/codex' },
+      }));
+      await vi.waitFor(() => expect(detectCodex).toHaveBeenCalledWith('/custom/codex'));
     });
 
     it('saves a text provider profile and makes it the current text binding', async () => {

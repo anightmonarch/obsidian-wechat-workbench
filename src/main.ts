@@ -35,6 +35,7 @@ import { CodexTextGenerator } from './ai/codex-text-generator';
 import { CodexExecClient } from './codex/codex-exec-client';
 import { CodexLocator } from './codex/codex-locator';
 import { CodexProcessRunner } from './codex/codex-process-runner';
+import { CodexCapabilityService } from './codex/codex-capability-service';
 import { createAiProviderHttpTransport } from './ai/provider-http-transport';
 import { accountHashForAppId } from './settings/account';
 import { AiServiceSettingsService } from './settings/ai-service-settings';
@@ -186,7 +187,9 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       clear: kind => secretStore.clear(kind),
     }, new OpenAiModelCatalog(textProviderHttp));
     const codexProcess = new CodexProcessRunner();
-    const codexExec = new CodexExecClient(new CodexLocator(codexProcess), codexProcess);
+    const codexLocator = new CodexLocator(codexProcess);
+    const codexExec = new CodexExecClient(codexLocator, codexProcess);
+    const codexCapabilities = new CodexCapabilityService(codexLocator, codexProcess);
     const articleText = new ArticleTextGenerationService(
       { get: () => ({
         aiProviders: currentSettings().aiProviders,
@@ -350,6 +353,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       aiService,
       value => new ElectronClipboardPort().write({ text: value }),
       openConsole,
+      codexCapabilities,
     ));
   }
 }

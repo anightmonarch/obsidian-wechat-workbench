@@ -8,12 +8,19 @@ import {
   type SettingDefinitionItem,
 } from 'obsidian';
 
-import { aiProvidersFor, type AiProviderId, type AiServiceKind, type PluginSettings } from './model';
+import {
+  aiProvidersFor,
+  type AiProviderId,
+  type AiServiceKind,
+  type GenerationBackend,
+  type PluginSettings,
+} from './model';
 import type { AccountConnectionService } from './account-connection-service';
 import type { AiServiceSettingsService } from './ai-service-settings';
 import type { SecretKind, SecretStatus, SecretStore } from './secret-store';
 import { AccountDisconnectModal } from '../ui/account-disconnect-modal';
 import { PublicError } from '../wechat/errors';
+import type { CodexCapabilityPort } from '../codex/codex-capability-service';
 
 export interface SettingsAccess {
   get(): Readonly<PluginSettings>;
@@ -82,6 +89,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     private readonly aiService: AiServiceSettingsService,
     private readonly copyText: (value: string) => void = () => undefined,
     private readonly openConsole: () => Promise<void> = async () => undefined,
+    private readonly codex?: CodexCapabilityPort,
   ) {
     super(app, plugin);
   }
@@ -168,7 +176,14 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         cls: 'wechat-workbench-settings__ai-mode-description',
         text: kind === 'text' ? '用于发布设置中的生成标题、生成摘要。' : '用于发布设置中的智能生成封面。',
       }));
-      disposeMode = appendAiProviderPanel(content, kind, this.settings.get(), this.secrets, this.aiService);
+      disposeMode = appendAiBackendPanel(
+        content,
+        kind,
+        this.settings,
+        this.secrets,
+        this.aiService,
+        this.codex,
+      );
     };
     shell.append(modes, content);
     container.append(shell);
@@ -338,6 +353,153 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     accountCard.append(statusBlock);
     container.append(accountCard);
   }
+}
+
+function selectedBackend(settings: Readonly<PluginSettings>, kind: AiServiceKind): GenerationBackend {
+  return kind === 'text' ? settings.textGenerationBackend : settings.imageGenerationBackend;
+}
+
+const LOCAL_CODEX_LABEL = '本地 Codex';
+
+function appendAiBackendPanel(
+  container: HTMLElement,
+  kind: AiServiceKind,
+  settings: SettingsAccess,
+  secrets: SecretStore,
+  service: AiServiceSettingsService,
+  codex?: CodexCapabilityPort,
+): () => void {
+  const shell = createDiv('wechat-workbench-settings__ai-backend-shell');
+  const selector = createDiv('wechat-workbench-settings__ai-backend-selector');
+  const content = createDiv('wechat-workbench-settings__ai-backend-content');
+  let backend = selectedBackend(settings.get(), kind);
+  let disposeContent: (() => void) | null = null;
+  let disposed = false;
+
+  const render = (): void => {
+    disposeContent?.();
+    disposeContent = null;
+    selector.replaceChildren();
+    content.replaceChildren();
+    for (const item of [
+      { id: 'api' as const, label: '原始 API' },
+      { id: 'codex' as const, label: LOCAL_CODEX_LABEL },
+    ]) {
+      const button = createEl('button', { text: item.label });
+      button.type = 'button';
+      button.dataset.testid = `ai-${kind}-backend-${item.id}`;
+      button.classList.toggle('is-active', backend === item.id);
+      button.addEventListener('click', () => {
+        if (backend === item.id) return;
+        const previous = backend;
+        backend = item.id;
+        render();
+        const patch = kind === 'text'
+          ? { textGenerationBackend: item.id }
+          : { imageGenerationBackend: item.id };
+        void settings.update(patch).catch(() => {
+          if (disposed || backend !== item.id) return;
+          backend = previous;
+          render();
+        });
+      });
+      selector.append(button);
+    }
+    disposeContent = backend === 'api'
+      ? appendAiProviderPanel(content, kind, settings.get(), secrets, service)
+      : appendCodexPanel(content, kind, settings, codex);
+  };
+
+  shell.append(selector, content);
+  container.append(shell);
+  render();
+  return () => {
+    disposed = true;
+    disposeContent?.();
+    disposeContent = null;
+  };
+}
+
+function appendCodexPanel(
+  container: HTMLElement,
+  kind: AiServiceKind,
+  settings: SettingsAccess,
+  codex?: CodexCapabilityPort,
+): () => void {
+  const card = createDiv('wechat-workbench-settings__codex-card');
+  card.dataset.testid = `codex-card-${kind}`;
+  card.append(createEl('h3', { text: LOCAL_CODEX_LABEL }));
+  card.append(createEl('p', {
+    cls: 'setting-item-description',
+    text: kind === 'text'
+      ? '复用本机已登录的 Codex 生成标题和摘要，不需要在插件中填写 OpenAI API Key。'
+      : '复用本机 Codex 的图片生成能力生成封面，可能消耗当前 Codex 账号额度。',
+  }));
+  const field = createDiv('wechat-workbench-settings__ai-field');
+  field.append(createEl('label', { text: 'Codex 可执行文件' }));
+  const input = createEl('input');
+  input.type = 'text';
+  input.dataset.testid = 'codex-executable-path';
+  input.value = settings.get().localCodex.executablePath;
+  input.placeholder = '留空则自动检测 codex';
+  field.append(input);
+  const actions = createDiv('wechat-workbench-settings__codex-actions');
+  const detect = createEl('button', { text: '重新检测' });
+  detect.type = 'button';
+  detect.dataset.testid = 'codex-detect';
+  const status = createEl('p', {
+    cls: 'wechat-workbench-settings__codex-status',
+    text: `正在检测${LOCAL_CODEX_LABEL}…`,
+  });
+  status.dataset.testid = 'codex-status-text';
+  actions.append(detect);
+  card.append(field, actions, status);
+  container.append(card);
+  let generation = 0;
+  let disposed = false;
+
+  const runDetection = async (persistPath: boolean): Promise<void> => {
+    const requestedGeneration = ++generation;
+    const executablePath = input.value.trim();
+    detect.disabled = true;
+    status.textContent = `正在检测${LOCAL_CODEX_LABEL}…`;
+    if (persistPath) {
+      await settings.update({ localCodex: Object.freeze({ executablePath }) });
+    }
+    if (codex === undefined) {
+      if (!disposed && requestedGeneration === generation) {
+        status.textContent = `当前环境无法检测${LOCAL_CODEX_LABEL}。`;
+        detect.disabled = false;
+      }
+      return;
+    }
+    const result = await codex.detect(executablePath);
+    if (disposed || requestedGeneration !== generation) return;
+    if (!result.available) {
+      status.textContent = `未检测到${LOCAL_CODEX_LABEL}，请先安装或填写可执行文件路径。`;
+    } else {
+      const imageStatus = result.imageGeneration ? '图片生成已启用' : '图片生成未启用';
+      status.textContent = `已发现本地 Codex · ${result.version ?? '版本未知'} · ${imageStatus}`;
+      if (result.executablePath !== null) input.placeholder = result.executablePath;
+    }
+    detect.disabled = false;
+  };
+  detect.addEventListener('click', () => {
+    void runDetection(true).catch(() => {
+      if (disposed) return;
+      status.textContent = `检测失败，请检查 ${LOCAL_CODEX_LABEL} 路径后重试。`;
+      detect.disabled = false;
+    });
+  });
+  void runDetection(false).catch(() => {
+    if (disposed) return;
+    status.textContent = `检测失败，请检查 ${LOCAL_CODEX_LABEL} 路径后重试。`;
+    detect.disabled = false;
+  });
+  return () => {
+    disposed = true;
+    generation += 1;
+  };
 }
 
 function appendAiProviderPanel(
