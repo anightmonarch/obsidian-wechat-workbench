@@ -1,5 +1,6 @@
 import type { ArticleDraftValues, EditableArticleSettings, NoteSnapshot } from '../domain/article';
 import type { RenderArtifact } from '../domain/artifact';
+import type { GenerationBackend } from '../settings/model';
 
 export interface ArticleSettingsFormState {
   snapshot: Pick<NoteSnapshot, 'frontmatter'>;
@@ -8,8 +9,12 @@ export interface ArticleSettingsFormState {
 
 export interface ArticleSettingsFormActions {
   saveArticle(settings: Readonly<EditableArticleSettings>): Promise<void>;
-  generateTitles?(draft: Readonly<ArticleDraftValues>): Promise<readonly string[]>;
-  generateDigest?(draft: Readonly<ArticleDraftValues>): Promise<string>;
+  textGenerationBackend?: GenerationBackend;
+  generateTitles?(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+  ): Promise<readonly string[]>;
+  generateDigest?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<string>;
 }
 
 type EditableField = HTMLInputElement | HTMLTextAreaElement;
@@ -45,6 +50,13 @@ function textGenerationErrorMessage(error: unknown): string {
     case 'AI_TEXT_PROVIDER_URL_INVALID':
       return '文本服务未配置完整，请到插件设置检查';
     case 'AI_TEXT_GENERATION_CANCELLED': return '已取消生成';
+    case 'CODEX_NOT_FOUND': return '未检测到本地 Codex，请先安装 Codex CLI 或在插件设置中指定路径';
+    case 'CODEX_NOT_AUTHENTICATED': return '本地 Codex 尚未登录，请先在终端完成登录';
+    case 'CODEX_TIMEOUT': return '本地 Codex 生成超时，请稍后重试';
+    case 'CODEX_CANCELLED': return '已取消本地 Codex 生成';
+    case 'CODEX_OUTPUT_TOO_LARGE': return '本地 Codex 返回内容超过安全上限，请缩短文章后重试';
+    case 'CODEX_OUTPUT_INVALID': return '本地 Codex 返回格式异常，请重新生成';
+    case 'CODEX_PROCESS_FAILED': return '本地 Codex 执行失败，请检查登录状态后重试';
     default: return '生成失败，请稍后重试';
   }
 }
@@ -106,6 +118,8 @@ export class ArticleSettingsForm {
   private digestError: string | null = null;
   private titleGeneration = 0;
   private digestGeneration = 0;
+  private titleBackend: GenerationBackend;
+  private digestBackend: GenerationBackend;
   private latestState: Readonly<ArticleSettingsFormState>;
   private latestActions: Readonly<ArticleSettingsFormActions>;
 
@@ -116,6 +130,8 @@ export class ArticleSettingsForm {
   ) {
     this.latestState = state;
     this.latestActions = actions;
+    this.titleBackend = actions.textGenerationBackend ?? 'api';
+    this.digestBackend = actions.textGenerationBackend ?? 'api';
     this.root = createEl('section', { cls: 'wechat-workbench__settings-section' });
     this.root.classList.add('wechat-workbench__article-settings-section');
     const heading = createEl('h2', { text: '文章信息' });
@@ -125,9 +141,13 @@ export class ArticleSettingsForm {
     const titleHeader = createDiv('wechat-workbench__ai-field-header');
     const titleLabel = createEl('label', { text: '标题' });
     titleLabel.htmlFor = 'settings-title-input';
-    titleHeader.append(titleLabel, this.aiButton(
-      'settings-title-ai', '生成标题', () => { void this.generateTitles(); },
-      actions.generateTitles !== undefined,
+    titleHeader.append(titleLabel, this.aiControls(
+      'settings-title-backend', this.titleBackend,
+      backend => { this.titleBackend = backend; },
+      this.aiButton(
+        'settings-title-ai', '生成标题', () => { void this.generateTitles(); },
+        actions.generateTitles !== undefined,
+      ),
     ));
     this.title = createEl('input');
     this.title.id = 'settings-title-input';
@@ -152,9 +172,13 @@ export class ArticleSettingsForm {
     const digestHeader = createDiv('wechat-workbench__ai-field-header');
     const digestLabel = createEl('label', { text: '摘要' });
     digestLabel.htmlFor = 'settings-digest-input';
-    digestHeader.append(digestLabel, this.aiButton(
-      'settings-digest-ai', '生成摘要', () => { void this.generateDigest(); },
-      actions.generateDigest !== undefined,
+    digestHeader.append(digestLabel, this.aiControls(
+      'settings-digest-backend', this.digestBackend,
+      backend => { this.digestBackend = backend; },
+      this.aiButton(
+        'settings-digest-ai', '生成摘要', () => { void this.generateDigest(); },
+        actions.generateDigest !== undefined,
+      ),
     ));
     this.digest = createEl('textarea');
     this.digest.id = 'settings-digest-input';
@@ -219,6 +243,27 @@ export class ArticleSettingsForm {
     return button;
   }
 
+  private aiControls(
+    testId: string,
+    value: GenerationBackend,
+    onChange: (backend: GenerationBackend) => void,
+    button: HTMLButtonElement,
+  ): HTMLElement {
+    const controls = createDiv('wechat-workbench__generation-controls');
+    const select = createEl('select');
+    select.dataset.testid = testId;
+    select.setAttribute('aria-label', '本次生成来源');
+    for (const [backend, label] of [['api', '原始 API'], ['codex', '本地 Codex']] as const) {
+      const option = createEl('option', { text: label });
+      option.value = backend;
+      select.append(option);
+    }
+    select.value = value;
+    select.addEventListener('change', () => onChange(select.value as GenerationBackend));
+    controls.append(select, button);
+    return controls;
+  }
+
   private scheduleSave(): void {
     this.inputRevision += 1;
     this.hasPendingEdit = true;
@@ -259,7 +304,7 @@ export class ArticleSettingsForm {
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
     if (button !== null) button.disabled = true;
     try {
-      const values = await generate(this.draftValues());
+      const values = await generate(this.draftValues(), this.titleBackend);
       if (generation !== this.titleGeneration) return;
       this.titleOptions = Object.freeze(values.slice(0, 3));
       this.titleLoading = false;
@@ -322,7 +367,7 @@ export class ArticleSettingsForm {
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]');
     if (button !== null) button.disabled = true;
     try {
-      const value = await generate(this.draftValues());
+      const value = await generate(this.draftValues(), this.digestBackend);
       if (generation !== this.digestGeneration) return;
       this.digestOption = digestLimit(value.trim());
       this.digestLoading = false;

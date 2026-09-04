@@ -38,6 +38,14 @@ export interface AiCoverGenerationSelection {
   backend?: GenerationBackend;
 }
 
+export interface AiCoverBackendOptions {
+  defaultBackend: GenerationBackend;
+  disclosureFor(
+    backend: GenerationBackend,
+    supplementalPrompt: string,
+  ): Readonly<AiCoverDisclosure>;
+}
+
 function supplemental(value: string | undefined): string {
   const sanitized = [...(value ?? '')].map(character => {
     const code = character.codePointAt(0) ?? 0;
@@ -86,6 +94,26 @@ export function aiCoverFailureMessage(error: unknown): string {
   if (code.startsWith('REMOTE_')) {
     return '图片已生成，但生成结果无法安全下载，请手动重试或更换模型。';
   }
+  if (code === 'CODEX_NOT_FOUND') {
+    return '未检测到本地 Codex，请先安装 Codex CLI 或在插件设置中指定路径。';
+  }
+  if (code === 'CODEX_NOT_AUTHENTICATED') {
+    return '本地 Codex 尚未登录，请先在终端完成登录。';
+  }
+  if (code === 'CODEX_IMAGEGEN_UNAVAILABLE') {
+    return '当前本地 Codex 不支持图像生成，请更新 Codex 后重试。';
+  }
+  if (code === 'CODEX_TIMEOUT') return '本地 Codex 生成超时，请手动重试。';
+  if (code === 'CODEX_CANCELLED') return '已取消本地 Codex 封面生成。';
+  if (code === 'CODEX_IMAGE_NOT_FOUND') {
+    return '本地 Codex 未生成可用图片，请调整要求后重试。';
+  }
+  if (code === 'CODEX_OUTPUT_TOO_LARGE') {
+    return '本地 Codex 输出超过安全上限，请调整要求后重试。';
+  }
+  if (code === 'CODEX_OUTPUT_INVALID' || code === 'CODEX_PROCESS_FAILED') {
+    return '本地 Codex 执行失败，请检查登录状态并重试。';
+  }
   return '智能封面生成失败，请检查图片服务配置后重试。';
 }
 
@@ -111,6 +139,27 @@ export function buildAiCoverDisclosure(
   });
 }
 
+export function buildCodexCoverDisclosure(
+  source: Readonly<AiCoverSource>,
+): Readonly<AiCoverDisclosure> {
+  const supplementalPrompt = supplemental(source.supplementalPrompt);
+  return Object.freeze({
+    provider: '本地 Codex',
+    endpoint: '本机 Codex CLI',
+    model: 'image_generation',
+    sentFields: Object.freeze([
+      'title', 'digest',
+      ...(supplementalPrompt.length > 0 ? ['supplementalPrompt'] : []),
+    ]),
+    payload: Object.freeze({
+      title: source.title,
+      digest: source.digest,
+      supplementalPrompt,
+    }),
+    costNotice: '使用当前登录 Codex 账号的图像生成额度；插件不会读取 API Key。',
+  });
+}
+
 export class AiCoverConfirmationModal extends Modal {
   private decided = false;
   private busy = false;
@@ -120,6 +169,7 @@ export class AiCoverConfirmationModal extends Modal {
   private includeTitle = false;
   private includeDigest = false;
   private presetId = DEFAULT_COVER_PROMPT_PRESET_ID;
+  private backend: GenerationBackend;
 
   constructor(
     app: App,
@@ -127,14 +177,38 @@ export class AiCoverConfirmationModal extends Modal {
     private readonly generate: (selection: Readonly<AiCoverGenerationSelection>) => Promise<Readonly<PreparedCover>>,
     private readonly adopt: (prepared: Readonly<PreparedCover>) => Promise<void>,
     private readonly cancel: () => void = () => undefined,
+    private readonly backendOptions?: Readonly<AiCoverBackendOptions>,
   ) {
     super(app);
     this.supplementalPrompt = disclosure.payload.supplementalPrompt;
+    this.backend = backendOptions?.defaultBackend ?? 'api';
   }
 
   onOpen(): void {
     this.contentEl.replaceChildren();
     this.titleEl.textContent = '生成智能封面';
+    if (this.backendOptions !== undefined) {
+      const backendLabel = createEl('label', {
+        cls: 'wechat-workbench__cover-backend-label',
+        text: '本次生成来源',
+      });
+      const backend = createEl('select');
+      backend.dataset.testid = 'ai-cover-backend';
+      for (const [value, label] of [['api', '原始 API'], ['codex', '本地 Codex']] as const) {
+        const option = createEl('option', { text: label });
+        option.value = value;
+        backend.append(option);
+      }
+      backend.value = this.backend;
+      backend.addEventListener('change', () => {
+        this.backend = backend.value as GenerationBackend;
+        this.candidate = null;
+        this.error = null;
+        this.onOpen();
+      });
+      backendLabel.append(backend);
+      this.contentEl.append(backendLabel);
+    }
     const configRow = createDiv('wechat-workbench__cover-generation-config');
     const inclusion = createDiv('wechat-workbench__cover-content-options');
     inclusion.append(createSpan({ text: '封面图是否包含' }));
@@ -177,6 +251,7 @@ export class AiCoverConfirmationModal extends Modal {
     prompt.addEventListener('input', () => { this.supplementalPrompt = prompt.value; });
     promptLabel.append(prompt);
     this.contentEl.append(promptLabel);
+    this.contentEl.append(this.disclosureCard());
     if (this.candidate !== null) {
       const preview = createEl('img');
       preview.className = 'wechat-workbench__cover-preview';
@@ -226,6 +301,7 @@ export class AiCoverConfirmationModal extends Modal {
         includeTitle: this.includeTitle,
         includeDigest: this.includeDigest,
         presetId: this.presetId,
+        ...(this.backendOptions === undefined ? {} : { backend: this.backend }),
       });
     } catch (error) {
       this.error = aiCoverFailureMessage(error);
@@ -233,6 +309,29 @@ export class AiCoverConfirmationModal extends Modal {
       this.busy = false;
       this.onOpen();
     }
+  }
+
+  private disclosureCard(): HTMLElement {
+    const source = this.backendOptions?.disclosureFor(
+      this.backend,
+      supplemental(this.supplementalPrompt),
+    ) ?? this.disclosure;
+    const sentFields = [
+      ...(this.includeTitle ? ['标题'] : []),
+      ...(this.includeDigest ? ['摘要'] : []),
+      ...(supplemental(this.supplementalPrompt).length > 0 ? ['补充封面要求'] : []),
+    ];
+    const card = createDiv('wechat-workbench__cover-disclosure');
+    card.dataset.testid = 'ai-cover-disclosure';
+    card.append(
+      createEl('strong', { text: `${source.provider} · ${source.model}` }),
+      createSpan({ text: `服务位置：${source.endpoint}` }),
+      createSpan({
+        text: `本次发送：${sentFields.length > 0 ? sentFields.join('、') : '仅视觉主题，不发送标题或摘要'}`,
+      }),
+      createSpan({ text: source.costNotice }),
+    );
+    return card;
   }
 
   private async runAdopt(): Promise<void> {

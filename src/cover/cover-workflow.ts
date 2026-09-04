@@ -49,6 +49,7 @@ export interface CoverPickerOption {
 
 export interface CoverPickerModel {
   options: readonly Readonly<CoverPickerOption>[];
+  generationBackend: GenerationBackend;
   aiEnabled: boolean;
   aiDisabledReason: string | null;
 }
@@ -165,11 +166,10 @@ export class CoverWorkflow {
     const settings = this.settings.get();
     const service = imageService(settings);
     const firstImage = this.sources.firstImage(artifact)?.source ?? null;
-    const codexSelected = settings.imageGenerationBackend === 'codex';
-    const keyConfigured = service !== null && this.secret.has(aiSecretKind('image', service.provider));
-    const aiEnabled = codexSelected ? this.localGenerator !== undefined : service !== null && keyConfigured;
-    const aiDisabledReason = aiEnabled ? null : codexSelected
-      ? '本地 Codex 图片生成服务不可用'
+    const apiEnabled = service !== null && this.secret.has(aiSecretKind('image', service.provider));
+    const codexEnabled = this.localGenerator !== undefined;
+    const aiEnabled = apiEnabled || codexEnabled;
+    const aiDisabledReason = aiEnabled ? null
       : service === null ? '当前图片模型未配置' : '当前图片模型的 API Key 未配置';
     return Object.freeze({
       options: Object.freeze([
@@ -178,11 +178,12 @@ export class CoverWorkflow {
         Object.freeze({
           kind: 'ai',
           label: '智能生成封面',
-          sourcePath: codexSelected ? '本地 Codex' : service?.model ?? null,
+          sourcePath: settings.imageGenerationBackend === 'codex' ? '本地 Codex' : service?.model ?? null,
           enabled: aiEnabled,
           disabledReason: aiDisabledReason,
         }),
       ]),
+      generationBackend: settings.imageGenerationBackend,
       aiEnabled,
       aiDisabledReason,
     });

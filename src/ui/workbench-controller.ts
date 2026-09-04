@@ -99,7 +99,11 @@ export interface WorkbenchPublishPort {
 
 export interface WorkbenchCoverPort {
   model(snapshot: Readonly<NoteSnapshot>, artifact: Readonly<RenderArtifact>): Readonly<CoverPickerModel>;
-  disclosure(artifact: Readonly<RenderArtifact>, supplementalPrompt?: string): Readonly<AiCoverDisclosure>;
+  disclosure(
+    artifact: Readonly<RenderArtifact>,
+    supplementalPrompt?: string,
+    backend?: GenerationBackend,
+  ): Readonly<AiCoverDisclosure>;
   prepareSelection(
     file: VaultFileRef,
     snapshot: Readonly<NoteSnapshot>,
@@ -124,6 +128,7 @@ export interface WorkbenchArticleSettingsPort {
 }
 
 export interface WorkbenchAiTextPort {
+  defaultBackend?(): GenerationBackend;
   generateTitles(input: Readonly<{
     snapshot: Readonly<NoteSnapshot>;
     artifact: Readonly<RenderArtifact>;
@@ -426,15 +431,23 @@ export class WorkbenchController {
     return this.covers?.model(current.snapshot, current.artifact)
       ?? {
         options: Object.freeze([]),
+        generationBackend: 'api',
         aiEnabled: false,
         aiDisabledReason: '封面服务不可用',
       };
   }
 
-  aiCoverDisclosure(supplementalPrompt = ''): Readonly<AiCoverDisclosure> {
+  imageGenerationBackend(): GenerationBackend {
+    return this.coverPickerModel().generationBackend;
+  }
+
+  aiCoverDisclosure(
+    supplementalPrompt = '',
+    backend?: GenerationBackend,
+  ): Readonly<AiCoverDisclosure> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
-    return this.covers.disclosure(current.artifact, supplementalPrompt);
+    return this.covers.disclosure(current.artifact, supplementalPrompt, backend);
   }
 
   async prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>> {
@@ -495,6 +508,10 @@ export class WorkbenchController {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
     return this.aiText.generateTitles({ ...current, draft, ...(backend === undefined ? {} : { backend }) });
+  }
+
+  textGenerationBackend(): GenerationBackend {
+    return this.aiText?.defaultBackend?.() ?? 'api';
   }
 
   async generateDigest(

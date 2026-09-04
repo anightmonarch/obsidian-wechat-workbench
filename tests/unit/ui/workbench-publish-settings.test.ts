@@ -121,6 +121,34 @@ describe('publish settings', () => {
     expect(host.querySelector('[data-testid="settings-digest"]')?.closest('label')).toBeNull();
   });
 
+  it('uses the configured text backend by default and lets each request override it', async () => {
+    const host = document.createElement('section');
+    const generateTitles = vi.fn(async () => ['标题一', '标题二', '标题三'] as const);
+    const generateDigest = vi.fn(async () => '摘要候选');
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(),
+      saveArticle: vi.fn(async () => undefined),
+      textGenerationBackend: 'codex',
+      generateTitles,
+      generateDigest,
+    });
+
+    const titleBackend = host.querySelector<HTMLSelectElement>('[data-testid="settings-title-backend"]');
+    const digestBackend = host.querySelector<HTMLSelectElement>('[data-testid="settings-digest-backend"]');
+    expect(titleBackend?.value).toBe('codex');
+    expect(digestBackend?.value).toBe('codex');
+
+    titleBackend!.value = 'api';
+    titleBackend!.dispatchEvent(new Event('change', { bubbles: true }));
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(generateTitles).toHaveBeenCalledWith(expect.any(Object), 'api');
+    expect(generateDigest).toHaveBeenCalledWith(expect.any(Object), 'codex');
+  });
+
   it('shows an inline image-service configuration message instead of opening the cover generator', () => {
     const host = document.createElement('section');
     const generateAiCover = vi.fn();
@@ -213,6 +241,26 @@ describe('publish settings', () => {
     await Promise.resolve();
     expect(host.querySelector('[data-testid="settings-digest-candidates"]')?.textContent)
       .toContain('服务返回格式异常，请重新生成');
+  });
+
+  it('shows actionable local Codex text failures', async () => {
+    const host = document.createElement('section');
+    renderPublishSettings(host, renderState, {
+      chooseCover: vi.fn(),
+      saveArticle: vi.fn(async () => undefined),
+      textGenerationBackend: 'codex',
+      generateTitles: vi.fn(async () => {
+        throw Object.assign(new Error('private runtime detail'), { code: 'CODEX_NOT_AUTHENTICATED' });
+      }),
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(host.querySelector('[data-testid="settings-title-candidates"]')?.textContent)
+      .toContain('本地 Codex 尚未登录');
+    expect(host.textContent).not.toContain('private runtime detail');
   });
 
   it('keeps adopted candidates hidden when an earlier regeneration resolves late', async () => {

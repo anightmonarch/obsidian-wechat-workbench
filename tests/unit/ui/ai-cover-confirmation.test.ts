@@ -4,6 +4,7 @@ import {
   AiCoverConfirmationModal,
   aiCoverFailureMessage,
   buildAiCoverDisclosure,
+  buildCodexCoverDisclosure,
 } from '../../../src/ui/ai-cover-confirmation';
 import { CoverGenerationError } from '../../../src/cover/openai-image-generator';
 
@@ -60,8 +61,9 @@ describe('AI cover disclosure', () => {
     const configRow = modal.contentEl.querySelector('.wechat-workbench__cover-generation-config');
     expect(configRow?.children[0]?.textContent).toContain('封面主题');
     expect(configRow?.children[1]?.textContent).toContain('封面图是否包含');
-    expect(modal.contentEl.textContent).not.toContain('https://images.example.test/v1/images/generations');
-    expect(modal.contentEl.textContent).not.toContain('可能产生第三方费用');
+    expect(modal.contentEl.textContent).toContain('Agnes');
+    expect(modal.contentEl.textContent).toContain('https://images.example.test/v1/images/generations');
+    expect(modal.contentEl.textContent).toContain('可能产生第三方费用');
 
     const generate = [...modal.contentEl.querySelectorAll('button')]
       .find(button => button.textContent === '生成');
@@ -126,6 +128,38 @@ describe('AI cover disclosure', () => {
     expect(disclosure.sentFields).toContain('supplementalPrompt');
   });
 
+  it('switches the cover backend for only the current request and discloses the selected source', async () => {
+    const generateCover = vi.fn(async () => candidate);
+    const apiDisclosure = buildAiCoverDisclosure({ title: 'Title', digest: '' }, provider);
+    const codexDisclosure = buildCodexCoverDisclosure({ title: 'Title', digest: '' });
+    const modal = new AiCoverConfirmationModal(
+      {} as never,
+      codexDisclosure,
+      generateCover,
+      vi.fn(async () => undefined),
+      () => undefined,
+      {
+        defaultBackend: 'codex',
+        disclosureFor: backend => backend === 'codex' ? codexDisclosure : apiDisclosure,
+      },
+    );
+
+    modal.open();
+    const backend = modal.contentEl.querySelector<HTMLSelectElement>('[data-testid="ai-cover-backend"]');
+    expect(backend?.value).toBe('codex');
+    expect(modal.contentEl.textContent).toContain('本地 Codex');
+    expect(modal.contentEl.textContent).toContain('当前登录 Codex 账号');
+
+    backend!.value = 'api';
+    backend!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(modal.contentEl.textContent).toContain('Agnes');
+    modal.contentEl.querySelector<HTMLButtonElement>('button.mod-cta')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(generateCover).toHaveBeenCalledWith(expect.objectContaining({ backend: 'api' }));
+  });
+
   it.each([
     ['IMAGE_PROVIDER_KEY_MISSING', '请先在插件设置中保存当前图片供应商的 API Key。'],
     ['IMAGE_PROVIDER_AUTH_REJECTED', '图片服务拒绝鉴权，请检查当前供应商的 API Key。'],
@@ -136,6 +170,11 @@ describe('AI cover disclosure', () => {
     ['IMAGE_PROVIDER_OUTPUT_INVALID', '图片服务返回的结果格式不兼容，请更换模型或联系供应商。'],
     ['REMOTE_IMAGE_TIMEOUT', '图片已生成，但下载生成结果超时，请手动重试。'],
     ['REMOTE_IMAGE_REQUEST_FAILED', '图片已生成，但生成结果无法安全下载，请手动重试或更换模型。'],
+    ['CODEX_NOT_FOUND', '未检测到本地 Codex，请先安装 Codex CLI 或在插件设置中指定路径。'],
+    ['CODEX_NOT_AUTHENTICATED', '本地 Codex 尚未登录，请先在终端完成登录。'],
+    ['CODEX_IMAGEGEN_UNAVAILABLE', '当前本地 Codex 不支持图像生成，请更新 Codex 后重试。'],
+    ['CODEX_TIMEOUT', '本地 Codex 生成超时，请手动重试。'],
+    ['CODEX_IMAGE_NOT_FOUND', '本地 Codex 未生成可用图片，请调整要求后重试。'],
   ])('maps %s to an actionable safe message', (code, message) => {
     expect(aiCoverFailureMessage(new CoverGenerationError(code, 'private provider detail'))).toBe(message);
   });

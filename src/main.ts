@@ -58,7 +58,7 @@ import {
   openWorkbench,
   WORKBENCH_VIEW_TYPE,
 } from './ui/open-workbench';
-import { buildAiCoverDisclosure } from './ui/ai-cover-confirmation';
+import { buildAiCoverDisclosure, buildCodexCoverDisclosure } from './ui/ai-cover-confirmation';
 import { WorkbenchPreviewAssetResolver } from './ui/preview-asset-resolver';
 import { WorkbenchController } from './ui/workbench-controller';
 import { WeChatWorkbenchView } from './ui/workbench-view';
@@ -279,7 +279,18 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       prepareUpload: coverWorkflow.prepareUpload.bind(coverWorkflow),
       prepareAi: coverWorkflow.prepareAi.bind(coverWorkflow),
       confirm: coverWorkflow.confirm.bind(coverWorkflow),
-      disclosure: (artifact: Readonly<RenderArtifact>, supplementalPrompt = '') => {
+      disclosure: (
+        artifact: Readonly<RenderArtifact>,
+        supplementalPrompt = '',
+        backend = this.pluginSettings.imageGenerationBackend,
+      ) => {
+        if (backend === 'codex') {
+          return buildCodexCoverDisclosure({
+            title: artifact.metadata.title,
+            digest: artifact.metadata.digest,
+            supplementalPrompt,
+          });
+        }
         const service = resolveAiService(this.pluginSettings, 'image');
         if (service === null || (service.requestFormat !== 'agnes-images'
           && service.requestFormat !== 'openai-images')) {

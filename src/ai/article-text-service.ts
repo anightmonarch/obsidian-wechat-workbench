@@ -20,6 +20,7 @@ export interface ArticleTextGenerationInput {
 }
 
 export interface ArticleTextGenerationPort {
+  defaultBackend(): GenerationBackend;
   generateTitles(input: Readonly<ArticleTextGenerationInput>): Promise<readonly string[]>;
   generateDigest(input: Readonly<ArticleTextGenerationInput>): Promise<string>;
 }
@@ -39,6 +40,10 @@ export class ArticleTextGenerationService implements ArticleTextGenerationPort {
     private readonly generator: AiTextGenerator,
     private readonly localGenerator: LocalTextGenerator,
   ) {}
+
+  defaultBackend(): GenerationBackend {
+    return this.settings.get().textGenerationBackend;
+  }
 
   async generateTitles(input: Readonly<ArticleTextGenerationInput>): Promise<readonly string[]> {
     const operation = this.operation(input, 'title');

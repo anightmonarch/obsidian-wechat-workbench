@@ -13,6 +13,7 @@ const model: Readonly<CoverPickerModel> = Object.freeze({
     Object.freeze({ kind: 'upload' as const, label: '上传本地图片', sourcePath: null, enabled: true }),
     Object.freeze({ kind: 'ai' as const, label: '智能生成封面', sourcePath: null, enabled: true }),
   ]),
+  generationBackend: 'api',
   aiEnabled: true,
   aiDisabledReason: null,
 });

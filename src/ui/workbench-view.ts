@@ -33,6 +33,7 @@ import {
 import { renderPublishSettings } from './workbench-publish-settings';
 import { CoverPreviewModal } from './cover-preview-modal';
 import { StyleWorkbench } from './style-workbench';
+import type { GenerationBackend } from '../settings/model';
 
 interface WorkbenchControllerBinding {
   start(): void;
@@ -55,7 +56,8 @@ interface WorkbenchControllerBinding {
   ): Promise<Readonly<PublishOutcome>>;
   unlinkPublishAssociation(association: Readonly<DraftAssociationRef>): Promise<void>;
   coverPickerModel(): Readonly<CoverPickerModel>;
-  aiCoverDisclosure(supplementalPrompt?: string): Readonly<AiCoverDisclosure>;
+  imageGenerationBackend?(): GenerationBackend;
+  aiCoverDisclosure(supplementalPrompt?: string, backend?: GenerationBackend): Readonly<AiCoverDisclosure>;
   prepareCover(input: Readonly<CoverPickerOption>): Promise<Readonly<PreparedCover>>;
   prepareUploadCover(bytes: Uint8Array): Promise<Readonly<PreparedCover>>;
   generateAiCover(
@@ -67,8 +69,9 @@ interface WorkbenchControllerBinding {
     file: VaultFileRef,
     settings: Readonly<EditableArticleSettings>,
   ): Promise<void>;
-  generateTitles?(draft: Readonly<ArticleDraftValues>): Promise<readonly string[]>;
-  generateDigest?(draft: Readonly<ArticleDraftValues>): Promise<string>;
+  textGenerationBackend?(): GenerationBackend;
+  generateTitles?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<readonly string[]>;
+  generateDigest?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<string>;
 }
 
 let workbenchViewCounter = 0;
@@ -397,9 +400,10 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       generateAiCover: () => void this.generateAiCover(),
       coverAiDisabledReason: this.controller?.coverPickerModel().aiDisabledReason ?? '封面服务不可用',
       saveArticle: settings => this.saveArticleSettings(file, settings),
-      generateTitles: draft => this.controller?.generateTitles?.(draft)
+      textGenerationBackend: this.controller?.textGenerationBackend?.() ?? 'api',
+      generateTitles: (draft, backend) => this.controller?.generateTitles?.(draft, backend)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
-      generateDigest: draft => this.controller?.generateDigest?.(draft)
+      generateDigest: (draft, backend) => this.controller?.generateDigest?.(draft, backend)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
       resolveCoverPreview: source => typeof source === 'string'
         ? this.previewAssets?.resolveLocalImage?.(source) ?? Promise.resolve(null)
@@ -612,13 +616,22 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   private async generateAiCover(): Promise<void> {
     if (this.controller === null) return;
     const controller = this.controller;
+    const defaultBackend = controller.imageGenerationBackend?.() ?? 'api';
     new AiCoverConfirmationModal(
       this.app,
-      controller.aiCoverDisclosure(),
+      controller.aiCoverDisclosure('', defaultBackend),
       selection => controller.generateAiCover(selection.supplementalPrompt, selection),
       async prepared => {
         await controller.confirmCover(prepared);
         new Notice('智能封面已生成并采用');
+      },
+      () => undefined,
+      {
+        defaultBackend,
+        disclosureFor: (backend, supplementalPrompt) => controller.aiCoverDisclosure(
+          supplementalPrompt,
+          backend,
+        ),
       },
     ).open();
   }
