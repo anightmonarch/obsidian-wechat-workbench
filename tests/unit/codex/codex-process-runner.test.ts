@@ -8,8 +8,12 @@ import {
   type CodexSpawn,
 } from '../../../src/codex/codex-process-runner';
 
+class FakeStdin extends EventEmitter {
+  readonly end = vi.fn();
+}
+
 class FakeChild extends EventEmitter {
-  readonly stdin = { end: vi.fn() };
+  readonly stdin = new FakeStdin();
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
   readonly kill = vi.fn(() => true);
@@ -68,6 +72,18 @@ describe('CodexProcessRunner', () => {
     await rejection;
     expect(child.kill).toHaveBeenCalledOnce();
     vi.useRealTimers();
+  });
+
+  it('waits for the process result when stdin closes early with EPIPE', async () => {
+    const child = new FakeChild();
+    const runner = new CodexProcessRunner(vi.fn(() => child) as unknown as CodexSpawn);
+
+    const pending = runner.run(request({ stdin: 'private prompt' }));
+    child.stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+    child.stderr.end('Not logged in.');
+    child.emit('close', 1, null);
+
+    await expect(pending).resolves.toMatchObject({ exitCode: 1, stderr: 'Not logged in.' });
   });
 
   it('kills and rejects stdout beyond its byte limit', async () => {

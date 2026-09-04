@@ -70,8 +70,16 @@ interface WorkbenchControllerBinding {
     settings: Readonly<EditableArticleSettings>,
   ): Promise<void>;
   textGenerationBackend?(): GenerationBackend;
-  generateTitles?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<readonly string[]>;
-  generateDigest?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<string>;
+  generateTitles?(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+    signal?: AbortSignal,
+  ): Promise<readonly string[]>;
+  generateDigest?(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 let workbenchViewCounter = 0;
@@ -401,9 +409,9 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       coverAiDisabledReason: this.controller?.coverPickerModel().aiDisabledReason ?? '封面服务不可用',
       saveArticle: settings => this.saveArticleSettings(file, settings),
       textGenerationBackend: this.controller?.textGenerationBackend?.() ?? 'api',
-      generateTitles: (draft, backend) => this.controller?.generateTitles?.(draft, backend)
+      generateTitles: (draft, backend, signal) => this.controller?.generateTitles?.(draft, backend, signal)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
-      generateDigest: (draft, backend) => this.controller?.generateDigest?.(draft, backend)
+      generateDigest: (draft, backend, signal) => this.controller?.generateDigest?.(draft, backend, signal)
         ?? Promise.reject(new Error('文本生成服务不可用。')),
       resolveCoverPreview: source => typeof source === 'string'
         ? this.previewAssets?.resolveLocalImage?.(source) ?? Promise.resolve(null)

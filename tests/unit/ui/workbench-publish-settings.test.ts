@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../../mocks/obsidian';
 import { renderState } from '../../fixtures/workbench-render-state';
-import { renderPublishSettings } from '../../../src/ui/workbench-publish-settings';
+import {
+  renderPublishSettings,
+  type PublishSettingsActions,
+} from '../../../src/ui/workbench-publish-settings';
 import { publishPayloadHash } from '../../../src/publish/publish-content';
 
 describe('publish settings', () => {
@@ -145,8 +148,8 @@ describe('publish settings', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(generateTitles).toHaveBeenCalledWith(expect.any(Object), 'api');
-    expect(generateDigest).toHaveBeenCalledWith(expect.any(Object), 'codex');
+    expect(generateTitles).toHaveBeenCalledWith(expect.any(Object), 'api', expect.any(AbortSignal));
+    expect(generateDigest).toHaveBeenCalledWith(expect.any(Object), 'codex', expect.any(AbortSignal));
   });
 
   it('shows an inline image-service configuration message instead of opening the cover generator', () => {
@@ -301,7 +304,16 @@ describe('publish settings', () => {
   it('closes a title candidate session and ignores its late response', async () => {
     const host = document.createElement('section');
     let resolveTitles: ((value: readonly string[]) => void) | undefined;
-    const generateTitles = vi.fn(() => new Promise<readonly string[]>(resolve => { resolveTitles = resolve; }));
+    let generationSignal: AbortSignal | undefined;
+    const generateTitlesImplementation: NonNullable<PublishSettingsActions['generateTitles']> = (
+      _draft,
+      _backend,
+      signal,
+    ) => {
+      generationSignal = signal;
+      return new Promise<readonly string[]>(resolve => { resolveTitles = resolve; });
+    };
+    const generateTitles = vi.fn(generateTitlesImplementation);
     renderPublishSettings(host, renderState, {
       chooseCover: vi.fn(), saveArticle: vi.fn(async () => undefined), generateTitles,
     });
@@ -310,6 +322,7 @@ describe('publish settings', () => {
     const close = host.querySelector<HTMLButtonElement>('[data-testid="settings-title-candidates-close"]');
     expect(close).not.toBeNull();
     close?.click();
+    expect(generationSignal?.aborted).toBe(true);
     resolveTitles?.(['迟到标题一', '迟到标题二', '迟到标题三']);
     await Promise.resolve();
     await Promise.resolve();

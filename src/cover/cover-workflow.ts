@@ -297,6 +297,7 @@ export class CoverWorkflow {
       includeDigest: boolean;
       presetId?: string;
       backend?: GenerationBackend;
+      signal?: AbortSignal;
     }> = {
       includeTitle: true,
       includeDigest: true,
@@ -305,6 +306,7 @@ export class CoverWorkflow {
   ): Promise<Readonly<PreparedCover>> {
     const settings = this.settings.get();
     const backend = selection.backend ?? settings.imageGenerationBackend;
+    const generationSignal = signal ?? selection.signal;
     const title = selection.includeTitle ? artifact.metadata.title : '';
     const digest = selection.includeDigest ? artifact.metadata.digest : '';
     if (backend === 'codex') {
@@ -318,7 +320,7 @@ export class CoverWorkflow {
         includeTitle: selection.includeTitle,
         includeDigest: selection.includeDigest,
         ...(selection.presetId === undefined ? {} : { presetId: selection.presetId }),
-        ...(signal === undefined ? {} : { signal }),
+        ...(generationSignal === undefined ? {} : { signal: generationSignal }),
       });
       return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));
     }
@@ -341,7 +343,7 @@ export class CoverWorkflow {
       digest,
       supplementalPrompt,
       presetId: selection.presetId,
-      ...(signal === undefined ? {} : { signal }),
+      ...(generationSignal === undefined ? {} : { signal: generationSignal }),
     });
     return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));
   }

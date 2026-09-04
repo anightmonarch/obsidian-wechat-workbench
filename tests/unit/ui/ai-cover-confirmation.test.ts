@@ -70,9 +70,10 @@ describe('AI cover disclosure', () => {
     generate?.click();
     await Promise.resolve();
     await Promise.resolve();
-    expect(generateCover).toHaveBeenCalledWith({
+    expect(generateCover).toHaveBeenCalledWith(expect.objectContaining({
       supplementalPrompt: '', includeTitle: false, includeDigest: false, presetId: 'editorial-tech',
-    });
+    }));
+    expect(generateCover.mock.calls[0]?.[0]?.signal).toBeInstanceOf(AbortSignal);
     expect(modal.contentEl.querySelector<HTMLImageElement>('img[alt="智能生成封面预览"]')?.src)
       .toContain('data:image/png;base64,COVER');
     expect([...modal.contentEl.querySelectorAll('button')].map(button => button.textContent))
@@ -94,9 +95,10 @@ describe('AI cover disclosure', () => {
 
     await Promise.resolve();
     await Promise.resolve();
-    expect(generateCover).toHaveBeenCalledWith({
+    expect(generateCover).toHaveBeenCalledWith(expect.objectContaining({
       supplementalPrompt: '电影感、蓝色调', includeTitle: false, includeDigest: false, presetId: 'editorial-tech',
-    });
+    }));
+    expect(generateCover.mock.calls[0]?.[0]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('allows users to exclude the title and digest from the generation context', async () => {
@@ -115,9 +117,44 @@ describe('AI cover disclosure', () => {
 
     await Promise.resolve();
     await Promise.resolve();
-    expect(generateCover).toHaveBeenCalledWith({
+    expect(generateCover).toHaveBeenCalledWith(expect.objectContaining({
       supplementalPrompt: '', includeTitle: false, includeDigest: false, presetId: 'cinematic-poster',
+    }));
+    expect(generateCover.mock.calls[0]?.[0]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('cancels an in-flight generation when the modal closes and locks backend switching while busy', async () => {
+    let generationSignal: AbortSignal | undefined;
+    const generateCover = vi.fn((selection: { signal?: AbortSignal }) => {
+      generationSignal = selection.signal;
+      return new Promise<never>(() => undefined);
     });
+    const disclosure = buildCodexCoverDisclosure({ title: 'Title', digest: '' });
+    const modal = new AiCoverConfirmationModal(
+      {} as never,
+      disclosure,
+      generateCover,
+      vi.fn(async () => undefined),
+      () => undefined,
+      { defaultBackend: 'codex', disclosureFor: () => disclosure },
+    );
+
+    modal.open();
+    vi.spyOn(modal, 'close').mockImplementation(() => modal.onClose());
+    modal.contentEl.querySelector<HTMLButtonElement>('button.mod-cta')?.click();
+    await Promise.resolve();
+
+    expect(modal.contentEl.querySelector<HTMLSelectElement>('[data-testid="ai-cover-backend"]')?.disabled)
+      .toBe(true);
+    expect(modal.contentEl.querySelector<HTMLSelectElement>('[data-testid="ai-cover-preset"]')?.disabled)
+      .toBe(true);
+    expect(modal.contentEl.querySelector<HTMLTextAreaElement>('[data-testid="ai-cover-supplemental-prompt"]')?.disabled)
+      .toBe(true);
+    const cancelGeneration = [...modal.contentEl.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent === '取消生成');
+    expect(cancelGeneration?.disabled).toBe(false);
+    cancelGeneration?.click();
+    expect(generationSignal?.aborted).toBe(true);
   });
 
   it('discloses the supplemental field only when it will be sent', () => {

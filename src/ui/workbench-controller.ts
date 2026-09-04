@@ -134,12 +134,14 @@ export interface WorkbenchAiTextPort {
     artifact: Readonly<RenderArtifact>;
     draft: Readonly<ArticleDraftValues>;
     backend?: GenerationBackend;
+    signal?: AbortSignal;
   }>): Promise<readonly string[]>;
   generateDigest(input: Readonly<{
     snapshot: Readonly<NoteSnapshot>;
     artifact: Readonly<RenderArtifact>;
     draft: Readonly<ArticleDraftValues>;
     backend?: GenerationBackend;
+    signal?: AbortSignal;
   }>): Promise<string>;
 }
 
@@ -504,10 +506,16 @@ export class WorkbenchController {
   async generateTitles(
     draft: Readonly<ArticleDraftValues>,
     backend?: GenerationBackend,
+    signal?: AbortSignal,
   ): Promise<readonly string[]> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
-    return this.aiText.generateTitles({ ...current, draft, ...(backend === undefined ? {} : { backend }) });
+    return this.aiText.generateTitles({
+      ...current,
+      draft,
+      ...(backend === undefined ? {} : { backend }),
+      ...(signal === undefined ? {} : { signal }),
+    });
   }
 
   textGenerationBackend(): GenerationBackend {
@@ -517,10 +525,16 @@ export class WorkbenchController {
   async generateDigest(
     draft: Readonly<ArticleDraftValues>,
     backend?: GenerationBackend,
+    signal?: AbortSignal,
   ): Promise<string> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
-    return this.aiText.generateDigest({ ...current, draft, ...(backend === undefined ? {} : { backend }) });
+    return this.aiText.generateDigest({
+      ...current,
+      draft,
+      ...(backend === undefined ? {} : { backend }),
+      ...(signal === undefined ? {} : { signal }),
+    });
   }
 
   private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {

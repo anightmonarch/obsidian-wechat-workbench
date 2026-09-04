@@ -36,6 +36,7 @@ export interface AiCoverGenerationSelection {
   includeDigest: boolean;
   presetId: string;
   backend?: GenerationBackend;
+  signal?: AbortSignal;
 }
 
 export interface AiCoverBackendOptions {
@@ -165,6 +166,7 @@ export class AiCoverConfirmationModal extends Modal {
   private busy = false;
   private candidate: Readonly<PreparedCover> | null = null;
   private error: string | null = null;
+  private generationAbort: AbortController | null = null;
   private supplementalPrompt: string;
   private includeTitle = false;
   private includeDigest = false;
@@ -200,6 +202,7 @@ export class AiCoverConfirmationModal extends Modal {
         backend.append(option);
       }
       backend.value = this.backend;
+      backend.disabled = this.busy;
       backend.addEventListener('change', () => {
         this.backend = backend.value as GenerationBackend;
         this.candidate = null;
@@ -217,12 +220,14 @@ export class AiCoverConfirmationModal extends Modal {
     const titleInput = createEl('input');
     titleInput.type = 'checkbox';
     titleInput.checked = this.includeTitle;
+    titleInput.disabled = this.busy;
     titleInput.dataset.testid = 'ai-cover-include-title';
     title.append(titleInput, document.createTextNode(' 标题'));
     const digest = createEl('label');
     const digestInput = createEl('input');
     digestInput.type = 'checkbox';
     digestInput.checked = this.includeDigest;
+    digestInput.disabled = this.busy;
     digestInput.dataset.testid = 'ai-cover-include-digest';
     digest.append(digestInput, document.createTextNode(' 摘要'));
     inclusionChoices.append(title, digest);
@@ -237,6 +242,7 @@ export class AiCoverConfirmationModal extends Modal {
       preset.append(option);
     }
     preset.value = this.presetId;
+    preset.disabled = this.busy;
     preset.addEventListener('change', () => { this.presetId = preset.value; });
     presetLabel.append(preset);
     configRow.append(presetLabel, inclusion);
@@ -248,6 +254,7 @@ export class AiCoverConfirmationModal extends Modal {
     prompt.placeholder = '例如：科技感、极简、暖色调；留空则完全依据文章内容生成';
     prompt.maxLength = 500;
     prompt.value = this.supplementalPrompt;
+    prompt.disabled = this.busy;
     prompt.addEventListener('input', () => { this.supplementalPrompt = prompt.value; });
     promptLabel.append(prompt);
     this.contentEl.append(promptLabel);
@@ -263,8 +270,10 @@ export class AiCoverConfirmationModal extends Modal {
       this.contentEl.append(createEl('p', { cls: 'wechat-workbench__error', text: this.error }));
     }
     const actions = createDiv('modal-button-container');
-    const cancel = createEl('button', { text: '取消' });
-    cancel.disabled = this.busy;
+    const cancel = createEl('button', {
+      text: this.busy && this.candidate === null ? '取消生成' : '取消',
+    });
+    cancel.disabled = this.busy && this.candidate !== null;
     cancel.addEventListener('click', () => this.close());
     actions.append(cancel);
     if (this.candidate === null) {
@@ -292,22 +301,28 @@ export class AiCoverConfirmationModal extends Modal {
 
   private async runGeneration(): Promise<void> {
     if (this.busy) return;
+    this.generationAbort?.abort();
+    const abort = new AbortController();
+    this.generationAbort = abort;
     this.busy = true;
     this.error = null;
     this.onOpen();
     try {
-      this.candidate = await this.generate({
+      const candidate = await this.generate({
         supplementalPrompt: supplemental(this.supplementalPrompt),
         includeTitle: this.includeTitle,
         includeDigest: this.includeDigest,
         presetId: this.presetId,
         ...(this.backendOptions === undefined ? {} : { backend: this.backend }),
+        signal: abort.signal,
       });
+      if (!abort.signal.aborted && !this.decided) this.candidate = candidate;
     } catch (error) {
-      this.error = aiCoverFailureMessage(error);
+      if (!abort.signal.aborted && !this.decided) this.error = aiCoverFailureMessage(error);
     } finally {
+      if (this.generationAbort === abort) this.generationAbort = null;
       this.busy = false;
-      this.onOpen();
+      if (!this.decided) this.onOpen();
     }
   }
 
@@ -351,6 +366,8 @@ export class AiCoverConfirmationModal extends Modal {
   }
 
   onClose(): void {
+    this.generationAbort?.abort();
+    this.generationAbort = null;
     if (this.decided) return;
     this.decided = true;
     this.cancel();

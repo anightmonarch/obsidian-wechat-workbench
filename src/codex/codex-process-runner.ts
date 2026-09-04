@@ -110,6 +110,10 @@ export class CodexProcessRunner implements CodexProcessRunnerPort {
         }
         stderr.push(value);
       });
+      child.stdin.on('error', () => {
+        // The CLI can close stdin before the prompt write finishes (for example,
+        // on authentication failure). Its exit code and stderr remain authoritative.
+      });
       child.once('error', error => finish(() => reject(spawnFailure(error))));
       child.once('close', code => finish(() => {
         if (code === null) {

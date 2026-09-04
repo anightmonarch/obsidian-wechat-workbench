@@ -13,8 +13,13 @@ export interface ArticleSettingsFormActions {
   generateTitles?(
     draft: Readonly<ArticleDraftValues>,
     backend?: GenerationBackend,
+    signal?: AbortSignal,
   ): Promise<readonly string[]>;
-  generateDigest?(draft: Readonly<ArticleDraftValues>, backend?: GenerationBackend): Promise<string>;
+  generateDigest?(
+    draft: Readonly<ArticleDraftValues>,
+    backend?: GenerationBackend,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 type EditableField = HTMLInputElement | HTMLTextAreaElement;
@@ -118,6 +123,8 @@ export class ArticleSettingsForm {
   private digestError: string | null = null;
   private titleGeneration = 0;
   private digestGeneration = 0;
+  private titleAbort: AbortController | null = null;
+  private digestAbort: AbortController | null = null;
   private titleBackend: GenerationBackend;
   private digestBackend: GenerationBackend;
   private latestState: Readonly<ArticleSettingsFormState>;
@@ -218,6 +225,12 @@ export class ArticleSettingsForm {
   destroy(): void {
     if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
     this.saveTimer = null;
+    this.titleGeneration += 1;
+    this.digestGeneration += 1;
+    this.titleAbort?.abort();
+    this.digestAbort?.abort();
+    this.titleAbort = null;
+    this.digestAbort = null;
     this.root.remove();
   }
 
@@ -298,13 +311,18 @@ export class ArticleSettingsForm {
     const generate = this.latestActions.generateTitles;
     if (generate === undefined || this.titleLoading) return;
     const generation = ++this.titleGeneration;
+    this.titleAbort?.abort();
+    const abort = new AbortController();
+    this.titleAbort = abort;
     this.titleLoading = true;
     this.titleError = null;
     this.renderTitleCandidates();
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
+    const backend = this.root.querySelector<HTMLSelectElement>('[data-testid="settings-title-backend"]');
     if (button !== null) button.disabled = true;
+    if (backend !== null) backend.disabled = true;
     try {
-      const values = await generate(this.draftValues(), this.titleBackend);
+      const values = await generate(this.draftValues(), this.titleBackend, abort.signal);
       if (generation !== this.titleGeneration) return;
       this.titleOptions = Object.freeze(values.slice(0, 3));
       this.titleLoading = false;
@@ -315,7 +333,11 @@ export class ArticleSettingsForm {
       this.titleError = textGenerationErrorMessage(error);
       this.renderTitleCandidates();
     } finally {
-      if (generation === this.titleGeneration && button !== null) button.disabled = false;
+      if (generation === this.titleGeneration) {
+        if (this.titleAbort === abort) this.titleAbort = null;
+        if (button !== null) button.disabled = false;
+        if (backend !== null) backend.disabled = false;
+      }
     }
   }
 
@@ -329,9 +351,15 @@ export class ArticleSettingsForm {
       () => { void this.generateTitles(); },
       () => {
         this.titleGeneration += 1;
+        this.titleAbort?.abort();
+        this.titleAbort = null;
         this.titleOptions = Object.freeze([]);
         this.titleLoading = false;
         this.titleError = null;
+        const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-title-ai"]');
+        const backend = this.root.querySelector<HTMLSelectElement>('[data-testid="settings-title-backend"]');
+        if (button !== null) button.disabled = false;
+        if (backend !== null) backend.disabled = false;
         this.renderTitleCandidates();
       },
     ));
@@ -361,13 +389,18 @@ export class ArticleSettingsForm {
     const generate = this.latestActions.generateDigest;
     if (generate === undefined || this.digestLoading) return;
     const generation = ++this.digestGeneration;
+    this.digestAbort?.abort();
+    const abort = new AbortController();
+    this.digestAbort = abort;
     this.digestLoading = true;
     this.digestError = null;
     this.renderDigestCandidate();
     const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]');
+    const backend = this.root.querySelector<HTMLSelectElement>('[data-testid="settings-digest-backend"]');
     if (button !== null) button.disabled = true;
+    if (backend !== null) backend.disabled = true;
     try {
-      const value = await generate(this.draftValues(), this.digestBackend);
+      const value = await generate(this.draftValues(), this.digestBackend, abort.signal);
       if (generation !== this.digestGeneration) return;
       this.digestOption = digestLimit(value.trim());
       this.digestLoading = false;
@@ -378,7 +411,11 @@ export class ArticleSettingsForm {
       this.digestError = textGenerationErrorMessage(error);
       this.renderDigestCandidate();
     } finally {
-      if (generation === this.digestGeneration && button !== null) button.disabled = false;
+      if (generation === this.digestGeneration) {
+        if (this.digestAbort === abort) this.digestAbort = null;
+        if (button !== null) button.disabled = false;
+        if (backend !== null) backend.disabled = false;
+      }
     }
   }
 
@@ -392,9 +429,15 @@ export class ArticleSettingsForm {
       () => { void this.generateDigest(); },
       () => {
         this.digestGeneration += 1;
+        this.digestAbort?.abort();
+        this.digestAbort = null;
         this.digestOption = null;
         this.digestLoading = false;
         this.digestError = null;
+        const button = this.root.querySelector<HTMLButtonElement>('[data-testid="settings-digest-ai"]');
+        const backend = this.root.querySelector<HTMLSelectElement>('[data-testid="settings-digest-backend"]');
+        if (button !== null) button.disabled = false;
+        if (backend !== null) backend.disabled = false;
         this.renderDigestCandidate();
       },
     ));
