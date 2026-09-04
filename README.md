@@ -51,7 +51,7 @@ Image uploads are part of the user-confirmed draft synchronization flow. Passive
 - The current interface supports one WeChat Official Account. The UI and user guides are primarily in Simplified Chinese.
 - No author-operated relay service, telemetry, analytics, or advertising.
 - Passive preview is local and does not automatically fetch remote images.
-- AI features are disabled until you configure a provider and explicitly request generation.
+- AI generation is explicit. You can use a configured provider API or an authenticated local Codex CLI.
 - Draft synchronization requires the relevant WeChat API permissions and a public egress IP added to the account's IP allowlist.
 
 ## Installation
@@ -103,12 +103,15 @@ The synchronization action only creates or updates a draft in the WeChat backend
 
 ## AI features
 
-AI support is optional. The current settings support Agnes and DeepSeek for text generation and Agnes for image generation. You provide the provider API keys and are responsible for any third-party charges.
+AI support is optional. Each title, digest, and cover request can use either a configured provider API or `Local Codex`. The settings page stores independent defaults for text and image generation; choosing another source in the workbench changes only that request and never silently falls back to the other source.
+
+Provider API mode currently supports Agnes and DeepSeek for text generation and Agnes for image generation. You provide those API keys and are responsible for provider charges. Local Codex mode starts the Codex CLI already installed and authenticated on your computer. It does not use the plugin's provider API-key fields, but the content is still processed by the Codex service and may consume your Codex account quota; it is not an offline model.
 
 - Fetching a model list sends the API key to the selected provider but does not send article content.
 - Generating titles or a digest sends the current title, digest, heading hierarchy, and a sanitized body excerpt.
 - Generating a cover sends the selected model, any title or digest fields you chose to include, the cover-style template, and your supplemental visual instructions.
 - Every request requires an explicit user action. The plugin does not generate content in the background.
+- The plugin locates the Codex executable without reading Codex authentication files. The child process receives a restricted environment, and shell, browser, app, and computer-control tools are disabled for generation.
 
 See the [privacy policy](PRIVACY.md) for the complete data-handling description.
 
@@ -121,6 +124,7 @@ See the [privacy policy](PRIVACY.md) for the complete data-handling description.
 | Synchronize a WeChat draft | `api.weixin.qq.com` | Upload body images and covers; create, read, or update drafts |
 | Fetch AI models | User-selected AI provider | Retrieve available models |
 | Generate titles, a digest, or a cover | User-selected AI provider | Complete the explicitly requested generation task |
+| Generate through Local Codex | The service used by the locally authenticated Codex CLI | Complete the explicitly requested generation task using Codex account quota |
 | Download an AI-generated image | HTTPS URL returned by the provider | Fetch and validate the generated image |
 
 Remote-image requests restrict protocols, redirects, timeouts, response sizes, and detected file types. Loopback, private, and link-local destinations are blocked.
@@ -156,7 +160,7 @@ Confirm that the image uses a public HTTPS URL, returns a supported image type, 
 
 ### AI generation fails
 
-Check the selected provider's Base URL, model, API key, balance, rate limits, and network connectivity. Saved API keys are never copied back into input fields.
+For provider API mode, check the selected provider's Base URL, model, API key, balance, rate limits, and network connectivity. For Local Codex mode, confirm that `codex --version` works and that Codex is authenticated. Saved provider API keys are never copied back into input fields.
 
 ## Documentation
 
