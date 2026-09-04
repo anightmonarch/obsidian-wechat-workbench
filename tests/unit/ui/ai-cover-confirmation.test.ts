@@ -5,6 +5,7 @@ import {
   aiCoverFailureMessage,
   buildAiCoverDisclosure,
   buildCodexCoverDisclosure,
+  type AiCoverGenerationSelection,
 } from '../../../src/ui/ai-cover-confirmation';
 import { CoverGenerationError } from '../../../src/cover/openai-image-generator';
 
@@ -44,7 +45,7 @@ describe('AI cover disclosure', () => {
   });
 
   it('generates inside the modal and keeps it open for preview', async () => {
-    const generateCover = vi.fn(async () => candidate);
+    const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
     const adopt = vi.fn(async () => undefined);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: '',
@@ -81,7 +82,7 @@ describe('AI cover disclosure', () => {
   });
 
   it('keeps the optional prompt in the modal session and passes it only on confirmation', async () => {
-    const generateCover = vi.fn(async () => candidate);
+    const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: '', supplementalPrompt: '暖色、留白、编辑感',
     }, provider), generateCover, vi.fn(async () => undefined));
@@ -102,7 +103,7 @@ describe('AI cover disclosure', () => {
   });
 
   it('allows users to exclude the title and digest from the generation context', async () => {
-    const generateCover = vi.fn(async () => candidate);
+    const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: 'Digest',
     }, provider), generateCover, vi.fn(async () => undefined));
