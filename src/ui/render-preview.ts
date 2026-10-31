@@ -1,4 +1,4 @@
-import { setIcon } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
 
 import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import { applyDiagramImagePresentation } from '../render/diagram-image';
@@ -31,7 +31,9 @@ function createHtmlElement<T extends HTMLElement>(document: Document, tagName: s
 }
 
 function codeText(code: HTMLElement): string {
-  const projectedLines = [...code.querySelectorAll<HTMLElement>('.code-line-content')];
+  const projectedLines = [
+    ...code.querySelectorAll<HTMLElement>('.code-line-content, .code-line-block'),
+  ];
   if (projectedLines.length > 0) {
     return projectedLines.map(line => line.textContent ?? '').join('\n');
   }
@@ -40,6 +42,85 @@ function codeText(code: HTMLElement): string {
     decoration.remove();
   }
   return clone.textContent ?? '';
+}
+
+function copyAddressNotice(promise: Promise<void>, success: string, failure: string): void {
+  void promise.then(() => new Notice(success)).catch(() => new Notice(failure));
+}
+
+function dataUrlToBlob(url: string): Blob {
+  const match = /^data:([^;,]+);base64,(.*)$/u.exec(url);
+  if (match === null) throw new Error('Unsupported image source for clipboard.');
+  const mime = match[1] ?? 'image/png';
+  const payload = match[2] ?? '';
+  const binary = window.atob(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+async function copyImageToClipboard(url: string): Promise<void> {
+  try {
+    const blob = dataUrlToBlob(url);
+    const clipboardItemCtor = (window as unknown as {
+      ClipboardItem?: new (data: Record<string, Blob>) => ClipboardItem;
+    }).ClipboardItem;
+    if (clipboardItemCtor === undefined) throw new Error('ClipboardItem unavailable');
+    await navigator.clipboard.write([new clipboardItemCtor({ [blob.type]: blob })]);
+    new Notice('已复制图片，可直接粘贴到支持图片的应用。');
+  } catch {
+    new Notice('复制图片失败，可右键或长按图片另存。');
+  }
+}
+
+function buildMermaidFrame(root: HTMLElement, image: HTMLImageElement, source: string): HTMLElement {
+  const document = root.ownerDocument;
+  const frame = createHtmlElement<HTMLDivElement>(document, 'div');
+  frame.className = 'wechat-workbench__mermaid-preview';
+  frame.dataset.testid = 'mermaid-preview';
+
+  const controls = createHtmlElement<HTMLDivElement>(document, 'div');
+  controls.className = 'wechat-workbench__mermaid-controls';
+  const toggle = createHtmlElement<HTMLButtonElement>(document, 'button');
+  toggle.type = 'button';
+  toggle.className = 'wechat-workbench__mermaid-toggle';
+  toggle.dataset.testid = 'mermaid-toggle';
+  toggle.textContent = '查看源码';
+  const copySource = createHtmlElement<HTMLButtonElement>(document, 'button');
+  copySource.type = 'button';
+  copySource.className = 'wechat-workbench__mermaid-copy';
+  copySource.dataset.testid = 'mermaid-copy-source';
+  copySource.textContent = '复制源码';
+  const copyImage = createHtmlElement<HTMLButtonElement>(document, 'button');
+  copyImage.type = 'button';
+  copyImage.className = 'wechat-workbench__mermaid-copy';
+  copyImage.dataset.testid = 'mermaid-copy-image';
+  copyImage.textContent = '复制图片';
+  controls.append(toggle, copySource, copyImage);
+
+  const sourceView = createHtmlElement<HTMLPreElement>(document, 'pre');
+  sourceView.className = 'wechat-workbench__mermaid-source';
+  sourceView.dataset.testid = 'mermaid-source';
+  sourceView.hidden = true;
+  sourceView.textContent = source;
+
+  toggle.addEventListener('click', () => {
+    const showSource = sourceView.hidden;
+    sourceView.hidden = !showSource;
+    image.style.display = showSource ? 'none' : '';
+    toggle.textContent = showSource ? '查看图片' : '查看源码';
+  });
+  copySource.addEventListener('click', () => {
+    copyAddressNotice(navigator.clipboard.writeText(source), '已复制 Mermaid 源码', '复制失败，请手动选择源码后复制。');
+  });
+  copyImage.addEventListener('click', () => {
+    void copyImageToClipboard(image.src);
+  });
+
+  frame.append(controls, image, sourceView);
+  return frame;
 }
 
 function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void {
@@ -134,8 +215,13 @@ export class ArticlePreviewRenderer {
         }
         const image = createEl('img');
         image.src = url;
-        if (asset.kind === 'generated-diagram') applyDiagramImagePresentation(image, 'Mermaid 图表');
-        else image.alt = '本地图片';
+        if (asset.kind === 'generated-diagram') {
+          applyDiagramImagePresentation(image, 'Mermaid 图表');
+          image.dataset.assetId = asset.id;
+          pending.replaceWith(buildMermaidFrame(root, image, asset.source));
+          return;
+        }
+        image.alt = '本地图片';
         image.dataset.assetId = asset.id;
         pending.replaceWith(image);
       }).catch(() => {

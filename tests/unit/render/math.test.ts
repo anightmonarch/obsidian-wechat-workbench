@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { NoteSnapshot } from '../../../src/domain/article';
 import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
+import { CodeThemeRegistry } from '../../../src/styles/code-theme-registry';
+import { DEFAULT_ARTICLE_STYLE } from '../../../src/styles/style-config';
+import { StyleCompiler } from '../../../src/styles/style-compiler';
 import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
 const theme = BUILTIN_THEMES.find(item => item.manifest.id === 'native');
 if (theme === undefined) throw new Error('Native theme fixture is missing.');
+const compiledTheme = new StyleCompiler(new CodeThemeRegistry()).compile(theme, DEFAULT_ARTICLE_STYLE);
 
 function snapshot(markdown: string): Readonly<NoteSnapshot> {
   return Object.freeze({
@@ -21,13 +25,18 @@ describe('KaTeX projection', () => {
     const builder = new RenderArtifactBuilder();
     const markdown = 'Inline $E = mc^2$.\n\n$$\n\\sum_{i=1}^{n} i\n$$';
 
-    const first = await builder.build(snapshot(markdown), theme);
-    const second = await builder.build(snapshot(markdown), theme);
+    const first = await new RenderArtifactBuilder().build(snapshot(markdown), compiledTheme);
+    const second = await new RenderArtifactBuilder().build(snapshot(markdown), compiledTheme);
 
     expect(first.assets.map(asset => asset.kind)).toEqual(['generated-math', 'generated-math']);
     expect(first.assets.every(asset => asset.status === 'resolved')).toBe(true);
     expect(first.canonicalHtml).toContain('class="katex"');
     expect(first.canonicalHtml).toContain('math-display');
+    expect(first.canonicalHtml).toMatch(/<p[^>]*math-display/u);
+    const displayWrapper = /<p[^>]*math-display[^>]*style="([^"]*)"/u.exec(first.canonicalHtml);
+    expect(displayWrapper?.[1] ?? '').toContain('text-align: center');
+    expect(displayWrapper?.[1] ?? '').toContain('text-indent: 0');
+    expect(first.canonicalHtml).toMatch(/katex-display[^>]*style="[^"]*text-align:\s*center/u);
     expect(first.canonicalHtml).not.toContain('katex-mathml');
     expect(first.canonicalHtml).toContain('aria-label="E = mc^2"');
     expect(first.canonicalHtml).toBe(second.canonicalHtml);

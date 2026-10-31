@@ -39,6 +39,53 @@ const remarkMathMarkers: Plugin<[], MdastRoot> = () => tree => {
   }
 };
 
+
+/** Obsidian `==highlight==` → `<mark>` (phrasing). Same-line, non-empty. */
+const HIGHLIGHT_PATTERN = /==([^\n]+?)==/gu;
+
+interface HighlightMdastNode {
+  type: 'mark';
+  data: {
+    hName: 'mark';
+    hProperties: { className: string[] };
+  };
+  children: Array<{ type: 'text'; value: string }>;
+}
+
+const remarkObsidianHighlights: Plugin<[], MdastRoot> = () => tree => {
+  visit(tree, 'text', (node, index, parent) => {
+    if (parent === undefined || index === undefined) return;
+    const value = node.value;
+    if (!value.includes('==')) return;
+    HIGHLIGHT_PATTERN.lastIndex = 0;
+    if (!HIGHLIGHT_PATTERN.test(value)) return;
+    HIGHLIGHT_PATTERN.lastIndex = 0;
+    const replacements: Array<{ type: 'text'; value: string } | HighlightMdastNode> = [];
+    let last = 0;
+    let match: RegExpExecArray | null;
+    while ((match = HIGHLIGHT_PATTERN.exec(value)) !== null) {
+      if (match.index > last) {
+        replacements.push({ type: 'text', value: value.slice(last, match.index) });
+      }
+      replacements.push({
+        type: 'mark',
+        data: {
+          hName: 'mark',
+          hProperties: { className: ['obsidian-highlight'] },
+        },
+        children: [{ type: 'text', value: match[1] ?? '' }],
+      });
+      last = match.index + match[0].length;
+    }
+    if (last < value.length) {
+      replacements.push({ type: 'text', value: value.slice(last) });
+    }
+    if (replacements.length === 0) return;
+    parent.children.splice(index, 1, ...(replacements as unknown as typeof parent.children));
+    return index + replacements.length;
+  });
+};
+
 const rehypeInertImages: Plugin<[], HastRoot> = () => tree => {
   visit(tree, 'element', node => {
     if (node.tagName !== 'img') return;
@@ -53,6 +100,7 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkMath)
   .use(remarkMathMarkers)
+  .use(remarkObsidianHighlights)
   .use(remarkRehype, { allowDangerousHtml: false })
   .use(rehypeInertImages)
   .use(rehypeSanitize, ARTICLE_HTML_SCHEMA)

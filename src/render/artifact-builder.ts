@@ -8,7 +8,7 @@ import type { ThemeDefinition } from '../domain/theme';
 import { extractImageAssets } from './assets';
 import { canonicalizeHtml, hashContent, parseArticleRoot } from './canonicalize';
 import { highlightCodeBlocks } from './extensions/code';
-import { renderMathExpressions } from './extensions/math';
+import { reinforceDisplayMathCentering, renderMathExpressions } from './extensions/math';
 import { extractMermaidAssets } from './extensions/mermaid';
 import { markdownToSafeHtml } from './markdown-pipeline';
 import {
@@ -30,7 +30,8 @@ const CALLOUT_PRESENTATION = Object.freeze({
 const SEMANTIC_CSS = `.wechat-article .callout-title { display: flex; align-items: center; gap: 0.4em; margin: 0 0 0.45em; font-style: normal; font-weight: 600; text-indent: 0; }
 .wechat-article .callout-icon { flex: 0 0 auto; font-style: normal; line-height: 1; }
 .wechat-article .callout-body { margin: 0; font-style: normal; text-indent: 0; }
-.wechat-article .task-list-item--checked { text-decoration: line-through; }`;
+.wechat-article .task-list-item--checked { text-decoration: line-through; }
+.wechat-article mark, .wechat-article mark.obsidian-highlight { background: #fff3a3; color: inherit; padding: 0.1em 0.25em; border-radius: 2px; }`;
 
 function createHtmlElement(document: Document, tagName: string): HTMLElement {
   return document.createElementNS('http://www.w3.org/1999/xhtml', tagName);
@@ -160,7 +161,9 @@ export class RenderArtifactBuilder {
       preserveMediaQueries: false,
       xmlMode: false,
     });
-    const canonicalHtml = canonicalizeHtml(themed);
+    const themedRoot = parseArticleRoot(themed);
+    reinforceDisplayMathCentering(themedRoot);
+    const canonicalHtml = canonicalizeHtml(themedRoot.outerHTML);
 
     return freezeArtifact({
       artifactVersion: ARTIFACT_VERSION,

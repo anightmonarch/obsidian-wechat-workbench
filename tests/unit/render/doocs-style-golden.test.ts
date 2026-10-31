@@ -46,7 +46,9 @@ describe('Doocs style golden HTML', () => {
     async themeId => {
       const artifact = await buildStyleFixture(themeId);
 
-      expect(artifact.canonicalHtml).toContain('margin: 1.25em 0');
+      expect(artifact.canonicalHtml).toContain('margin-top: 1.25em');
+      expect(artifact.canonicalHtml).toContain('margin-bottom: 1.25em');
+      expect(artifact.canonicalHtml).toContain('margin-left: 0');
     },
   );
 
@@ -55,10 +57,10 @@ describe('Doocs style golden HTML', () => {
     async themeId => {
       const artifact = await buildStyleFixture(themeId);
 
-      expect(artifact.canonicalHtml).toContain('class="image-figure" style="margin: 1.5em 0"');
+      expect(artifact.canonicalHtml).toContain('class="image-figure" style="margin-bottom: 1.5em; margin-left: 0; margin-right: 0; margin-top: 1.5em"');
       expect(artifact.canonicalHtml).toContain('class="mermaid-placeholder"');
-      expect(artifact.canonicalHtml).toContain('data-asset-kind="generated-diagram" style="margin: 1.5em 0"');
-      expect(artifact.canonicalHtml).toContain('<table style="border-collapse: collapse; margin: 1em 0; width: 100%"');
+      expect(artifact.canonicalHtml).toContain('data-asset-kind="generated-diagram" style="margin-bottom: 1.5em; margin-left: 0; margin-right: 0; margin-top: 1.5em"');
+      expect(artifact.canonicalHtml).toContain('<table style="border-collapse: collapse; margin-bottom: 1em; margin-left: 0; margin-right: 0; margin-top: 1em; width: 100%"');
     },
   );
 

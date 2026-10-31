@@ -10,9 +10,9 @@ export class StyleResetModal extends Modal {
 
   onOpen(): void {
     this.contentEl.replaceChildren();
-    this.titleEl.textContent = '重置文章样式';
+    this.titleEl.textContent = '重置样式';
     this.contentEl.append(createEl('p', {
-      text: '恢复当前文章的默认样式，不会修改文章正文内容。',
+      text: '把当前主题的样式参数恢复为默认值，并立即对所有文章生效。不会修改文章正文内容。',
     }));
 
     const actions = createDiv('modal-button-container');

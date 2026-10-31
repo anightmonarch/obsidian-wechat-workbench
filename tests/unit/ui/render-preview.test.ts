@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RenderArtifact } from '../../../src/domain/artifact';
 import { ArticlePreviewRenderer } from '../../../src/ui/render-preview';
@@ -22,6 +22,11 @@ const artifact: Readonly<RenderArtifact> = Object.freeze({
 });
 
 describe('ArticlePreviewRenderer', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it('shows a generated Mermaid image at the full article width', async () => {
     const container = document.createElement('div');
     document.body.append(container);
@@ -44,6 +49,53 @@ describe('ArticlePreviewRenderer', () => {
     }
   });
 
+  it('adds a source/image toggle with copy actions for Mermaid previews only', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const resolve = vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=');
+    const written: unknown[][] = [];
+    vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn(async () => undefined), write: vi.fn(async (items: unknown) => { written.push([items]); }) },
+      configurable: true,
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ blob: async () => new Blob(['png-bytes'], { type: 'image/png' }) })));
+    vi.stubGlobal('ClipboardItem', class { constructor(public data: Record<string, Blob>) {} });
+    // dataUrlToBlob decodes base64; the fixture payload must be valid base64
+    expect('iVBORw0KGgo=').toMatch(/^[A-Za-z0-9+/=]+$/u);
+
+    try {
+      new ArticlePreviewRenderer({ resolve }).render(container, artifact);
+      await vi.waitFor(() => {
+        expect(container.querySelector('[data-testid="mermaid-preview"]')).not.toBeNull();
+      });
+
+      const frame = container.querySelector<HTMLElement>('[data-testid="mermaid-preview"]');
+      expect(frame?.querySelector('img[alt="Mermaid 图表"]')).not.toBeNull();
+      expect(frame?.querySelector('pre[data-testid="mermaid-source"]')?.textContent).toBe('graph TD; A-->B');
+      expect(artifact.canonicalHtml).not.toContain('mermaid-preview');
+
+      const toggle = frame?.querySelector<HTMLButtonElement>('[data-testid="mermaid-toggle"]');
+      const source = frame?.querySelector<HTMLElement>('[data-testid="mermaid-source"]');
+      expect(toggle?.textContent).toBe('查看源码');
+      toggle?.click();
+      expect(source?.hidden).toBe(false);
+      expect(frame?.querySelector<HTMLImageElement>('img[alt="Mermaid 图表"]')?.style.display).toBe('none');
+      expect(toggle?.textContent).toBe('查看图片');
+      toggle?.click();
+      expect(source?.hidden).toBe(true);
+      expect(frame?.querySelector<HTMLImageElement>('img[alt="Mermaid 图表"]')?.style.display).toBe('');
+
+      container.querySelector<HTMLButtonElement>('[data-testid="mermaid-copy-source"]')?.click();
+      await vi.waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('graph TD; A-->B'));
+
+      container.querySelector<HTMLButtonElement>('[data-testid="mermaid-copy-image"]')?.click();
+      await vi.waitFor(() => expect(written.length).toBeGreaterThan(0));
+    } finally {
+      container.remove();
+    }
+  });
+
   it('copies code without adding the preview control to the publish artifact', async () => {
     vi.useFakeTimers();
     const container = document.createElement('div');
@@ -61,6 +113,17 @@ describe('ArticlePreviewRenderer', () => {
         '</section>',
       ].join(''),
       assets: Object.freeze([]),
+    });
+    const blockArtifact = Object.freeze({
+      ...codeArtifact,
+      canonicalHtml: [
+        '<section class="wechat-article">',
+        '<section class="code-scroll" style="overflow-x: auto"><pre><code class="hljs language-ts">',
+        '<span class="code-line-block" style="display: block; white-space: pre"><span class="hljs-keyword">const</span> answer = 42;</span>',
+        '<span class="code-line-block" style="display: block; white-space: pre">return answer;</span>',
+        '</code></pre></section>',
+        '</section>',
+      ].join(''),
     });
     vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
 
@@ -86,6 +149,18 @@ describe('ArticlePreviewRenderer', () => {
       expect(codeArtifact.canonicalHtml).not.toContain('code-copy');
     } finally {
       container.remove();
+    }
+    const blockContainer = document.createElement('div');
+    document.body.append(blockContainer);
+    const blockWrite = vi.fn(async (_value: string) => undefined);
+    try {
+      new ArticlePreviewRenderer(undefined, blockWrite).render(blockContainer, blockArtifact);
+      blockContainer.querySelector<HTMLButtonElement>('[data-testid="code-copy"]')?.click();
+      await vi.waitFor(() => expect(blockWrite).toHaveBeenCalledWith(
+        'const answer = 42;\nreturn answer;',
+      ));
+    } finally {
+      blockContainer.remove();
       vi.unstubAllGlobals();
       vi.useRealTimers();
     }

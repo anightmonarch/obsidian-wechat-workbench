@@ -47,8 +47,49 @@ function primaryColorOverrides(primaryColor: string): string {
 .wechat-article h3 { border-left-color: ${primaryColor}; }
 .wechat-article h4, .wechat-article h5, .wechat-article h6, .wechat-article strong { color: ${primaryColor}; }
 .wechat-article h1 strong, .wechat-article h2 strong, .wechat-article h3 strong, .wechat-article h4 strong, .wechat-article h5 strong, .wechat-article h6 strong { color: inherit; }
-.wechat-article a { color: ${primaryColor}; }
 .wechat-article code:not(pre code) { color: ${primaryColor}; border-color: ${primaryColor}; }`;
+}
+
+const WECHAT_LINK_BLUE = '#576b95';
+
+function linkColorValue(config: Readonly<ArticleStyleConfig>): string {
+  if (config.linkColor === 'primary') return config.primaryColor;
+  if (config.linkColor === 'inherit') return 'inherit';
+  return WECHAT_LINK_BLUE;
+}
+
+function blockquoteBackgroundCss(config: Readonly<ArticleStyleConfig>): string {
+  if (config.blockquoteBackground === 'transparent') {
+    return '.wechat-article blockquote { background: transparent; }';
+  }
+  if (config.blockquoteBackground === 'primary') {
+    return `.wechat-article blockquote { background: color-mix(in srgb, ${config.primaryColor} 8%, transparent); }`;
+  }
+  return '';
+}
+
+function scaleLength(length: string, spacing: number): string {
+  const match = /^(-?\d+(?:\.\d+)?)(em|px|rem|%)$/u.exec(length);
+  if (match === null) return length;
+  const scaled = Math.round(Number(match[1]) * spacing * 10000) / 10000;
+  return `${scaled}${match[2]}`;
+}
+
+export function scaleMarginValue(value: string, spacing: number): string {
+  const parts = value.trim().split(/\s+/u);
+  if (parts.length === 0) return value;
+  const verticalIndexes = parts.length === 3 || parts.length === 4 ? [0, 2] : [0];
+  const next = [...parts];
+  for (const index of verticalIndexes) {
+    const part = next[index];
+    if (part !== undefined) next[index] = scaleLength(part, spacing);
+  }
+  return next.join(' ');
+}
+
+function scaleVerticalMargins(css: string, spacing: number): string {
+  if (spacing === 1) return css;
+  return css.replace(/margin:\s*([^;{}]+);/gu, (_full, value: string) => `margin: ${scaleMarginValue(value, spacing)};`);
 }
 
 function styleOverrides(config: Readonly<ArticleStyleConfig>): string {
@@ -58,17 +99,28 @@ function styleOverrides(config: Readonly<ArticleStyleConfig>): string {
     .join('\n');
   const indent = config.paragraphIndent ? '2em' : '0';
   const alignment = config.textJustify ? 'justify' : 'left';
-  return `.wechat-article { font-family: ${FONT_STACKS[config.fontFamily]}; font-size: ${config.fontSize}px; line-height: 1.75; }
+  const quoteBackground = blockquoteBackgroundCss(config);
+  return `.wechat-article { font-family: ${FONT_STACKS[config.fontFamily]}; font-size: ${config.fontSize}px; line-height: ${config.lineHeight}; }
 .wechat-article p { text-indent: ${indent}; text-align: ${alignment}; }
+.wechat-article a { color: ${linkColorValue(config)}; }
 ${primaryColorOverrides(config.primaryColor)}
-${headingCss}`;
+${headingCss}
+${quoteBackground}`;
 }
 
 function structuralCss(config: Readonly<ArticleStyleConfig>): string {
+  const spacing = config.blockSpacing;
+  const codeScrollCss = `.wechat-article pre { overflow-x: auto; }
+.wechat-article pre > code { overflow-x: auto; overflow-wrap: normal; white-space: pre; word-break: keep-all; }
+.wechat-article .code-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.wechat-article .code-line-block { display: block; min-height: 1.5em; white-space: pre; }
+.wechat-article p.math-display, .wechat-article .math-display { margin: 1.25em 0; text-align: center; text-indent: 0; letter-spacing: 0.04em; }
+.wechat-article .math-display .katex-display { display: inline-block; text-align: center; margin-left: auto; margin-right: auto; }
+.wechat-article mark, .wechat-article mark.obsidian-highlight { background: #fff3a3; color: inherit; padding: 0.1em 0.25em; border-radius: 2px; }`;
   const macCss = config.macCodeBlock
-    ? `.wechat-article pre.code-window { position: relative; padding: 0; }
-.wechat-article pre.code-window > code { display: block; padding: 2.25em 1em 1em; }
-.wechat-article pre.code-window .code-window-dots { position: absolute; top: 0.7em; left: 0.9em; display: inline-flex; gap: 0.35em; }
+    ? `.wechat-article pre.code-window { padding: 0; }
+.wechat-article pre.code-window > code { display: block; padding: 1em; }
+.wechat-article pre.code-window .code-window-dots { display: flex; gap: 0.35em; margin: 0 0 0.6em; }
 .wechat-article pre.code-window .code-window-dot { display: block; width: 0.55em; height: 0.55em; border-radius: 50%; }
 .wechat-article pre.code-window .code-window-dot--red { background: #ff5f57; }
 .wechat-article pre.code-window .code-window-dot--yellow { background: #febc2e; }
@@ -79,11 +131,12 @@ function structuralCss(config: Readonly<ArticleStyleConfig>): string {
 .wechat-article pre .code-line-number { flex: 0 0 2.5em; margin-right: 1em; color: #8892a0; text-align: right; user-select: none; }
 .wechat-article pre .code-line-content { flex: 1 1 auto; min-width: 0; }`
     : '';
-  return `${macCss}
+  return `${codeScrollCss}
+${macCss}
 ${lineNumberCss}
-.wechat-article figure.image-figure { margin: 1.5em 0; }
+.wechat-article figure.image-figure { margin: ${scaleMarginValue('1.5em 0', spacing)}; }
 .wechat-article figcaption.image-caption { margin-top: 0.45em; color: #777777; font-size: 0.8em; text-align: center; }
-.wechat-article blockquote.reading-summary { margin: 1em 0; padding: 0.85em 1em; border-left: 4px solid ${config.primaryColor}; background: #f4f7fb; }
+.wechat-article blockquote.reading-summary { margin: ${scaleMarginValue('1em 0', spacing)}; padding: 0.85em 1em; border-left: 4px solid ${config.primaryColor}; background: #f4f7fb; }
 .wechat-article blockquote.reading-summary > p { margin: 0; }
 .wechat-article section.external-link-references { margin-top: 2em; padding-top: 1em; border-top: 1px solid #d9dfe7; font-size: 0.9em; }
 .wechat-article section.external-link-references h4 { margin: 0 0 0.5em; }
@@ -103,8 +156,9 @@ export class StyleCompiler {
     baseTheme: Readonly<ThemeDefinition>,
     config: Readonly<ArticleStyleConfig>,
   ): Readonly<ThemeDefinition> {
+    const themedCss = scaleVerticalMargins(baseTheme.css, config.blockSpacing);
     const mergedCss = [
-      baseTheme.css,
+      themedCss,
       styleOverrides(config),
       this.codeThemes.get(config.codeThemeId),
       structuralCss(config),

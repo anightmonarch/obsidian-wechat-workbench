@@ -115,7 +115,6 @@ describe('StyleWorkbench', () => {
           fontSize: 18,
         }),
       }),
-      styleSaveStatus: 'unsaved',
     }));
 
     expect(container.querySelector('[data-testid="style-workbench"]')).toBe(root);
@@ -171,6 +170,85 @@ describe('StyleWorkbench', () => {
     expect(actions.patch).toHaveBeenCalledWith({ codeThemeId: 'github' });
     expect(actions.patch).toHaveBeenCalledWith({ wordCount: true });
     expect(actions.patch).not.toHaveBeenCalledWith({ headingStyles: { h3: 'default' } });
+  });
+
+  it('renders the official layout groups in the official order', () => {
+    const container = document.createElement('div');
+    const panel = new StyleWorkbench({} as never, container, {
+      patch: vi.fn(), selectTheme: vi.fn(), reset: vi.fn(), close: vi.fn(),
+    });
+
+    panel.render(renderState);
+
+    const headings = Array.from(container.querySelectorAll('h3')).map(node => node.textContent);
+    expect(headings).toEqual([
+      '主题', '字体', '字号', '行距', '段间距', '链接色', '引用背景',
+      '主题色', '自定义色', '标题', '代码主题', '图注', '操作',
+    ]);
+    expect(container.querySelectorAll('[data-style-line-height]')).toHaveLength(5);
+    expect(container.querySelectorAll('[data-style-block-spacing]')).toHaveLength(5);
+    expect(container.querySelectorAll('[data-style-link-color]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-style-blockquote-bg]')).toHaveLength(3);
+    expect(container.querySelector('[data-style-line-height="1.75"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-style-block-spacing="1"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-style-link-color="wechat-blue"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-style-blockquote-bg="default"]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('emits patches for the four official layout groups', () => {
+    const container = document.createElement('div');
+    const actions = {
+      patch: vi.fn(), selectTheme: vi.fn(), reset: vi.fn(), close: vi.fn(),
+    };
+    const panel = new StyleWorkbench({} as never, container, actions);
+    panel.render(renderState);
+
+    container.querySelector<HTMLButtonElement>('[data-style-line-height="1.9"]')?.click();
+    container.querySelector<HTMLButtonElement>('[data-style-block-spacing="1.35"]')?.click();
+    container.querySelector<HTMLButtonElement>('[data-style-link-color="inherit"]')?.click();
+    container.querySelector<HTMLButtonElement>('[data-style-blockquote-bg="primary"]')?.click();
+
+    expect(actions.patch).toHaveBeenCalledWith({ lineHeight: 1.9 });
+    expect(actions.patch).toHaveBeenCalledWith({ blockSpacing: 1.35 });
+    expect(actions.patch).toHaveBeenCalledWith({ linkColor: 'inherit' });
+    expect(actions.patch).toHaveBeenCalledWith({ blockquoteBackground: 'primary' });
+  });
+
+  it('injects the article accent color into the panel root for the selected state', () => {
+    const container = document.createElement('div');
+    const panel = new StyleWorkbench({} as never, container, {
+      patch: vi.fn(), selectTheme: vi.fn(), reset: vi.fn(), close: vi.fn(),
+    });
+
+    panel.render(renderState);
+    const root = container.querySelector<HTMLElement>('[data-testid="style-workbench"]');
+    expect(root?.style.getPropertyValue('--wechat-style-accent')).toBe('#0F4C81');
+
+    panel.update(Object.freeze({
+      ...renderState,
+      style: Object.freeze({
+        ...renderState.style,
+        config: Object.freeze({ ...renderState.style.config, primaryColor: '#009874' }),
+      }),
+    }));
+    expect(root?.style.getPropertyValue('--wechat-style-accent')).toBe('#009874');
+  });
+
+  it('styles the reset action as destructive and keeps switch semantics', () => {
+    const container = document.createElement('div');
+    const actions = {
+      patch: vi.fn(), selectTheme: vi.fn(), reset: vi.fn(), close: vi.fn(),
+    };
+    const panel = new StyleWorkbench({} as never, container, actions);
+    panel.render(renderState);
+
+    const reset = container.querySelector<HTMLButtonElement>('[data-style-reset]');
+    expect(reset?.classList.contains('wechat-workbench__style-reset--destructive')).toBe(true);
+    const switchRow = container.querySelector<HTMLButtonElement>('[data-style-switch="行号"]');
+    expect(switchRow?.getAttribute('role')).toBe('switch');
+    expect(switchRow?.getAttribute('aria-checked')).toBe('false');
+    switchRow?.click();
+    expect(actions.patch).toHaveBeenCalledWith({ showCodeLineNumbers: true });
   });
 
   it('preserves the panel root and body scroll position across repeated updates', () => {

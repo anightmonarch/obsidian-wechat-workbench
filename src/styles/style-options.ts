@@ -1,11 +1,21 @@
 import type {
+  BlockquoteBackground,
+  BlockSpacing,
   FontFamilyId,
   HeadingStyle,
   ImageCaptionMode,
+  LineHeight,
+  LinkColorMode,
 } from '../domain/style';
 import { DEFAULT_CODE_THEME_ID, DOOCS_CODE_THEME_IDS } from './code-theme-registry';
 
 export interface StyleOption<T extends string> {
+  id: T;
+  label: string;
+  description: string;
+}
+
+export interface NumericStyleOption<T extends number> {
   id: T;
   label: string;
   description: string;
@@ -23,6 +33,37 @@ export const STYLE_OPTIONS = Object.freeze({
     Object.freeze({ id: 'monospace', label: '等宽', description: '适合技术内容。' }),
   ] satisfies readonly StyleOption<FontFamilyId>[]),
   fontSizes: Object.freeze([14, 15, 16, 17, 18] as const),
+  fontSizeHints: Object.freeze({
+    14: '更小',
+    15: '稍小',
+    16: '推荐',
+    17: '稍大',
+    18: '更大',
+  } as Readonly<Record<number, string>>),
+  lineHeights: Object.freeze([
+    Object.freeze({ id: 1.5, label: '1.5', description: '紧凑' }),
+    Object.freeze({ id: 1.65, label: '1.65', description: '稍紧' }),
+    Object.freeze({ id: 1.75, label: '1.75', description: '推荐' }),
+    Object.freeze({ id: 1.9, label: '1.9', description: '稍松' }),
+    Object.freeze({ id: 2.05, label: '2.05', description: '宽松' }),
+  ] satisfies readonly NumericStyleOption<LineHeight>[]),
+  blockSpacings: Object.freeze([
+    Object.freeze({ id: 0.75, label: '0.75×', description: '紧凑' }),
+    Object.freeze({ id: 0.9, label: '0.9×', description: '稍紧' }),
+    Object.freeze({ id: 1, label: '1×', description: '推荐' }),
+    Object.freeze({ id: 1.15, label: '1.15×', description: '稍松' }),
+    Object.freeze({ id: 1.35, label: '1.35×', description: '宽松' }),
+  ] satisfies readonly NumericStyleOption<BlockSpacing>[]),
+  linkColors: Object.freeze([
+    Object.freeze({ id: 'wechat-blue', label: '微信蓝', description: '默认' }),
+    Object.freeze({ id: 'primary', label: '主题色', description: '跟随主题色' }),
+    Object.freeze({ id: 'inherit', label: '正文色', description: '与正文一致' }),
+  ] satisfies readonly StyleOption<LinkColorMode>[]),
+  blockquoteBackgrounds: Object.freeze([
+    Object.freeze({ id: 'default', label: '跟随主题', description: '默认' }),
+    Object.freeze({ id: 'transparent', label: '无背景', description: '透明' }),
+    Object.freeze({ id: 'primary', label: '主题色', description: '主题色浅底' }),
+  ] satisfies readonly StyleOption<BlockquoteBackground>[]),
   colors: Object.freeze([
     Object.freeze({ id: '#0F4C81', label: '经典蓝', description: '稳重冷静。' }),
     Object.freeze({ id: '#009874', label: '翡翠绿', description: '自然平衡。' }),

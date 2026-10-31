@@ -1,5 +1,9 @@
 import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort } from '../domain/ports';
+import {
+  normalizeImageBytesForClipboard,
+  type NormalizedClipboardImage,
+} from '../media/electron-image-normalize';
 import { detectImageMime, imageDataUrl } from '../media/image-format';
 import { hashContent, parseArticleRoot } from '../render/canonicalize';
 import { applyDiagramImagePresentation } from '../render/diagram-image';
@@ -7,6 +11,8 @@ import type { DiagramRenderer } from '../render/diagram-renderer';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+
+export type ClipboardImageNormalizer = (bytes: Uint8Array) => NormalizedClipboardImage;
 
 export class ClipboardResolutionError extends Error {
   constructor(
@@ -31,22 +37,31 @@ async function readableLocal(files: BinaryFilePort, asset: Readonly<AssetSlot>):
   }
 }
 
-function checkedDataUrl(bytes: Uint8Array, asset: Readonly<AssetSlot>): string {
-  if (bytes.byteLength > MAX_IMAGE_BYTES) {
-    return failure('IMAGE_TOO_LARGE', `Image exceeds 5 MiB: ${asset.source}`, asset.source);
-  }
-  const mime = detectImageMime(bytes);
-  if (mime === null) {
-    return failure('IMAGE_TYPE_UNSUPPORTED', `Image type is unsupported: ${asset.source}`, asset.source);
-  }
-  return imageDataUrl(bytes, mime);
-}
-
 export class ClipboardAssetResolver {
   constructor(
     private readonly files: BinaryFilePort,
     private readonly diagrams: DiagramRenderer,
+    private readonly normalizeImage: ClipboardImageNormalizer = normalizeImageBytesForClipboard,
   ) {}
+
+  private prepareImage(bytes: Uint8Array, asset: Readonly<AssetSlot>): { dataUrl: string; byteLength: number } {
+    if (detectImageMime(bytes) === null) {
+      return failure('IMAGE_TYPE_UNSUPPORTED', `Image type is unsupported: ${asset.source}`, asset.source);
+    }
+    const normalized = this.normalizeImage(bytes);
+    if (normalized.bytes.byteLength > MAX_IMAGE_BYTES) {
+      return failure(
+        'IMAGE_TOO_LARGE',
+        `Image exceeds 5 MiB after normalization: ${asset.source}`,
+        asset.source,
+      );
+    }
+    const mime = detectImageMime(normalized.bytes) ?? normalized.mime;
+    return {
+      dataUrl: imageDataUrl(normalized.bytes, mime),
+      byteLength: normalized.bytes.byteLength,
+    };
+  }
 
   async resolve(artifact: Readonly<RenderArtifact>): Promise<string> {
     const resolved = new Map<string, string | null>();
@@ -58,14 +73,14 @@ export class ClipboardAssetResolver {
         if (asset.contentHash !== null && hashContent(bytes) !== asset.contentHash) {
           failure('LOCAL_ASSET_CHANGED', `Local image changed after rendering: ${asset.source}`, asset.source);
         }
-        const dataUrl = checkedDataUrl(bytes, asset);
-        totalBytes += bytes.byteLength;
-        resolved.set(asset.id, dataUrl);
+        const prepared = this.prepareImage(bytes, asset);
+        totalBytes += prepared.byteLength;
+        resolved.set(asset.id, prepared.dataUrl);
       } else if (asset.kind === 'generated-diagram') {
         const generated = await this.diagrams.renderMermaid(asset.source);
-        const dataUrl = checkedDataUrl(generated.bytes, asset);
-        totalBytes += generated.bytes.byteLength;
-        resolved.set(asset.id, dataUrl);
+        const prepared = this.prepareImage(generated.bytes, asset);
+        totalBytes += prepared.byteLength;
+        resolved.set(asset.id, prepared.dataUrl);
       } else if (asset.kind === 'remote-image') {
         let safe = false;
         try { safe = new URL(asset.source).protocol === 'https:'; } catch { safe = false; }

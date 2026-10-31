@@ -59,33 +59,54 @@ function collectTokens(node: Node, classes: readonly string[], lines: HighlightT
   for (const child of element.childNodes) collectTokens(child, mergedClasses, lines);
 }
 
-function projectLineNumbers(code: Element): void {
+function appendTokens(target: Element, tokens: HighlightToken[], document: Document): void {
+  for (const token of tokens) {
+    if (token.classes.length === 0) {
+      target.append(document.createTextNode(token.text));
+      continue;
+    }
+    const span = createHtmlElement(document, 'span');
+    span.className = token.classes.join(' ');
+    span.textContent = token.text;
+    target.append(span);
+  }
+}
+
+function projectCodeLines(code: Element, lineNumbers: boolean): void {
   const lines: HighlightToken[][] = [[]];
   for (const child of code.childNodes) collectTokens(child, [], lines);
   const document = code.ownerDocument;
   code.replaceChildren();
   lines.forEach((tokens, index) => {
-    const line = createHtmlElement(document, 'span');
-    line.className = 'code-line';
-    const number = createHtmlElement(document, 'span');
-    number.className = 'code-line-number';
-    number.setAttribute('aria-hidden', 'true');
-    number.textContent = String(index + 1);
-    const content = createHtmlElement(document, 'span');
-    content.className = 'code-line-content';
-    for (const token of tokens) {
-      if (token.classes.length === 0) {
-        content.append(document.createTextNode(token.text));
-        continue;
-      }
-      const span = createHtmlElement(document, 'span');
-      span.className = token.classes.join(' ');
-      span.textContent = token.text;
-      content.append(span);
+    if (lineNumbers) {
+      const line = createHtmlElement(document, 'span');
+      line.className = 'code-line';
+      const number = createHtmlElement(document, 'span');
+      number.className = 'code-line-number';
+      number.setAttribute('aria-hidden', 'true');
+      number.textContent = String(index + 1);
+      const content = createHtmlElement(document, 'span');
+      content.className = 'code-line-content';
+      appendTokens(content, tokens, document);
+      line.append(number, content);
+      code.append(line);
+      return;
     }
-    line.append(number, content);
+    // WeChat rewrites white-space on pre/code, collapsing newline text nodes;
+    // explicit block spans keep the line structure in any sanitizer.
+    const line = createHtmlElement(document, 'span');
+    line.className = 'code-line-block';
+    appendTokens(line, tokens, document);
     code.append(line);
   });
+}
+
+function wrapScrollSection(pre: Element): void {
+  const document = pre.ownerDocument;
+  const section = createHtmlElement(document, 'section');
+  section.className = 'code-scroll';
+  pre.replaceWith(section);
+  section.append(pre);
 }
 
 function addMacWindow(pre: Element): void {
@@ -109,9 +130,12 @@ export function highlightCodeBlocks(
   options: Readonly<CodeBlockOptions> = { showLineNumbers: false, macWindow: false },
 ): void {
   for (const code of root.querySelectorAll('pre > code')) {
+    const pre = code.parentElement;
     const language = languageFor(code);
     if (language === null) {
       code.classList.add('hljs');
+      projectCodeLines(code, options.showLineNumbers);
+      if (pre !== null) wrapScrollSection(pre);
       continue;
     }
 
@@ -126,10 +150,8 @@ export function highlightCodeBlocks(
       if (safeChild !== null) code.append(safeChild);
     }
     code.classList.add('hljs');
-    if (options.showLineNumbers) projectLineNumbers(code);
-    if (options.macWindow) {
-      const parent = code.parentElement;
-      if (parent !== null) addMacWindow(parent);
-    }
+    projectCodeLines(code, options.showLineNumbers);
+    if (options.macWindow && pre !== null) addMacWindow(pre);
+    if (pre !== null) wrapScrollSection(pre);
   }
 }

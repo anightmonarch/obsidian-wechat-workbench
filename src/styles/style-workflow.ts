@@ -1,7 +1,6 @@
-import type { NoteSnapshot } from '../domain/article';
 import type { ArticleStyleConfig } from '../domain/style';
-import type { ThemeDefinition } from '../domain/theme';
 import type { VaultFileRef } from '../domain/ports';
+import type { ThemeDefinition } from '../domain/theme';
 import type { PluginSettings } from '../settings/model';
 import { StyleCompiler } from './style-compiler';
 import { defaultStyleForTheme } from './style-config';
@@ -35,13 +34,8 @@ export class StyleWorkflow {
     private readonly frontmatter: StyleFrontmatterStore,
   ) {}
 
-  resolve(snapshot: Readonly<NoteSnapshot>): Readonly<ResolvedArticleStyle> {
-    const global = this.settings.get();
-    return this.resolver.resolve({
-      frontmatter: snapshot.frontmatter,
-      selectedThemeId: snapshot.selectedThemeId,
-      defaultStyle: global.defaultStyle,
-    });
+  resolve(): Readonly<ResolvedArticleStyle> {
+    return this.resolver.resolve({ defaultStyle: this.settings.get().defaultStyle });
   }
 
   materialize(resolved: Readonly<ResolvedArticleStyle>): Readonly<ThemeDefinition> {
@@ -49,17 +43,7 @@ export class StyleWorkflow {
     if (baseTheme === undefined) {
       throw new StyleWorkflowError('STYLE_THEME_NOT_FOUND', `排版主题不存在：${resolved.themeId}`);
     }
-    return resolved.renderMode === 'legacy'
-      ? baseTheme
-      : this.compiler.compile(baseTheme, resolved.config);
-  }
-
-  async saveArticle(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void> {
-    await this.frontmatter.save(file, config);
-    const current = this.settings.get();
-    await this.settings.update({
-      recentStyles: Object.freeze({ ...current.recentStyles, [config.themeId]: config }),
-    });
+    return this.compiler.compile(baseTheme, resolved.config);
   }
 
   async setGlobalDefault(config: Readonly<ArticleStyleConfig>): Promise<void> {
@@ -70,7 +54,15 @@ export class StyleWorkflow {
     });
   }
 
+  configForTheme(themeId: string): Readonly<ArticleStyleConfig> {
+    return this.settings.get().recentStyles[themeId] ?? defaultStyleForTheme(themeId);
+  }
+
   reset(themeId: string): Readonly<ArticleStyleConfig> {
     return defaultStyleForTheme(themeId);
+  }
+
+  async recordPublishSnapshot(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void> {
+    await this.frontmatter.save(file, config);
   }
 }

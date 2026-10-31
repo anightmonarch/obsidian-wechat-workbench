@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NoteSnapshot } from '../../src/domain/article';
+import type { PublishOutcome } from '../../src/publish/publish-types';
 import type { RenderArtifact } from '../../src/domain/artifact';
 import type { VaultFileRef } from '../../src/domain/ports';
 import type { ArticleStyleConfig } from '../../src/domain/style';
@@ -146,12 +147,14 @@ function styledController(
   view: FakeView,
   build: (snapshot: Readonly<NoteSnapshot>, style: Readonly<ArticleStyleConfig> | null) => Promise<Readonly<RenderArtifact>>,
   styles: {
-    resolve(snapshot: Readonly<NoteSnapshot>): Readonly<ResolvedArticleStyle>;
+    resolve(): Readonly<ResolvedArticleStyle>;
     materialize(resolved: Readonly<ResolvedArticleStyle>): Readonly<ThemeDefinition>;
-    saveArticle(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
     setGlobalDefault(config: Readonly<ArticleStyleConfig>): Promise<void>;
+    configForTheme(themeId: string): Readonly<ArticleStyleConfig>;
     reset(themeId: string): Readonly<ArticleStyleConfig>;
+    recordPublishSnapshot(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
   },
+  publisher?: unknown,
 ) {
   return new WorkbenchController(
     source,
@@ -164,7 +167,7 @@ function styledController(
     'native',
     400,
     undefined,
-    undefined,
+    publisher as never,
     undefined,
     undefined,
     styles,
@@ -347,8 +350,9 @@ describe('WorkbenchController', () => {
         themeHash: input.theme.contentHash,
         coverHash: 'cover-hash',
         imageCount: 0,
-        coverLabel: 'cover.png',
-      },
+        coverPath: 'assets/cover.png',
+       coverLabel: '封面图',
+        },
     }));
     const outcome = Object.freeze({
       taskId: 'test-task', state: 'FAILED' as const, action: null, mediaId: null, error: null,
@@ -523,9 +527,10 @@ describe('WorkbenchController', () => {
     const styles = {
       resolve: () => resolvedStyle(),
       materialize: (resolved: Readonly<ResolvedArticleStyle>) => theme,
-      saveArticle: vi.fn(async () => undefined),
       setGlobalDefault: vi.fn(async () => undefined),
+      configForTheme: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
       reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+      recordPublishSnapshot: vi.fn(async () => undefined),
     };
     const instance = styledController(source, view, async (input, style) => {
       if (initial) {
@@ -554,16 +559,17 @@ describe('WorkbenchController', () => {
     expect(view.styles.at(-1)).toBe('#FA5151');
   });
 
-  it('coalesces style saves and keeps the original file target', async () => {
+  it('persists every style change into the global default immediately', async () => {
     const source = new FakeSource();
     const view = new FakeView();
-    const saveArticle = vi.fn(async (_file: VaultFileRef, _config: Readonly<ArticleStyleConfig>) => undefined);
+    const setGlobalDefault = vi.fn(async (_config: Readonly<ArticleStyleConfig>) => undefined);
     const styles = {
       resolve: () => resolvedStyle(),
       materialize: () => theme,
-      saveArticle,
-      setGlobalDefault: vi.fn(async () => undefined),
+      setGlobalDefault,
+      configForTheme: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
       reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+      recordPublishSnapshot: vi.fn(async () => undefined),
     };
     const instance = styledController(source, view, async input => artifactFor(input), styles);
     instance.start();
@@ -572,10 +578,83 @@ describe('WorkbenchController', () => {
 
     instance.updateStyle({ primaryColor: '#009874' });
     instance.updateStyle({ primaryColor: '#FA5151' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setGlobalDefault).toHaveBeenCalledTimes(2);
+    expect(setGlobalDefault.mock.calls[0]?.[0].primaryColor).toBe('#009874');
+    expect(setGlobalDefault.mock.calls[1]?.[0].primaryColor).toBe('#FA5151');
+  });
+
+  it('loads the remembered theme config when switching themes', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const graceConfig = patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      themeId: 'native',
+      primaryColor: '#009874',
+      lineHeight: 1.9,
+    });
+    const setGlobalDefault = vi.fn(async (_config: Readonly<ArticleStyleConfig>) => undefined);
+    const styles = {
+      resolve: () => resolvedStyle(),
+      materialize: () => theme,
+      setGlobalDefault,
+      configForTheme: (themeId: string) => themeId === 'native' ? graceConfig : DEFAULT_ARTICLE_STYLE,
+      reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+      recordPublishSnapshot: vi.fn(async (_fileRef: VaultFileRef, _config: Readonly<ArticleStyleConfig>) => undefined),
+    };
+    const instance = styledController(source, view, async input => artifactFor(input), styles);
+    instance.start();
+    source.emitActive('article.md');
     await vi.advanceTimersByTimeAsync(400);
 
-    expect(saveArticle).toHaveBeenCalledOnce();
-    expect(saveArticle.mock.calls[0]?.[0]).toEqual(file('article.md'));
-    expect(saveArticle.mock.calls[0]?.[1].primaryColor).toBe('#FA5151');
+    instance.selectTheme('native');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setGlobalDefault).toHaveBeenCalledWith(graceConfig);
+  });
+
+  it('records the style snapshot into frontmatter after a successful publish', async () => {
+    const source = new FakeSource();
+    const view = new FakeView();
+    const recordPublishSnapshot = vi.fn(async (_fileRef: VaultFileRef, _config: Readonly<ArticleStyleConfig>) => undefined);
+    const styles = {
+      resolve: () => resolvedStyle(),
+      materialize: () => theme,
+      setGlobalDefault: vi.fn(async () => undefined),
+      configForTheme: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+      reset: (themeId: string) => patchArticleStyle(DEFAULT_ARTICLE_STYLE, { themeId }),
+      recordPublishSnapshot,
+    };
+    const publishOutcome: Readonly<PublishOutcome> = Object.freeze({
+      taskId: 'task-1',
+      state: 'REMOTE_COMMITTED',
+      action: 'CREATE',
+      mediaId: 'media-1',
+      error: null,
+      hasUnsyncedChanges: false,
+    });
+    const publisher = {
+      prepare: vi.fn(async () => Object.freeze({
+        command: Object.freeze({ file: file('article.md') }),
+        warnings: Object.freeze([]),
+      })),
+      execute: vi.fn(async () => publishOutcome),
+      reconcile: vi.fn(async () => publishOutcome),
+      repairLocal: vi.fn(async () => publishOutcome),
+      unlink: vi.fn(async () => undefined),
+    };
+    const instance = styledController(source, view, async input => artifactFor(input), styles, publisher);
+    instance.start();
+    source.emitActive('article.md');
+    await vi.advanceTimersByTimeAsync(400);
+
+    await instance.executePublish(Object.freeze({ file: file('article.md') }) as never);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(recordPublishSnapshot).toHaveBeenCalledTimes(1);
+    expect(recordPublishSnapshot.mock.calls[0]?.[0]).toEqual(file('article.md'));
   });
 });

@@ -43,7 +43,6 @@ interface WorkbenchControllerBinding {
   updateStyle?(patch: Readonly<Record<string, unknown>>): void;
   selectStyleTheme?(themeId: string): void;
   resetStyle?(): void;
-  setStyleAsDefault?(): Promise<void>;
   copyForWeChat(): Promise<void>;
   copyHtmlSource(): Promise<void>;
   preparePublish(): Promise<Readonly<PreparedPublish>>;
@@ -428,15 +427,6 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
   openCoverPreview(url: string, alt: string): void {
     if (typeof url !== 'string' || url.length === 0) return;
     new CoverPreviewModal(this.app, url, alt).open();
-  }
-
-  showStyleStatus(status: 'saved' | 'saving' | 'unsaved', message?: string): void {
-    if (this.styleWorkbench === null || this.latestState === null) return;
-    this.renderStylePanel(Object.freeze({
-      ...this.latestState,
-      styleSaveStatus: status,
-    }));
-    if (message !== undefined && status !== 'saving') this.showStyleMessage(message);
   }
 
   showStyleMessage(message: string): void {

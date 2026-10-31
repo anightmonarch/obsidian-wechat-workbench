@@ -7,7 +7,20 @@ import type { DiagramRenderer } from '../../../src/render/diagram-renderer';
 import {
   ClipboardAssetResolver,
   ClipboardResolutionError,
+  type ClipboardImageNormalizer,
 } from '../../../src/clipboard/asset-resolver';
+import { detectImageMime } from '../../../src/media/image-format';
+
+/** Keep fixture bytes unchanged so size-limit tests stay deterministic. */
+const identityNormalize: ClipboardImageNormalizer = (bytes) => {
+  const mime = detectImageMime(bytes);
+  if (mime === null) throw new Error('unsupported');
+  return { bytes, mime };
+};
+
+function resolver(files: BinaryFilePort, diagrams: DiagramRenderer = {} as DiagramRenderer): ClipboardAssetResolver {
+  return new ClipboardAssetResolver(files, diagrams, identityNormalize);
+}
 
 const png = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
@@ -45,6 +58,7 @@ describe('ClipboardAssetResolver', () => {
     const resolver = new ClipboardAssetResolver(
       binary.port,
       { renderMermaid } as unknown as DiagramRenderer,
+      identityNormalize,
     );
 
     const html = await resolver.resolve(input);
@@ -72,11 +86,11 @@ describe('ClipboardAssetResolver', () => {
     });
     const input = artifact([local], '<section class="wechat-article"><img data-asset-id="asset:local"></section>');
 
-    await expect(new ClipboardAssetResolver(unreadable, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(unreadable).resolve(input))
       .rejects.toMatchObject({ code: 'LOCAL_ASSET_UNREADABLE', source: 'local.png' });
 
     const changed = files();
-    await expect(new ClipboardAssetResolver(changed.port, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(changed.port).resolve(input))
       .rejects.toMatchObject({ code: 'LOCAL_ASSET_CHANGED', source: 'local.png' });
   });
 
@@ -87,12 +101,12 @@ describe('ClipboardAssetResolver', () => {
     });
     const input = artifact([local], '<section class="wechat-article"><img data-asset-id="asset:local"></section>');
 
-    await expect(new ClipboardAssetResolver(files(Uint8Array.from([1, 2, 3])).port, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(files(Uint8Array.from([1, 2, 3])).port).resolve(input))
       .rejects.toMatchObject({ code: 'IMAGE_TYPE_UNSUPPORTED' });
 
     const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
     oversized.set(png.slice(0, 8));
-    await expect(new ClipboardAssetResolver(files(oversized).port, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(files(oversized).port).resolve(input))
       .rejects.toMatchObject({ code: 'IMAGE_TOO_LARGE' });
   });
 
@@ -107,17 +121,16 @@ describe('ClipboardAssetResolver', () => {
       `<img data-asset-id="${item.id}">`
     )).join('')}</section>`;
 
-    await expect(new ClipboardAssetResolver(files(bytes).port, {} as DiagramRenderer)
-      .resolve(artifact(assets, html)))
+    await expect(resolver(files(bytes).port).resolve(artifact(assets, html)))
       .rejects.toMatchObject({ code: 'TOTAL_IMAGE_BYTES_EXCEEDED' });
   });
 
   it('reports an unresolved slot instead of silently dropping it', async () => {
     const input = artifact([], '<section class="wechat-article"><img data-asset-id="asset:missing"></section>');
 
-    await expect(new ClipboardAssetResolver(files().port, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(files().port).resolve(input))
       .rejects.toBeInstanceOf(ClipboardResolutionError);
-    await expect(new ClipboardAssetResolver(files().port, {} as DiagramRenderer).resolve(input))
+    await expect(resolver(files().port).resolve(input))
       .rejects.toMatchObject({ code: 'ASSET_SLOT_UNRESOLVED' });
   });
 });

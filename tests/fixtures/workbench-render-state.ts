@@ -62,8 +62,7 @@ export const renderState: Readonly<WorkbenchRenderState> = Object.freeze({
   })]),
   selectedThemeId: 'native',
   style: Object.freeze({
-    source: 'legacy', renderMode: 'legacy', themeId: 'native',
-    config: defaultStyleForTheme('native'), unsupportedVersion: null,
+    source: 'global', renderMode: 'legacy', themeId: 'native',
+    config: defaultStyleForTheme('native'),
   }),
-  styleSaveStatus: 'saved',
 });

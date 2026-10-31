@@ -9,8 +9,8 @@ describe('StyleResetModal', () => {
 
     modal.open();
 
-    expect(modal.titleEl.textContent).toBe('重置文章样式');
-    expect(modal.contentEl.textContent).toContain('恢复当前文章的默认样式');
+    expect(modal.titleEl.textContent).toBe('重置样式');
+    expect(modal.contentEl.textContent).toContain('把当前主题的样式参数恢复为默认值');
     modal.contentEl.querySelector<HTMLButtonElement>('[data-testid="style-reset-cancel"]')?.click();
     expect(confirm).not.toHaveBeenCalled();
 

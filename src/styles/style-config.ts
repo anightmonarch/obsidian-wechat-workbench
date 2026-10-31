@@ -1,10 +1,14 @@
 import type {
   ArticleStyleConfig,
+  BlockquoteBackground,
+  BlockSpacing,
   FontFamilyId,
   FontSize,
   HeadingLevel,
   HeadingStyle,
   ImageCaptionMode,
+  LineHeight,
+  LinkColorMode,
   StyleParseResult,
 } from '../domain/style';
 
@@ -12,6 +16,10 @@ const THEME_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const COLOR = /^#[0-9a-f]{6}$/iu;
 const FONT_FAMILIES = new Set<FontFamilyId>(['sans-serif', 'serif', 'monospace']);
 const FONT_SIZES = new Set<FontSize>([14, 15, 16, 17, 18]);
+const LINE_HEIGHTS = new Set<LineHeight>([1.5, 1.65, 1.75, 1.9, 2.05]);
+const BLOCK_SPACINGS = new Set<BlockSpacing>([0.75, 0.9, 1, 1.15, 1.35]);
+const LINK_COLORS = new Set<LinkColorMode>(['wechat-blue', 'primary', 'inherit']);
+const BLOCKQUOTE_BACKGROUNDS = new Set<BlockquoteBackground>(['default', 'transparent', 'primary']);
 const HEADING_LEVELS: readonly HeadingLevel[] = Object.freeze(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 const HEADING_STYLES = new Set<HeadingStyle>([
   'default', 'color-only', 'border-bottom', 'border-left',
@@ -21,7 +29,7 @@ const CAPTION_MODES = new Set<ImageCaptionMode>([
 ]);
 
 const BASE_DEFAULTS = Object.freeze({
-  version: 2 as const,
+  version: 3 as const,
   themeId: 'doocs-classic',
   fontFamily: 'sans-serif' as const,
   fontSize: 16 as const,
@@ -38,6 +46,10 @@ const BASE_DEFAULTS = Object.freeze({
   paragraphIndent: false,
   textJustify: false,
   wordCount: false,
+  lineHeight: 1.75 as const,
+  blockSpacing: 1 as const,
+  linkColor: 'wechat-blue' as const,
+  blockquoteBackground: 'default' as const,
 });
 
 function freezeConfig(value: ArticleStyleConfig): Readonly<ArticleStyleConfig> {
@@ -124,10 +136,28 @@ function normalizedCaption(value: unknown, fallback: ImageCaptionMode): ImageCap
   return CAPTION_MODES.has(candidate) ? candidate : fallback;
 }
 
+function normalizedNumeric<T extends number>(
+  value: unknown,
+  allowed: ReadonlySet<T>,
+  fallback: T,
+): T {
+  const candidate = typeof value === 'number' ? value : fallback;
+  return allowed.has(candidate as T) ? candidate as T : fallback;
+}
+
+function normalizedEnum<T extends string>(
+  value: unknown,
+  allowed: ReadonlySet<T>,
+  fallback: T,
+): T {
+  const candidate = stringValue(value, fallback) as T;
+  return allowed.has(candidate) ? candidate : fallback;
+}
+
 function normalizedConfig(value: Record<string, unknown>, fallback: Readonly<ArticleStyleConfig>): Readonly<ArticleStyleConfig> {
   const headingValue = first(value, 'headingStyles', 'headings');
   return freezeConfig({
-    version: 2,
+    version: 3,
     themeId: normalizedThemeId(first(value, 'themeId', 'theme'), fallback.themeId),
     fontFamily: normalizedFont(first(value, 'fontFamily', 'font'), fallback.fontFamily),
     fontSize: normalizedFontSize(first(value, 'fontSize', 'font-size'), fallback.fontSize),
@@ -162,6 +192,26 @@ function normalizedConfig(value: Record<string, unknown>, fallback: Readonly<Art
       first(value, 'wordCount', 'word-count'),
       fallback.wordCount,
     ),
+    lineHeight: normalizedNumeric(
+      first(value, 'lineHeight', 'line-height'),
+      LINE_HEIGHTS,
+      fallback.lineHeight,
+    ),
+    blockSpacing: normalizedNumeric(
+      first(value, 'blockSpacing', 'block-spacing'),
+      BLOCK_SPACINGS,
+      fallback.blockSpacing,
+    ),
+    linkColor: normalizedEnum(
+      first(value, 'linkColor', 'link-color'),
+      LINK_COLORS,
+      fallback.linkColor,
+    ),
+    blockquoteBackground: normalizedEnum(
+      first(value, 'blockquoteBackground', 'blockquote-background'),
+      BLOCKQUOTE_BACKGROUNDS,
+      fallback.blockquoteBackground,
+    ),
   });
 }
 
@@ -177,7 +227,9 @@ export function parseArticleStyle(
   const version = typeof source.version === 'number' && Number.isInteger(source.version)
     ? source.version
     : 1;
-  if (version !== 1 && version !== 2) return Object.freeze({ status: 'unsupported', config: null, version });
+  if (version !== 1 && version !== 2 && version !== 3) {
+    return Object.freeze({ status: 'unsupported', config: null, version });
+  }
   return Object.freeze({
     status: 'valid',
     config: normalizedConfig(source, fallback),
@@ -204,7 +256,7 @@ export function patchArticleStyle(
 
 export function serializeArticleStyle(config: Readonly<ArticleStyleConfig>): Readonly<Record<string, unknown>> {
   return Object.freeze({
-    version: 2,
+    version: 3,
     theme: config.themeId,
     font: config.fontFamily,
     'font-size': config.fontSize,
@@ -218,5 +270,9 @@ export function serializeArticleStyle(config: Readonly<ArticleStyleConfig>): Rea
     'paragraph-indent': config.paragraphIndent,
     'text-justify': config.textJustify,
     'word-count': config.wordCount,
+    'line-height': config.lineHeight,
+    'block-spacing': config.blockSpacing,
+    'link-color': config.linkColor,
+    'blockquote-background': config.blockquoteBackground,
   });
 }

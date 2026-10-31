@@ -12,7 +12,7 @@ function values(
 
 export const ARTICLE_HTML_SCHEMA: Schema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'section'],
+  tagNames: [...(defaultSchema.tagNames ?? []), 'section', 'mark'],
   attributes: {
     ...defaultSchema.attributes,
     '*': values(defaultSchema.attributes?.['*'], ['className']),
@@ -22,6 +22,7 @@ export const ARTICLE_HTML_SCHEMA: Schema = {
     ],
     img: values(defaultSchema.attributes?.img, ['dataAssetSource']),
     section: ['className'],
+    mark: ['className'],
     table: values(defaultSchema.attributes?.table, ['className']),
   },
   protocols: {

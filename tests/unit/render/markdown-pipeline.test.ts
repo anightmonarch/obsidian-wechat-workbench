@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { NoteSnapshot } from '../../../src/domain/article';
 import { RenderArtifactBuilder } from '../../../src/render/artifact-builder';
+import { CodeThemeRegistry } from '../../../src/styles/code-theme-registry';
+import { StyleCompiler } from '../../../src/styles/style-compiler';
 import { DEFAULT_ARTICLE_STYLE, patchArticleStyle } from '../../../src/styles/style-config';
 import { BUILTIN_THEMES } from '../../../src/themes/builtin';
 
@@ -63,9 +65,10 @@ describe('RenderArtifactBuilder', () => {
       showCodeLineNumbers: true,
       macCodeBlock: true,
     });
+    const compiledTheme = new StyleCompiler(new CodeThemeRegistry()).compile(nativeTheme, style);
     const artifact = await new RenderArtifactBuilder().build(
       snapshot('![Preview](https://example.test/preview.png)\n\n```ts\nconst answer = 42;\nreturn answer;\n```'),
-      nativeTheme,
+      compiledTheme,
       style,
     );
 
@@ -75,6 +78,32 @@ describe('RenderArtifactBuilder', () => {
     expect(artifact.canonicalHtml).toContain('code-window-dots');
     expect(artifact.canonicalHtml).toContain('code-line-number');
     expect(artifact.canonicalHtml).toContain('code-line-content');
+    const codeStyle = /<code[^>]*style="([^"]*)"/u.exec(artifact.canonicalHtml)?.[1] ?? '';
+    expect(codeStyle).toContain('white-space: pre');
+    expect(codeStyle).toContain('overflow-wrap: normal');
+    expect(codeStyle).toContain('word-break: keep-all');
+    expect(codeStyle).toContain('overflow-x: auto');
+    // line-number mode keeps explicit flex rows
+    const doc = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
+    const lines = [...doc.querySelectorAll('.code-line')];
+    expect(lines.map(line => line.querySelector('.code-line-content')?.textContent)).toEqual(['const answer = 42;', 'return answer;', '']);
+    const scrollSection = doc.querySelector('section.code-scroll');
+    expect(scrollSection?.getAttribute('style')).toContain('overflow-x: auto');
+    expect(scrollSection?.querySelector('pre')).not.toBeNull();
+
+    // WeChat strips white-space on pre/code: without line numbers the line
+    // structure must be explicit block spans with inline styles
+    const plainArtifact = await new RenderArtifactBuilder().build(
+      snapshot('```ts\nconst answer = 42;\nreturn answer;\n```'),
+      compiledTheme,
+      patchArticleStyle(DEFAULT_ARTICLE_STYLE, { imageCaption: 'alt', macCodeBlock: true }),
+    );
+    const plainDoc = new DOMParser().parseFromString(plainArtifact.canonicalHtml, 'text/html');
+    const lineBlocks = [...plainDoc.querySelectorAll('.code-line-block')];
+    expect(lineBlocks.map(line => line.textContent)).toEqual(['const answer = 42;', 'return answer;', '']);
+    expect(lineBlocks[0]?.getAttribute('style')).toContain('display: block');
+    expect(lineBlocks[0]?.getAttribute('style')).toContain('white-space: pre');
+    expect(plainDoc.querySelector('section.code-scroll')?.querySelector('pre')).not.toBeNull();
   });
 
   it('removes invisible C0 controls without adding paragraph indentation', async () => {
@@ -102,7 +131,7 @@ describe('RenderArtifactBuilder', () => {
       .toBe('预览、复制和草稿同步使用同一份渲染结果。');
     expect(callout?.querySelector('.callout-title')?.nextElementSibling)
       .toBe(callout?.querySelector('.callout-body'));
-    expect(callout?.getAttribute('style')).toContain('background: #eef8f9');
+    expect(callout?.getAttribute('style')).toContain('background-color: #eef8f9');
     expect(callout?.getAttribute('style')).not.toContain('#eff9f0');
   });
 

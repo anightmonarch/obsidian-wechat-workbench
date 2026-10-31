@@ -40,7 +40,8 @@ describe('custom theme fixture', () => {
 
     expect(theme.manifest.version).toBe('1.0.0');
     expect(artifact.theme.id).toBe('sample-custom');
-    expect(artifact.canonicalHtml).toContain('border-bottom: 2px solid #607d8b');
+    expect(artifact.canonicalHtml).toContain('border-bottom-width: 2px');
+    expect(artifact.canonicalHtml).toContain('border-bottom-color: #607d8b');
     expect(artifact.canonicalHtml).toContain('color: #263238');
   });
 });

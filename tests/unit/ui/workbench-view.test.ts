@@ -181,10 +181,7 @@ describe('WeChatWorkbenchView', () => {
       .toBe('样式');
     expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).not.toBeNull();
     const styleRoot = view.contentEl.querySelector('[data-testid="style-workbench"]');
-    view.showStyleStatus('unsaved');
-    view.showStyleStatus('saving', '正在保存样式');
     expect(view.contentEl.querySelector('[data-testid="style-workbench"]')).toBe(styleRoot);
-    expect(view.contentEl.textContent).not.toContain('正在保存样式');
     expect(view.contentEl.querySelector('[data-style-theme="doocs-classic"]')?.getAttribute('aria-pressed'))
       .toBe('true');
     view.contentEl.querySelector<HTMLButtonElement>('[data-style-theme="doocs-classic"]')?.click();

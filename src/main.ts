@@ -140,7 +140,7 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     );
     const buildCurrentArtifact = async (file: { path: string; basename: string; modifiedAt: number }): Promise<Readonly<RenderArtifact>> => {
       const current = await snapshots.snapshot(file);
-      const resolved = styleWorkflow.resolve(current);
+      const resolved = styleWorkflow.resolve();
       const theme = styleWorkflow.materialize(resolved);
       return builder.build(
         current,

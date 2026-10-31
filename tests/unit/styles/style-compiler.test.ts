@@ -80,9 +80,70 @@ describe('StyleCompiler', () => {
     }));
 
     expect(result.css).toContain('.wechat-article pre.code-window > code');
-    expect(result.css).toContain('padding: 2.25em 1em 1em');
+    expect(result.css).toContain('padding: 1em');
+    expect(result.css).toContain('.wechat-article pre.code-window .code-window-dots { display: flex; gap: 0.35em; margin: 0 0 0.6em; }');
+    expect(result.css).not.toContain('position: absolute');
     expect(result.css).toContain('align-items: baseline;');
     expect(result.css).toContain('line-height: 1.5;');
+  });
+
+  it('emits the configured line-height on the article root', () => {
+    const result = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      lineHeight: 1.9,
+    }));
+
+    expect(result.css).toMatch(/\.wechat-article \{[^}]*line-height: 1\.9;/su);
+    const fallback = compiler.compile(baseTheme, DEFAULT_ARTICLE_STYLE);
+    expect(fallback.css).toMatch(/\.wechat-article \{[^}]*line-height: 1\.75;/su);
+  });
+
+  it('scales theme block margins at compile time without CSS variables', () => {
+    const scaled = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      blockSpacing: 1.35,
+    }));
+    expect(scaled.css).toContain('.wechat-article p { margin: 1.6875em 0; letter-spacing: 0.04em; }');
+    expect(scaled.css).toMatch(/\.wechat-article h2\s*\{[^}]*margin:\s*2\.7em auto 1\.35em/su);
+    expect(scaled.css).not.toMatch(/var\(--/iu);
+
+    const tightened = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      blockSpacing: 0.75,
+    }));
+    expect(tightened.css).toContain('.wechat-article p { margin: 0.9375em 0; letter-spacing: 0.04em; }');
+
+    const untouched = compiler.compile(baseTheme, DEFAULT_ARTICLE_STYLE);
+    expect(untouched.css).toContain('.wechat-article p { margin: 1.25em 0; letter-spacing: 0.04em; }');
+  });
+
+  it('emits link colors per the selected mode', () => {
+    const wechatBlue = compiler.compile(baseTheme, DEFAULT_ARTICLE_STYLE);
+    expect(wechatBlue.css).toContain('.wechat-article a { color: #576b95; }');
+    expect(wechatBlue.css).not.toContain(`.wechat-article a { color: ${DEFAULT_ARTICLE_STYLE.primaryColor}; }`);
+
+    const primary = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      linkColor: 'primary',
+    }));
+    expect(primary.css).toContain(`.wechat-article a { color: ${DEFAULT_ARTICLE_STYLE.primaryColor}; }`);
+
+    const inherit = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      linkColor: 'inherit',
+    }));
+    expect(inherit.css).toContain('.wechat-article a { color: inherit; }');
+  });
+
+  it('emits blockquote background per the selected mode', () => {
+    const followTheme = compiler.compile(baseTheme, DEFAULT_ARTICLE_STYLE);
+    expect(followTheme.css).not.toContain('.wechat-article blockquote { background: transparent; }');
+    expect(followTheme.css).not.toContain('color-mix');
+
+    const transparent = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      blockquoteBackground: 'transparent',
+    }));
+    expect(transparent.css).toContain('.wechat-article blockquote { background: transparent; }');
+
+    const primary = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      blockquoteBackground: 'primary',
+    }));
+    expect(primary.css).toContain(`.wechat-article blockquote { background: color-mix(in srgb, ${DEFAULT_ARTICLE_STYLE.primaryColor} 8%, transparent); }`);
   });
 
   it('styles generated reading summaries and external-link references', () => {

@@ -5,65 +5,28 @@ import { StyleResolver } from '../../../src/styles/style-resolver';
 
 describe('StyleResolver', () => {
   const resolver = new StyleResolver();
-  const articleStyle = patchArticleStyle(DEFAULT_ARTICLE_STYLE, { primaryColor: '#009874' });
+  const globalStyle = patchArticleStyle(DEFAULT_ARTICLE_STYLE, { primaryColor: '#009874' });
 
-  it('gives a valid article style precedence over legacy and global values', () => {
-    const resolved = resolver.resolve({
-      frontmatter: {
-        'wechat-style': serializeArticleStyle(articleStyle),
-        'wechat-theme-id': 'native',
-      },
-      selectedThemeId: 'native',
-      defaultStyle: DEFAULT_ARTICLE_STYLE,
-    });
+  it('resolves the global default style as the single rendering source', () => {
+    const resolved = resolver.resolve({ defaultStyle: globalStyle });
 
-    expect(resolved.source).toBe('article');
-    expect(resolved.renderMode).toBe('compiled');
-    expect(resolved.config.primaryColor).toBe('#009874');
-    expect(resolved.unsupportedVersion).toBeNull();
-  });
-
-  it('keeps an explicit legacy theme uncompiled', () => {
-    const resolved = resolver.resolve({
-      frontmatter: { 'wechat-theme-id': 'technical' },
-      selectedThemeId: 'technical',
-      defaultStyle: DEFAULT_ARTICLE_STYLE,
-    });
-
-    expect(resolved).toMatchObject({
-      source: 'legacy',
-      renderMode: 'legacy',
-      themeId: 'technical',
-    });
-  });
-
-  it('uses the global style when no article style fields exist', () => {
-    const resolved = resolver.resolve({
-      frontmatter: {},
-      selectedThemeId: 'native',
-      defaultStyle: articleStyle,
-    });
-
-    expect(resolved).toMatchObject({
+    expect(resolved).toEqual({
       source: 'global',
       renderMode: 'compiled',
-      themeId: articleStyle.themeId,
-      config: articleStyle,
+      themeId: globalStyle.themeId,
+      config: globalStyle,
     });
   });
 
-  it('does not silently overwrite a future style schema', () => {
-    const resolved = resolver.resolve({
-      frontmatter: { 'wechat-style': { version: 3, theme: 'doocs-grace' } },
-      selectedThemeId: 'native',
-      defaultStyle: articleStyle,
-    });
+  it('ignores per-article style frontmatter entirely', () => {
+    const stored = serializeArticleStyle(patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      themeId: 'native',
+      primaryColor: '#FA5151',
+    }));
 
-    expect(resolved).toMatchObject({
-      source: 'unsupported-fallback',
-      renderMode: 'compiled',
-      themeId: articleStyle.themeId,
-      unsupportedVersion: 3,
-    });
+    expect(stored).toMatchObject({ theme: 'native' });
+    const resolved = resolver.resolve({ defaultStyle: globalStyle });
+    expect(resolved.config).toBe(globalStyle);
+    expect(resolved.themeId).toBe(globalStyle.themeId);
   });
 });

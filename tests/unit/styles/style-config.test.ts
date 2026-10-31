@@ -9,9 +9,9 @@ import {
 } from '../../../src/styles/style-config';
 
 describe('style config', () => {
-  it('provides an immutable Doocs classic default', () => {
+  it('provides an immutable Doocs classic default aligned with the official editor', () => {
     expect(DEFAULT_ARTICLE_STYLE).toMatchObject({
-      version: 2,
+      version: 3,
       themeId: 'doocs-classic',
       fontFamily: 'sans-serif',
       fontSize: 16,
@@ -24,6 +24,10 @@ describe('style config', () => {
       paragraphIndent: false,
       textJustify: false,
       wordCount: false,
+      lineHeight: 1.75,
+      blockSpacing: 1,
+      linkColor: 'wechat-blue',
+      blockquoteBackground: 'default',
     });
     expect(Object.isFrozen(DEFAULT_ARTICLE_STYLE)).toBe(true);
     expect(Object.isFrozen(DEFAULT_ARTICLE_STYLE.headingStyles)).toBe(true);
@@ -61,7 +65,7 @@ describe('style config', () => {
       'primary-color': 'red',
       headings: { h2: 'unknown-style' },
     });
-    const future = parseArticleStyle({ version: 3, theme: 'future' });
+    const future = parseArticleStyle({ version: 4, theme: 'future' });
 
     expect(repaired.status).toBe('valid');
     if (repaired.status === 'valid') {
@@ -70,10 +74,10 @@ describe('style config', () => {
       expect(repaired.config.primaryColor).toBe('#0F4C81');
       expect(repaired.config.headingStyles.h2).toBe('default');
     }
-    expect(future).toEqual({ status: 'unsupported', config: null, version: 3 });
+    expect(future).toEqual({ status: 'unsupported', config: null, version: 4 });
   });
 
-  it('migrates v1 to v2 without enabling new projections', () => {
+  it('migrates v1 to the current schema without enabling new projections', () => {
     const result = parseArticleStyle({
       version: 1,
       theme: 'doocs-classic',
@@ -83,11 +87,76 @@ describe('style config', () => {
     expect(result.status).toBe('valid');
     if (result.status !== 'valid') return;
     expect(result.config).toMatchObject({
-      version: 2,
+      version: 3,
       externalLinkCitation: false,
       wordCount: false,
+      lineHeight: 1.75,
+      blockSpacing: 1,
+      linkColor: 'wechat-blue',
+      blockquoteBackground: 'default',
     });
     expect(result.version).toBe(1);
+  });
+
+  it('upgrades v2 configs to v3 with official defaults for the new fields', () => {
+    const result = parseArticleStyle({
+      version: 2,
+      theme: 'doocs-grace',
+      'primary-color': '#009874',
+    });
+
+    expect(result.status).toBe('valid');
+    if (result.status !== 'valid') return;
+    expect(result.config).toMatchObject({
+      version: 3,
+      themeId: 'doocs-grace',
+      primaryColor: '#009874',
+      lineHeight: 1.75,
+      blockSpacing: 1,
+      linkColor: 'wechat-blue',
+      blockquoteBackground: 'default',
+    });
+  });
+
+  it('accepts v3 options in both naming styles and repairs invalid values', () => {
+    const typed = parseArticleStyle({
+      version: 3,
+      lineHeight: 1.9,
+      blockSpacing: 1.15,
+      linkColor: 'primary',
+      blockquoteBackground: 'primary',
+    });
+    const frontmatter = parseArticleStyle({
+      version: 3,
+      'line-height': 2.05,
+      'block-spacing': 0.75,
+      'link-color': 'inherit',
+      'blockquote-background': 'transparent',
+    });
+    const repaired = parseArticleStyle({
+      version: 3,
+      lineHeight: 3.2,
+      blockSpacing: 'wide',
+      linkColor: 'purple',
+      blockquoteBackground: 'green',
+    });
+
+    expect(typed.status).toBe('valid');
+    expect(frontmatter.status).toBe('valid');
+    if (typed.status !== 'valid' || frontmatter.status !== 'valid') return;
+    expect(typed.config.lineHeight).toBe(1.9);
+    expect(typed.config.blockSpacing).toBe(1.15);
+    expect(typed.config.linkColor).toBe('primary');
+    expect(typed.config.blockquoteBackground).toBe('primary');
+    expect(frontmatter.config.lineHeight).toBe(2.05);
+    expect(frontmatter.config.blockSpacing).toBe(0.75);
+    expect(frontmatter.config.linkColor).toBe('inherit');
+    expect(frontmatter.config.blockquoteBackground).toBe('transparent');
+    if (repaired.status !== 'valid') return;
+    expect(repaired.config.lineHeight).toBe(1.75);
+    expect(repaired.config.blockSpacing).toBe(1);
+    expect(repaired.config.linkColor).toBe('wechat-blue');
+    expect(repaired.config.blockquoteBackground).toBe('default');
   });
 
   it('accepts v2 projection settings and serializes stable frontmatter keys', () => {
@@ -108,9 +177,26 @@ describe('style config', () => {
       wordCount: true,
     });
     expect(serializeArticleStyle(updated)).toMatchObject({
-      version: 2,
+      version: 3,
       'external-link-citation': true,
       'word-count': true,
+    });
+  });
+
+  it('serializes v3 layout fields with stable frontmatter keys', () => {
+    const updated = patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      lineHeight: 1.9,
+      blockSpacing: 1.35,
+      linkColor: 'inherit',
+      blockquoteBackground: 'primary',
+    });
+
+    expect(serializeArticleStyle(updated)).toMatchObject({
+      version: 3,
+      'line-height': 1.9,
+      'block-spacing': 1.35,
+      'link-color': 'inherit',
+      'blockquote-background': 'primary',
     });
   });
 
@@ -122,7 +208,7 @@ describe('style config', () => {
     });
 
     expect(serializeArticleStyle(updated)).toMatchObject({
-      version: 2,
+      version: 3,
       theme: 'doocs-classic',
       'font-size': 18,
       'primary-color': '#009874',

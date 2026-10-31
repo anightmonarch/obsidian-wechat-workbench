@@ -42,22 +42,23 @@ export interface ArtifactBuilderPort {
   build(
     snapshot: Readonly<NoteSnapshot>,
     theme: Readonly<ThemeDefinition>,
-    style?: Readonly<ArticleStyleConfig> | null,
+    style?: Readonly<ArticleStyleConfig> | null
   ): Promise<Readonly<RenderArtifact>>;
 }
 
 export interface WorkbenchStylePort {
-  resolve(snapshot: Readonly<NoteSnapshot>): Readonly<ResolvedArticleStyle>;
+  resolve(): Readonly<ResolvedArticleStyle>;
   materialize(resolved: Readonly<ResolvedArticleStyle>): Readonly<ThemeDefinition>;
-  saveArticle(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
   setGlobalDefault(config: Readonly<ArticleStyleConfig>): Promise<void>;
+  configForTheme(themeId: string): Readonly<ArticleStyleConfig>;
   reset(themeId: string): Readonly<ArticleStyleConfig>;
+  recordPublishSnapshot(file: VaultFileRef, config: Readonly<ArticleStyleConfig>): Promise<void>;
 }
 
 export interface PreflightEnginePort {
   run(
     artifact: Readonly<RenderArtifact> | null,
-    context: Readonly<PreflightContext>,
+    context: Readonly<PreflightContext>
   ): Readonly<PreflightReport>;
 }
 
@@ -68,7 +69,6 @@ export interface WorkbenchRenderState {
   themes: readonly Readonly<ThemeDefinition>[];
   selectedThemeId: string;
   style: Readonly<ResolvedArticleStyle>;
-  styleSaveStatus: 'saved' | 'saving' | 'unsaved';
 }
 
 export interface WorkbenchViewPort {
@@ -76,7 +76,6 @@ export interface WorkbenchViewPort {
   showLoading(path: string): void;
   showError(message: string): void;
   showArtifact(state: Readonly<WorkbenchRenderState>): void;
-  showStyleStatus?(status: 'saved' | 'saving' | 'unsaved', message?: string): void;
   showStyleMessage?(message: string): void;
 }
 
@@ -92,7 +91,7 @@ export interface WorkbenchPublishPort {
   repairLocal(
     command: Readonly<PublishCommand>,
     taskId: string,
-    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
+    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>
   ): Promise<Readonly<PublishOutcome>>;
   unlink(association: Readonly<DraftAssociationRef>): Promise<void>;
 }
@@ -102,20 +101,20 @@ export interface WorkbenchCoverPort {
   disclosure(
     artifact: Readonly<RenderArtifact>,
     supplementalPrompt?: string,
-    backend?: GenerationBackend,
+    backend?: GenerationBackend
   ): Readonly<AiCoverDisclosure>;
   prepareSelection(
     file: VaultFileRef,
     snapshot: Readonly<NoteSnapshot>,
     artifact: Readonly<RenderArtifact>,
-    kind: CoverPickerOption['kind'],
+    kind: CoverPickerOption['kind']
   ): Promise<Readonly<PreparedCover>>;
   prepareUpload(file: VaultFileRef, bytes: Uint8Array, contextHash: string): Promise<Readonly<PreparedCover>>;
   prepareAi(
     file: VaultFileRef,
     artifact: Readonly<RenderArtifact>,
     supplementalPrompt?: string,
-    selection?: Readonly<AiCoverGenerationSelection>,
+    selection?: Readonly<AiCoverGenerationSelection>
   ): Promise<Readonly<PreparedCover>>;
   confirm(file: VaultFileRef, prepared: Readonly<PreparedCover>): Promise<void>;
 }
@@ -123,7 +122,7 @@ export interface WorkbenchCoverPort {
 export interface WorkbenchArticleSettingsPort {
   update(
     file: VaultFileRef,
-    settings: Readonly<EditableArticleSettings>,
+    settings: Readonly<EditableArticleSettings>
   ): Promise<void>;
 }
 
@@ -144,6 +143,7 @@ export interface WorkbenchAiTextPort {
     signal?: AbortSignal;
   }>): Promise<string>;
 }
+
 
 export class WorkbenchActionError extends Error {
   constructor(readonly code: string, message: string) {
@@ -189,7 +189,6 @@ function withinRenderDeadline<T>(operation: Promise<T>, timeoutMs = WORKBENCH_RE
 export class WorkbenchController {
   private readonly subscriptions: WorkbenchEventHandle[] = [];
   private timer: number | null = null;
-  private styleSaveTimer: number | null = null;
   private generation = 0;
   private started = false;
   private styleBuildPending = false;
@@ -197,9 +196,7 @@ export class WorkbenchController {
   private report: Readonly<PreflightReport> | null = null;
   private snapshot: Readonly<NoteSnapshot> | null = null;
   private style: Readonly<ResolvedArticleStyle> | null = null;
-  private styleSaveStatus: 'saved' | 'saving' | 'unsaved' = 'saved';
   private previewStyleOverride: Readonly<{ path: string; config: Readonly<ArticleStyleConfig> }> | null = null;
-  private pendingStyleSave: Readonly<{ file: VaultFileRef; config: Readonly<ArticleStyleConfig> }> | null = null;
 
   constructor(
     private readonly source: WorkbenchSourcePort,
@@ -216,7 +213,7 @@ export class WorkbenchController {
     private readonly covers?: WorkbenchCoverPort,
     private readonly articleSettings?: WorkbenchArticleSettingsPort,
     private readonly styles?: WorkbenchStylePort,
-    private readonly aiText?: WorkbenchAiTextPort,
+    private readonly aiText?: WorkbenchAiTextPort
   ) {}
 
   start(): void {
@@ -226,7 +223,7 @@ export class WorkbenchController {
     }
     this.started = true;
     this.addSubscription(this.source.onActiveMarkdownChanged(() => {
-      void this.flushStyleSave().finally(() => this.rebuild('active-file'));
+      this.rebuild('active-file');
     }));
     this.addSubscription(this.source.onVaultFileModified(path => {
       const activePath = this.source.currentMarkdown()?.path;
@@ -247,9 +244,6 @@ export class WorkbenchController {
     this.snapshot = null;
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.timer = null;
-    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
-    this.styleSaveTimer = null;
-    await this.flushStyleSave();
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
   }
 
@@ -286,61 +280,36 @@ export class WorkbenchController {
   updateStyle(
     patch: Readonly<Partial<Omit<ArticleStyleConfig, 'version' | 'headingStyles'>> & {
       headingStyles?: ArticleStyleConfig['headingStyles'];
-    }>,
+    }>
   ): void {
     if (this.styles === undefined) return;
-    const current = this.pendingStyleSave?.config ?? this.style?.config;
-    const file = this.snapshot === null ? null : this.currentFile(this.snapshot);
-    if (current === undefined || file === null) return;
-    if (this.style?.source === 'unsupported-fallback' && this.pendingStyleSave === null) {
-      this.view.showStyleMessage?.('当前文章样式来自更高版本，请升级插件后再修改。');
-      return;
-    }
-    const config = patchArticleStyle(current, patch);
-    this.previewStyleOverride = Object.freeze({ path: file.path, config });
-    this.pendingStyleSave = Object.freeze({ file, config });
-    this.styleSaveStatus = 'unsaved';
-    this.view.showStyleStatus?.('unsaved');
-    this.scheduleStyleSave();
-    this.rebuild('style');
+    const current = this.style?.config;
+    if (current === undefined) return;
+    this.applyStyleConfig(patchArticleStyle(current, patch));
   }
 
   selectStyleTheme(themeId: string): void {
-    if (this.themes.get(themeId) === undefined) return;
-    this.updateStyle({ themeId });
+    if (this.styles === undefined || this.themes.get(themeId) === undefined) return;
+    this.applyStyleConfig(this.styles.configForTheme(themeId));
   }
 
   resetStyle(): void {
-    const themeId = this.pendingStyleSave?.config.themeId ?? this.style?.config.themeId;
-    if (themeId !== undefined && this.styles !== undefined) this.updateStyle(this.styles.reset(themeId));
-  }
-
-  async setStyleAsDefault(): Promise<void> {
-    if (this.styles === undefined) return;
-    const config = this.pendingStyleSave?.config ?? this.style?.config;
-    if (config === undefined) return;
-    await this.styles.setGlobalDefault(config);
-  }
-
-  async flushStyleSave(): Promise<void> {
-    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
-    this.styleSaveTimer = null;
-    const pending = this.pendingStyleSave;
-    if (pending === null || this.styles === undefined) return;
-    this.pendingStyleSave = null;
-    this.styleSaveStatus = 'saving';
-    this.view.showStyleStatus?.('saving');
-    try {
-      await this.styles.saveArticle(pending.file, pending.config);
-      if (this.pendingStyleSave === null) {
-        this.styleSaveStatus = 'saved';
-        this.view.showStyleStatus?.('saved');
-      }
-    } catch {
-      if (this.pendingStyleSave === null) this.pendingStyleSave = pending;
-      this.styleSaveStatus = 'unsaved';
-      this.view.showStyleStatus?.('unsaved');
+    const themeId = this.style?.config.themeId;
+    if (themeId !== undefined && this.styles !== undefined) {
+      this.applyStyleConfig(this.styles.reset(themeId));
     }
+  }
+
+  private applyStyleConfig(config: Readonly<ArticleStyleConfig>): void {
+    if (this.styles === undefined) return;
+    const file = this.snapshot === null ? null : this.currentFile(this.snapshot);
+    if (file !== null) {
+      this.previewStyleOverride = Object.freeze({ path: file.path, config });
+    }
+    void this.styles.setGlobalDefault(config).catch(() => {
+      this.view.showStyleMessage?.('全局样式保存失败，请重试。');
+    });
+    this.rebuild('style');
   }
 
   currentStyle(): Readonly<ResolvedArticleStyle> | null {
@@ -359,7 +328,7 @@ export class WorkbenchController {
       const blocking = this.report.blocking[0];
       throw new WorkbenchActionError(
         blocking?.code ?? 'COPY_PREFLIGHT_BLOCKED',
-        blocking?.message ?? '请先修复复制预检中的阻断项。',
+        blocking?.message ?? '请先修复复制预检中的阻断项。'
       );
     }
     if (this.clipboard === undefined) {
@@ -397,13 +366,22 @@ export class WorkbenchController {
       throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '草稿发布服务不可用。');
     }
     const result = await this.publisher.execute(command);
+    this.recordStyleSnapshot(result);
     this.rebuild('publish-result');
     return result;
   }
 
+  private recordStyleSnapshot(result: Readonly<PublishOutcome>): void {
+    if (this.styles === undefined || this.snapshot === null || this.style === null) return;
+    if (result.state !== 'REMOTE_COMMITTED' && result.state !== 'LOCAL_COMMITTED') return;
+    void this.styles
+      .recordPublishSnapshot(this.currentFile(this.snapshot), this.style.config)
+      .catch(() => undefined);
+  }
+
   async reconcilePublish(
     command: Readonly<PublishCommand>,
-    taskId: string,
+    taskId: string
   ): Promise<Readonly<PublishOutcome>> {
     if (this.publisher === undefined) throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '草稿发布服务不可用。');
     return this.publisher.reconcile(command, taskId);
@@ -412,7 +390,7 @@ export class WorkbenchController {
   async repairLocalPublish(
     command: Readonly<PublishCommand>,
     taskId: string,
-    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>,
+    fallback?: Readonly<{ mediaId: string; operation: 'CREATE' | 'UPDATE' }>
   ): Promise<Readonly<PublishOutcome>> {
     if (this.publisher === undefined) throw new WorkbenchActionError('PUBLISH_UNAVAILABLE', '草稿发布服务不可用。');
     const result = await this.publisher.repairLocal(command, taskId, fallback);
@@ -445,7 +423,7 @@ export class WorkbenchController {
 
   aiCoverDisclosure(
     supplementalPrompt = '',
-    backend?: GenerationBackend,
+    backend?: GenerationBackend
   ): Readonly<AiCoverDisclosure> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
@@ -465,13 +443,13 @@ export class WorkbenchController {
     return this.covers.prepareUpload(
       this.currentFile(current.snapshot),
       bytes,
-      publishPayloadHash(current.artifact),
+      publishPayloadHash(current.artifact)
     );
   }
 
   async generateAiCover(
     supplementalPrompt = '',
-    selection?: Readonly<AiCoverGenerationSelection>,
+    selection?: Readonly<AiCoverGenerationSelection>
   ): Promise<Readonly<PreparedCover>> {
     const current = this.coverContext();
     if (this.covers === undefined) throw new WorkbenchActionError('COVER_UNAVAILABLE', '封面服务不可用。');
@@ -491,7 +469,7 @@ export class WorkbenchController {
 
   async saveArticleSettings(
     file: VaultFileRef,
-    settings: Readonly<EditableArticleSettings>,
+    settings: Readonly<EditableArticleSettings>
   ): Promise<void> {
     if (this.snapshot === null || this.articleSettings === undefined) {
       throw new WorkbenchActionError('ARTICLE_SETTINGS_UNAVAILABLE', '当前文章尚未准备好。');
@@ -506,7 +484,7 @@ export class WorkbenchController {
   async generateTitles(
     draft: Readonly<ArticleDraftValues>,
     backend?: GenerationBackend,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<readonly string[]> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
@@ -525,7 +503,7 @@ export class WorkbenchController {
   async generateDigest(
     draft: Readonly<ArticleDraftValues>,
     backend?: GenerationBackend,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<string> {
     if (this.aiText === undefined) throw new WorkbenchActionError('AI_TEXT_UNAVAILABLE', '文本生成服务不可用。');
     const current = this.articleContext();
@@ -536,6 +514,7 @@ export class WorkbenchController {
       ...(signal === undefined ? {} : { signal }),
     });
   }
+
 
   private coverContext(): Readonly<{ snapshot: Readonly<NoteSnapshot>; artifact: Readonly<RenderArtifact> }> {
     if (this.snapshot === null || this.artifact === null) {
@@ -563,7 +542,7 @@ export class WorkbenchController {
   private async buildCurrent(
     requestedGeneration: number,
     styleOnly = false,
-    preserveExistingView = false,
+    preserveExistingView = false
   ): Promise<void> {
     const file = this.source.currentMarkdown();
     if (file === null) {
@@ -579,15 +558,12 @@ export class WorkbenchController {
         let theme: Readonly<ThemeDefinition> | undefined;
         let themeIsValid = true;
         if (this.styles !== undefined) {
-          resolved = this.styles.resolve(snapshot);
+          resolved = this.styles.resolve();
           if (this.previewStyleOverride?.path === file.path) {
             resolved = Object.freeze({
               ...resolved,
-              source: 'article',
-              renderMode: 'compiled',
               themeId: this.previewStyleOverride.config.themeId,
               config: this.previewStyleOverride.config,
-              unsupportedVersion: null,
             });
           }
           theme = this.styles.materialize(resolved);
@@ -602,7 +578,7 @@ export class WorkbenchController {
         const artifact = await this.builder.build(
           snapshot,
           theme,
-          resolved?.renderMode === 'compiled' ? resolved.config : null,
+          resolved?.renderMode === 'compiled' ? resolved.config : null
         );
         return { snapshot, resolved, theme, themeIsValid, artifact };
       })());
@@ -615,12 +591,7 @@ export class WorkbenchController {
       this.artifact = artifact;
       this.report = report;
       this.snapshot = snapshot;
-      if (resolved !== null) {
-        this.style = resolved;
-        if (resolved.source === 'unsupported-fallback') {
-          this.view.showStyleMessage?.('当前文章样式来自更高版本，请升级插件后再修改。');
-        }
-      }
+      if (resolved !== null) this.style = resolved;
       this.view.showArtifact(Object.freeze({
         snapshot,
         artifact,
@@ -629,15 +600,12 @@ export class WorkbenchController {
         selectedThemeId: theme.manifest.id,
         style: resolved ?? Object.freeze({
           source: 'global', renderMode: 'legacy', themeId: theme.manifest.id,
-          config: DEFAULT_ARTICLE_STYLE, unsupportedVersion: null,
+          config: DEFAULT_ARTICLE_STYLE,
         }),
-        styleSaveStatus: this.styleSaveStatus,
       }));
     } catch (error) {
       if (!this.isCurrent(requestedGeneration)) return;
       if (styleOnly && this.artifact !== null) {
-        this.styleSaveStatus = 'unsaved';
-        this.view.showStyleStatus?.('unsaved', '样式无法应用，已恢复上一次效果');
         this.view.showStyleMessage?.('当前样式无法应用，已恢复上一次效果');
         return;
       }
@@ -647,14 +615,6 @@ export class WorkbenchController {
       this.style = null;
       this.view.showError(error instanceof Error ? error.message : 'Article rendering failed.');
     }
-  }
-
-  private scheduleStyleSave(): void {
-    if (this.styleSaveTimer !== null) window.clearTimeout(this.styleSaveTimer);
-    this.styleSaveTimer = window.setTimeout(() => {
-      this.styleSaveTimer = null;
-      void this.flushStyleSave();
-    }, this.debounceMs);
   }
 
   private isCurrent(requestedGeneration: number): boolean {

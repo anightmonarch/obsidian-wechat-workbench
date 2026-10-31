@@ -44,7 +44,7 @@ describe('style workbench parity', () => {
     const styles = workflow(frontmatter);
     const builder = new RenderArtifactBuilder();
     const current = snapshot(frontmatter);
-    const resolved = styles.resolve(current);
+    const resolved = styles.resolve();
     const artifact = await builder.build(current, styles.materialize(resolved), resolved.config);
     const previewHash = artifact.contentHash;
     const copyHash = publishPayloadHash(artifact);
@@ -54,15 +54,18 @@ describe('style workbench parity', () => {
     expect(artifact.theme.contentHash).toBe(styles.materialize(resolved).contentHash);
     expect(previewHash).toBe(artifact.contentHash);
 
-    const changedFrontmatter: Record<string, unknown> = {
-      'wechat-style': serializeArticleStyle(patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
-      primaryColor: '#009874',
-      })),
-    };
+    const changedFrontmatter: Record<string, unknown> = {};
     const changed = snapshot(changedFrontmatter);
     const changedStyles = workflow(changedFrontmatter);
-    const changedStyle = changedStyles.resolve(changed);
-    const changedArtifact = await builder.build(changed, changedStyles.materialize(changedStyle), changedStyle.config);
+    const changedStyle = patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      primaryColor: '#009874',
+    });
+    const changedResolved = changedStyles.resolve();
+    const changedArtifact = await builder.build(
+      changed,
+      changedStyles.materialize({ ...changedResolved, themeId: changedStyle.themeId, config: changedStyle }),
+      changedStyle,
+    );
     expect(changedArtifact.contentHash).not.toBe(artifact.contentHash);
     expect(changedArtifact.theme.contentHash).not.toBe(artifact.theme.contentHash);
   });

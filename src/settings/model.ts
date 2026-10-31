@@ -123,6 +123,7 @@ export interface AccountVerificationRecord {
   errcode: number | null;
 }
 
+
 export interface MediaCacheRecord {
   key: string;
   accountHash: string;
@@ -176,7 +177,7 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
   appId: '',
   defaultThemeId: 'native',
   defaultStyle: Object.freeze({
-    version: 2,
+    version: 3,
     themeId: 'doocs-classic',
     fontFamily: 'sans-serif',
     fontSize: 16,
@@ -193,6 +194,10 @@ export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
     paragraphIndent: false,
     textJustify: false,
     wordCount: false,
+    lineHeight: 1.75,
+    blockSpacing: 1,
+    linkColor: 'wechat-blue',
+    blockquoteBackground: 'default',
   }),
   recentStyles: Object.freeze({}),
   customThemeDirectory: '.wechat-workbench/themes',

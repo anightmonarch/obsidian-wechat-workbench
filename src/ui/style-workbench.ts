@@ -179,6 +179,7 @@ export class StyleWorkbench {
     const config = state.style.config;
     const activeThemeId = state.style.themeId;
     this.latestConfig = config;
+    root.style.setProperty('--wechat-style-accent', config.primaryColor);
 
     const themeSection = section(body, '主题');
     const primaryThemes = createDiv('wechat-workbench__style-options wechat-workbench__style-themes');
@@ -199,11 +200,72 @@ export class StyleWorkbench {
     const sizeSection = section(body, '字号');
     const sizes = createDiv('wechat-workbench__style-options wechat-workbench__style-sizes');
     for (const size of STYLE_OPTIONS.fontSizes) {
-      optionButton(sizes, `${size}px`, 'style-size', String(size), config.fontSize === size, () => {
+      const sizeButton = optionButton(sizes, `${size}px`, 'style-size', String(size), config.fontSize === size, () => {
         this.actions.patch({ fontSize: size });
       });
+      sizeButton.title = STYLE_OPTIONS.fontSizeHints[size] ?? '';
     }
     sizeSection.append(sizes);
+
+    const lineHeightSection = section(body, '行距');
+    const lineHeights = createDiv('wechat-workbench__style-options wechat-workbench__style-line-heights');
+    for (const option of STYLE_OPTIONS.lineHeights) {
+      const lineHeightButton = optionButton(
+        lineHeights,
+        option.label,
+        'style-line-height',
+        String(option.id),
+        config.lineHeight === option.id,
+        () => this.actions.patch({ lineHeight: option.id }),
+      );
+      lineHeightButton.title = option.description;
+    }
+    lineHeightSection.append(lineHeights);
+
+    const blockSpacingSection = section(body, '段间距');
+    const blockSpacings = createDiv('wechat-workbench__style-options wechat-workbench__style-block-spacings');
+    for (const option of STYLE_OPTIONS.blockSpacings) {
+      const blockSpacingButton = optionButton(
+        blockSpacings,
+        option.label,
+        'style-block-spacing',
+        String(option.id),
+        config.blockSpacing === option.id,
+        () => this.actions.patch({ blockSpacing: option.id }),
+      );
+      blockSpacingButton.title = option.description;
+    }
+    blockSpacingSection.append(blockSpacings);
+
+    const linkColorSection = section(body, '链接色');
+    const linkColors = createDiv('wechat-workbench__style-options wechat-workbench__style-link-colors');
+    for (const option of STYLE_OPTIONS.linkColors) {
+      const linkColorButton = optionButton(
+        linkColors,
+        option.label,
+        'style-link-color',
+        option.id,
+        config.linkColor === option.id,
+        () => this.actions.patch({ linkColor: option.id }),
+      );
+      linkColorButton.title = option.description;
+    }
+    linkColorSection.append(linkColors);
+
+    const quoteBackgroundSection = section(body, '引用背景');
+    const quoteBackgrounds = createDiv('wechat-workbench__style-options wechat-workbench__style-quote-backgrounds');
+    for (const option of STYLE_OPTIONS.blockquoteBackgrounds) {
+      const quoteBackgroundButton = optionButton(
+        quoteBackgrounds,
+        option.label,
+        'style-blockquote-bg',
+        option.id,
+        config.blockquoteBackground === option.id,
+        () => this.actions.patch({ blockquoteBackground: option.id }),
+      );
+      quoteBackgroundButton.title = option.description;
+    }
+    quoteBackgroundSection.append(quoteBackgrounds);
 
     const colorSection = section(body, '主题色');
     const colors = createDiv('wechat-workbench__style-options wechat-workbench__style-colors');
@@ -289,7 +351,7 @@ export class StyleWorkbench {
 
     root.append(body);
     const operation = section(body, '操作');
-    const reset = createEl('button', { text: '重置', cls: 'wechat-workbench__style-reset' });
+    const reset = createEl('button', { text: '重置', cls: 'wechat-workbench__style-reset wechat-workbench__style-reset--destructive' });
     reset.type = 'button';
     reset.dataset.styleReset = 'true';
     reset.addEventListener('click', () => new StyleResetModal(this.app, () => this.actions.reset()).open());
@@ -302,8 +364,21 @@ export class StyleWorkbench {
 
     const config = state.style.config;
     this.latestConfig = config;
+    this.root.style.setProperty('--wechat-style-accent', config.primaryColor);
     this.root.querySelectorAll<HTMLButtonElement>('[data-style-theme]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.styleTheme === state.style.themeId));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-line-height]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleLineHeight === String(config.lineHeight)));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-block-spacing]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleBlockSpacing === String(config.blockSpacing)));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-link-color]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleLinkColor === config.linkColor));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-style-blockquote-bg]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.styleBlockquoteBg === config.blockquoteBackground));
     });
     this.root.querySelectorAll<HTMLButtonElement>('[data-style-font]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.styleFont === config.fontFamily));
