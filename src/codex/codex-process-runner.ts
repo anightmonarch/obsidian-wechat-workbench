@@ -32,6 +32,26 @@ const ALLOWED_ENVIRONMENT_KEYS = Object.freeze([
   'USER', 'USERNAME', 'LANG', 'LC_ALL',
 ] as const);
 
+const COMMON_PATH_PREFIXES = Object.freeze([
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+] as const);
+
+/** Ensure GUI-short PATH still finds Homebrew / ~/.n / ~/.local for node shebangs. */
+export function augmentCodexPath(
+  existingPath: string,
+  home: string | undefined,
+): string {
+  const parts = existingPath.split(':').map(part => part.trim()).filter(part => part.length > 0);
+  const seen = new Set(parts);
+  const prefixes: string[] = [...COMMON_PATH_PREFIXES];
+  if (typeof home === 'string' && home.length > 0) {
+    prefixes.push(`${home}/.n/bin`, `${home}/.local/bin`);
+  }
+  const missing = prefixes.filter(prefix => !seen.has(prefix));
+  return [...missing, ...parts].join(':');
+}
+
 export function codexEnvironment(
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): Readonly<Record<string, string>> {
@@ -40,7 +60,10 @@ export function codexEnvironment(
     const value = source[key];
     if (typeof value === 'string' && value.length > 0) entries.push([key, value]);
   }
-  return Object.freeze(Object.fromEntries(entries));
+  const env = Object.fromEntries(entries) as Record<string, string>;
+  const home = typeof source.HOME === 'string' && source.HOME.length > 0 ? source.HOME : undefined;
+  env.PATH = augmentCodexPath(env.PATH ?? '', home);
+  return Object.freeze(env);
 }
 
 function spawnFailure(error: unknown): CodexRuntimeError {

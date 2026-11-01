@@ -4,7 +4,9 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  augmentCodexPath,
   CodexProcessRunner,
+  codexEnvironment,
   type CodexSpawn,
 } from '../../../src/codex/codex-process-runner';
 
@@ -107,5 +109,42 @@ describe('CodexProcessRunner', () => {
 
     await expect(pending).rejects.toMatchObject({ code: 'CODEX_CANCELLED' });
     expect(child.kill).toHaveBeenCalledOnce();
+  });
+});
+
+describe('codexEnvironment PATH augmentation', () => {
+  it('prepends common prefixes when Obsidian GUI PATH is short', () => {
+    expect(augmentCodexPath('/usr/bin:/bin', '/Users/demo')).toBe(
+      '/opt/homebrew/bin:/usr/local/bin:/Users/demo/.n/bin:/Users/demo/.local/bin:/usr/bin:/bin',
+    );
+  });
+
+  it('does not duplicate prefixes already present', () => {
+    const existing = '/Users/demo/.n/bin:/opt/homebrew/bin:/usr/bin';
+    expect(augmentCodexPath(existing, '/Users/demo')).toBe(
+      '/usr/local/bin:/Users/demo/.local/bin:/Users/demo/.n/bin:/opt/homebrew/bin:/usr/bin',
+    );
+  });
+
+  it('always sets PATH even when the source omitted it', () => {
+    expect(codexEnvironment({ HOME: '/Users/demo' })).toEqual({
+      HOME: '/Users/demo',
+      PATH: '/opt/homebrew/bin:/usr/local/bin:/Users/demo/.n/bin:/Users/demo/.local/bin',
+    });
+  });
+
+  it('keeps existing PATH entries while forwarding only allowlisted keys', () => {
+    const env = codexEnvironment({
+      HOME: '/Users/demo',
+      PATH: '/usr/bin:/bin',
+      SECRET: 'nope',
+      LANG: 'en_US.UTF-8',
+    });
+    expect(env).toEqual({
+      HOME: '/Users/demo',
+      PATH: '/opt/homebrew/bin:/usr/local/bin:/Users/demo/.n/bin:/Users/demo/.local/bin:/usr/bin:/bin',
+      LANG: 'en_US.UTF-8',
+    });
+    expect(JSON.stringify(env)).not.toContain('SECRET');
   });
 });

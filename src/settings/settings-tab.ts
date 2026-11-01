@@ -545,7 +545,13 @@ function appendCodexPanel(
     } else {
       const imageStatus = result.imageGeneration ? '图片生成已启用' : '图片生成未启用';
       status.textContent = `已发现本地 Codex · ${result.version ?? '版本未知'} · ${imageStatus}`;
-      if (result.executablePath !== null) input.placeholder = result.executablePath;
+      if (result.executablePath !== null) {
+        input.value = result.executablePath;
+        await settings.update({
+          localCodex: Object.freeze({ executablePath: result.executablePath }),
+        });
+        if (disposed || requestedGeneration !== generation) return;
+      }
     }
     detect.disabled = false;
   };

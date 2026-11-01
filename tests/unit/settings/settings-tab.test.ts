@@ -395,7 +395,7 @@ describe('buildSettingsPresentation', () => {
     });
 
     it('auto-detects the local Codex path, version and image capability without generation', async () => {
-      const { tab, detectCodex } = createHarness();
+      const { tab, settings, detectCodex } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
 
@@ -406,7 +406,11 @@ describe('buildSettingsPresentation', () => {
       expect(status?.textContent).toContain('已发现本地 Codex');
       expect(status?.textContent).toContain('codex-cli 0.141.0');
       expect(status?.textContent).toContain('图片生成已启用');
-      expect(input(tab.containerEl, 'codex-executable-path').placeholder).toContain('/opt/homebrew/bin/codex');
+      await vi.waitFor(() => expect(settings.update).toHaveBeenCalledWith({
+        localCodex: { executablePath: '/opt/homebrew/bin/codex' },
+      }));
+      expect(input(tab.containerEl, 'codex-executable-path').value).toBe('/opt/homebrew/bin/codex');
+      expect(settings.current.localCodex.executablePath).toBe('/opt/homebrew/bin/codex');
     });
 
     it('saves a custom executable path before re-detecting', async () => {

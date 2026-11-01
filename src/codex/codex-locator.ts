@@ -1,4 +1,5 @@
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { CodexRuntimeError } from './codex-errors';
 import {
@@ -17,11 +18,29 @@ export interface CodexLocatorPort {
 
 type EnvironmentSource = () => Readonly<Record<string, string | undefined>>;
 
-function candidates(configuredPath: string): readonly string[] {
+const CHATGPT_BUNDLED_CODEX = '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex';
+
+/** Absolute-first candidate list for Obsidian GUI PATH (short PATH without ~/.n/bin). */
+export function codexCandidates(
+  configuredPath: string,
+  options: Readonly<{ platform?: NodeJS.Platform; home?: string }> = {},
+): readonly string[] {
+  const platform = options.platform ?? process.platform;
+  const home = options.home ?? homedir();
+  const absoluteHints: string[] = [];
+  if (platform === 'darwin') absoluteHints.push(CHATGPT_BUNDLED_CODEX);
+  if (platform === 'darwin' || platform === 'linux') {
+    absoluteHints.push(
+      join(home, '.n/bin/codex'),
+      join(home, '.local/bin/codex'),
+      '/opt/homebrew/bin/codex',
+      '/usr/local/bin/codex',
+    );
+  }
   const values = [
     configuredPath.trim(),
+    ...absoluteHints,
     'codex',
-    ...(process.platform === 'darwin' ? ['/opt/homebrew/bin/codex', '/usr/local/bin/codex'] : []),
   ].filter(value => value.length > 0);
   return Object.freeze([...new Set(values)]);
 }
@@ -38,7 +57,9 @@ export class CodexLocator implements CodexLocatorPort {
   ) {}
 
   async locate(configuredPath: string): Promise<Readonly<CodexLocation>> {
-    for (const executable of candidates(configuredPath)) {
+    const env = this.environment();
+    const home = typeof env.HOME === 'string' && env.HOME.length > 0 ? env.HOME : undefined;
+    for (const executable of codexCandidates(configuredPath, home === undefined ? {} : { home })) {
       try {
         const result = await this.runner.run({
           executable,
