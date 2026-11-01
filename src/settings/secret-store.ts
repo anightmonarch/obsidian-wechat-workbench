@@ -6,7 +6,8 @@ export type SecretKind =
   | 'textAgnesApiKey'
   | 'textDeepseekApiKey'
   | 'imageAgnesApiKey'
-  | 'imageDeepseekApiKey';
+  | 'imageDeepseekApiKey'
+  | 'wechatProxySecret';
 
 export interface SecretStoragePort {
   setSecret(id: string, secret: string): void;
@@ -29,6 +30,7 @@ const SECRET_IDS: Readonly<Record<SecretKind, string>> = Object.freeze(Object.fr
   [TEXT_DEEPSEEK_SECRET, 'wechat-workbench-text-deepseek-api-key'],
   [IMAGE_AGNES_SECRET, 'wechat-workbench-image-agnes-api-key'],
   [IMAGE_DEEPSEEK_SECRET, 'wechat-workbench-image-deepseek-api-key'],
+  ['wechatProxySecret', 'wechat-workbench-wechat-proxy-secret'],
 ]) as Record<SecretKind, string>);
 
 export class SecretStore {
@@ -57,6 +59,7 @@ export class SecretStore {
     [TEXT_DEEPSEEK_SECRET]: this.get(TEXT_DEEPSEEK_SECRET) !== null,
     [IMAGE_AGNES_SECRET]: this.get(IMAGE_AGNES_SECRET) !== null,
     [IMAGE_DEEPSEEK_SECRET]: this.get(IMAGE_DEEPSEEK_SECRET) !== null,
+    wechatProxySecret: this.get('wechatProxySecret') !== null,
     });
   }
 }

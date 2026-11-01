@@ -157,8 +157,9 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.textContent).toContain('AppSecret');
       expect(tab.containerEl.textContent).toContain('公众号基础连接正常');
       expect(tab.containerEl.textContent).toContain('上次验证：');
-      expect(tab.containerEl.textContent).toContain('插件直接从本地连接公众号，安全可控。');
-      expect(tab.containerEl.textContent).toContain('点击下方验证按钮，将微信验证返回的本机出口 IP 加入公众号平台：“开发与设置 → 安全中心 → IP 白名单”。');
+      expect(button(tab.containerEl, 'connection-mode-local').classList.contains('is-active')).toBe(true);
+      expect(button(tab.containerEl, 'connection-mode-public_relay')).not.toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="connection-tip"]')).not.toBeNull();
       expect(tab.containerEl.textContent).not.toContain('文本和图片服务相互独立。');
       expect(tab.containerEl.textContent).not.toContain('插件默认封面');
       expect(tab.containerEl.querySelector('[data-testid="default-cover-path"]')).toBeNull();
@@ -166,6 +167,68 @@ describe('buildSettingsPresentation', () => {
       expect(secret.type).toBe('password');
       expect(secret.value).toBe('synthetic-saved-app-secret');
       expect(button(tab.containerEl, 'account-secret-toggle').getAttribute('aria-label')).toBe('显示 AppSecret');
+    });
+
+    it('renders connection mode segmented control without proxy triad fields', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      expect(button(tab.containerEl, 'connection-mode-local').classList.contains('is-active')).toBe(true);
+      expect(button(tab.containerEl, 'connection-mode-public_relay')).not.toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="wechat-api-base-url"]')).toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="wechat-proxy-access-key"]')).toBeNull();
+      expect(tab.containerEl.querySelector('[data-testid="wechat-proxy-secret"]')).toBeNull();
+      expect(tab.containerEl.textContent).not.toContain('微信 API 代理地址');
+      expect(tab.containerEl.textContent).not.toContain('代理 Access Key');
+      expect(tab.containerEl.textContent).not.toContain('代理 Secret');
+      expect(tab.containerEl.textContent).not.toContain('插件直接从本地连接公众号，安全可控。');
+    });
+
+    it('shows local tip placeholder before whitelist IP is known', () => {
+      const { tab } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+      const tip = tab.containerEl.querySelector('[data-testid="connection-tip"]');
+      expect(tip?.textContent).toContain('验证连接后显示出口 IP');
+      expect(tip?.textContent).toContain('将此 IP 加入公众号平台 IP 白名单');
+    });
+
+    it('shows local egress IP + copy when whitelistIp is present', () => {
+      const { tab, connection, copyIp } = createHarness();
+      connection.snapshot.mockReturnValue({
+        state: 'FAILED',
+        verifiedAt: 1_755_000_000_000,
+        errorCode: 'WECHAT_IP_NOT_IN_WHITELIST',
+        errcode: 40164,
+        whitelistIp: '203.0.113.4',
+      });
+      document.body.append(tab.containerEl);
+      tab.display();
+      expect(tab.containerEl.querySelector('[data-testid="connection-tip"]')?.textContent)
+        .toContain('203.0.113.4');
+      button(tab.containerEl, 'connection-tip-copy-ip').click();
+      expect(copyIp).toHaveBeenCalledWith('203.0.113.4');
+    });
+
+    it('switches to public_relay tip with fixed IP and persists mode on save', async () => {
+      const { tab, settings } = createHarness();
+      document.body.append(tab.containerEl);
+      tab.display();
+
+      button(tab.containerEl, 'connection-mode-public_relay').click();
+      const tip = tab.containerEl.querySelector('[data-testid="connection-tip"]');
+      expect(tip?.classList.contains('wechat-workbench-settings__connection-tip--public')).toBe(true);
+      expect(tip?.textContent).toContain('121.196.229.165');
+      expect(tip?.textContent).not.toContain('X-WeChat-Proxy');
+      expect(tip?.textContent).not.toContain('18080');
+
+      button(tab.containerEl, 'account-save').click();
+      await vi.waitFor(() => {
+        expect(settings.update).toHaveBeenCalledWith(
+          expect.objectContaining({ connectionMode: 'public_relay' }),
+        );
+      });
     });
 
     it('reveals and hides the saved AppSecret only in the current settings form', () => {
@@ -238,7 +301,7 @@ describe('buildSettingsPresentation', () => {
       button(tab.containerEl, 'account-save').click();
 
       await vi.waitFor(() => expect(connection.save).toHaveBeenCalledOnce());
-      expect(update).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(update).toHaveBeenCalledOnce());
     });
 
     it('verifies explicitly and disables duplicate actions while pending', async () => {

@@ -149,9 +149,12 @@ export interface RecoveryReceiptRecord {
   status: 'UNRESOLVED' | 'RESOLVED';
 }
 
+export type WeChatConnectionMode = 'local' | 'public_relay';
+
 export interface PluginSettings {
-  readonly schemaVersion: 6;
+  readonly schemaVersion: 8;
   appId: string;
+  connectionMode: WeChatConnectionMode;
   defaultThemeId: string;
   defaultStyle: Readonly<ArticleStyleConfig>;
   recentStyles: Readonly<Record<string, Readonly<ArticleStyleConfig>>>;
@@ -173,8 +176,9 @@ export interface PluginSettings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<PluginSettings> = Object.freeze({
-  schemaVersion: 6,
+  schemaVersion: 8,
   appId: '',
+  connectionMode: 'local',
   defaultThemeId: 'native',
   defaultStyle: Object.freeze({
     version: 3,

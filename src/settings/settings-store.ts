@@ -7,6 +7,7 @@ import {
   type MediaCacheRecord,
   type PluginSettings,
   type RecoveryReceiptRecord,
+  type WeChatConnectionMode,
   defaultAiProviders,
   providerRequestFormat,
   type AiModeProviderSettings,
@@ -15,6 +16,9 @@ import {
   type AiProviderSettings,
   type AiServiceKind,
 } from './model';
+import {
+  PUBLIC_WECHAT_RELAY_BASE_URL,
+} from '../wechat/public-relay-constants';
 import type { ArticleStyleConfig } from '../domain/style';
 import { parseArticleStyle } from '../styles/style-config';
 
@@ -59,6 +63,20 @@ function sanitizedProviderBaseUrl(value: unknown): string {
     return '';
   }
 }
+
+function sanitizedWechatApiBaseUrl(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) return '';
+  try {
+    const url = new URL(value.trim());
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+      || url.username.length > 0 || url.password.length > 0
+      || url.search.length > 0 || url.hash.length > 0) return '';
+    return url.toString().replace(/\/$/u, '');
+  } catch {
+    return '';
+  }
+}
+
 
 function nullableString(value: unknown, fallback: string | null): string | null {
   return typeof value === 'string' || value === null ? value : fallback;
@@ -229,22 +247,34 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
   return Object.freeze([...unresolved, ...resolved.slice(0, 20)]);
 }
 
+
+function normalizeRelayBase(value: unknown): string {
+  return sanitizedWechatApiBaseUrl(value);
+}
+
+function connectionModeFromStored(stored: Record<string, unknown>): WeChatConnectionMode {
+  const raw = stored.connectionMode;
+  if (raw === 'local' || raw === 'public_relay') return raw;
+  const legacy = normalizeRelayBase(stored.wechatApiBaseUrl);
+  if (legacy.length > 0 && legacy === PUBLIC_WECHAT_RELAY_BASE_URL) return 'public_relay';
+  return 'local';
+}
+
 function sanitizeSettings(value: unknown): PluginSettings {
-  const schemaVersion = isRecord(value) && (
-    value.schemaVersion === 1 || value.schemaVersion === 2
-    || value.schemaVersion === 3 || value.schemaVersion === 4 || value.schemaVersion === 5
-    || value.schemaVersion === 6
-  )
+  const schemaVersion = isRecord(value)
+    && typeof value.schemaVersion === 'number'
+    && Number.isInteger(value.schemaVersion)
+    && value.schemaVersion >= 1
+    && value.schemaVersion <= 8
     ? value.schemaVersion
     : 0;
-  const stored = isRecord(value) && (schemaVersion === 1 || schemaVersion === 2
-    || schemaVersion === 3 || schemaVersion === 4 || schemaVersion === 5
-    || schemaVersion === 6)
+  const stored = isRecord(value) && schemaVersion >= 1
     ? value
     : {};
   return {
-    schemaVersion: 6,
+    schemaVersion: 8,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
+    connectionMode: connectionModeFromStored(stored),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
     defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
     recentStyles: recentStyles(stored.recentStyles),

@@ -46,6 +46,7 @@ describe('SecretStore', () => {
       textDeepseekApiKey: false,
       imageAgnesApiKey: false,
       imageDeepseekApiKey: false,
+      wechatProxySecret: false,
     });
   });
 

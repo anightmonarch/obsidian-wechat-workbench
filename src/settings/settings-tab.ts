@@ -14,7 +14,9 @@ import {
   type AiServiceKind,
   type GenerationBackend,
   type PluginSettings,
+  type WeChatConnectionMode,
 } from './model';
+import { PUBLIC_WECHAT_RELAY_EGRESS_IP } from '../wechat/public-relay-constants';
 import type { AccountConnectionService } from './account-connection-service';
 import type { AiServiceSettingsService } from './ai-service-settings';
 import type { SecretKind, SecretStatus, SecretStore } from './secret-store';
@@ -99,7 +101,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       {
         name: '微信公众号',
         desc: '配置公众号名称、AppID、AppSecret，验证连接并管理 IP 白名单。',
-        aliases: ['公众号账号', 'AppID', 'AppSecret', 'IP 白名单', '验证连接'],
+        aliases: ['公众号账号', 'AppID', 'AppSecret', 'IP 白名单', '验证连接', '连接模式', '公共中转', '本地直连'],
         searchable: true,
         render: setting => {
           setting.settingEl.addClass('wechat-workbench-settings__definition-host');
@@ -210,30 +212,41 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     let displayName = current.accountDisplayName;
     let appId = current.appId;
     let appSecret = this.secrets.get('appSecret') ?? '';
+    let connectionMode: WeChatConnectionMode = current.connectionMode;
     let pending = false;
     const status = this.connection.snapshot();
     const accountCard = createDiv('wechat-workbench-settings__account-card');
     accountCard.dataset.testid = 'account-card';
+
+    const modeSelector = createDiv('wechat-workbench-settings__connection-mode');
+    for (const item of [
+      { id: 'local' as const, label: '本地直连' },
+      { id: 'public_relay' as const, label: '公共中转' },
+    ]) {
+      const modeButton = createEl('button', { text: item.label });
+      modeButton.type = 'button';
+      modeButton.dataset.testid = `connection-mode-${item.id}`;
+      modeButton.classList.toggle('is-active', connectionMode === item.id);
+      modeButton.addEventListener('click', () => {
+        if (connectionMode === item.id) return;
+        connectionMode = item.id;
+        renderConnectionTip();
+        for (const child of Array.from(modeSelector.children)) {
+          const el = child as HTMLElement;
+          el.classList.toggle(
+            'is-active',
+            el.dataset.testid === `connection-mode-${item.id}`,
+          );
+        }
+      });
+      modeSelector.append(modeButton);
+    }
+    accountCard.append(modeSelector);
+
     const statusBlock = createDiv('wechat-workbench-settings__account-status');
     statusBlock.dataset.testid = 'account-status';
     renderAccountStatus(statusBlock, status, this.copyText);
-
-    const guidance = createDiv('wechat-workbench-settings__account-guidance');
-    const guidanceCopy = createDiv('wechat-workbench-settings__account-guidance-copy');
-    guidanceCopy.append(
-      createEl('p', { text: '插件直接从本地连接公众号，安全可控。' }),
-      createEl('p', { text: '点击下方验证按钮，将微信验证返回的本机出口 IP 加入公众号平台：“开发与设置 → 安全中心 → IP 白名单”。' }),
-    );
-    const openConsoleButton = createEl('button', { text: '打开公众号后台' });
-    openConsoleButton.type = 'button';
-    openConsoleButton.dataset.testid = 'account-open-console';
-    openConsoleButton.addEventListener('click', () => {
-      void this.openConsole().catch(() => {
-        new Notice('无法打开公众号后台，请在浏览器访问 mp.weixin.qq.com。');
-      });
-    });
-    guidance.append(guidanceCopy);
-    accountCard.append(guidance);
+    accountCard.append(statusBlock);
 
     new Setting(accountCard)
       .setName('公众号名称')
@@ -274,6 +287,57 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     });
     appSecretControl.append(appSecretInput, appSecretToggle);
 
+    const tip = createDiv('wechat-workbench-settings__connection-tip');
+    tip.dataset.testid = 'connection-tip';
+    const renderConnectionTip = (): void => {
+      tip.replaceChildren();
+      tip.className = 'wechat-workbench-settings__connection-tip';
+      tip.dataset.testid = 'connection-tip';
+      if (connectionMode === 'public_relay') {
+        tip.classList.add('wechat-workbench-settings__connection-tip--public');
+        tip.append(createSpan({
+          text: `将 ${PUBLIC_WECHAT_RELAY_EGRESS_IP} 加入公众号平台 IP 白名单即可使用公共中转。`,
+        }));
+        const copy = createEl('button', { text: '复制 IP' });
+        copy.type = 'button';
+        copy.dataset.testid = 'connection-tip-copy-ip';
+        copy.addEventListener('click', () => {
+          this.copyText(PUBLIC_WECHAT_RELAY_EGRESS_IP);
+          new Notice('IP 已复制');
+        });
+        tip.append(copy);
+        return;
+      }
+      tip.classList.add('wechat-workbench-settings__connection-tip--local');
+      const ip = this.connection.snapshot().whitelistIp;
+      tip.append(createSpan({
+        text: ip === null
+          ? '验证连接后显示出口 IP。将此 IP 加入公众号平台 IP 白名单。'
+          : `出口 IP ${ip}。将此 IP 加入公众号平台 IP 白名单。`,
+      }));
+      if (ip !== null) {
+        const copy = createEl('button', { text: '复制 IP' });
+        copy.type = 'button';
+        copy.dataset.testid = 'connection-tip-copy-ip';
+        copy.addEventListener('click', () => {
+          this.copyText(ip);
+          new Notice('IP 已复制');
+        });
+        tip.append(copy);
+      }
+    };
+    renderConnectionTip();
+    accountCard.append(tip);
+
+    const openConsoleButton = createEl('button', { text: '打开公众号后台' });
+    openConsoleButton.type = 'button';
+    openConsoleButton.dataset.testid = 'account-open-console';
+    openConsoleButton.addEventListener('click', () => {
+      void this.openConsole().catch(() => {
+        new Notice('无法打开公众号后台，请在浏览器访问 mp.weixin.qq.com。');
+      });
+    });
+
     const saveButton = createEl('button', { text: '保存账号配置' });
     saveButton.dataset.testid = 'account-save';
     saveButton.addEventListener('click', () => {
@@ -285,6 +349,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         pending = true;
         try {
           await this.connection.save({ displayName, appId, appSecret });
+          await this.settings.update({ connectionMode });
           this.refreshSettings();
         } finally {
           pending = false;
@@ -350,9 +415,9 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     const actions = createDiv('wechat-workbench-settings__actions');
     actions.append(saveButton, verifyButton, disconnectButton, openConsoleButton);
     accountCard.append(actions);
-    accountCard.append(statusBlock);
     container.append(accountCard);
   }
+
 }
 
 function selectedBackend(settings: Readonly<PluginSettings>, kind: AiServiceKind): GenerationBackend {

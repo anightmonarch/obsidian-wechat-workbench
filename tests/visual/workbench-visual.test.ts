@@ -70,8 +70,9 @@ describe('workbench narrow-layout contract', () => {
     expect(css).toMatch(/wechat-workbench-settings__actions\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*gap:\s*8px/su);
     expect(css).toMatch(/wechat-workbench-settings__account-status\s*\{[^}]*border-top:\s*1px solid var\(--background-modifier-border\)/su);
     expect(css).toMatch(/wechat-workbench-settings__section-title\s*\{[^}]*margin-left:\s*0[^}]*padding-left:\s*0/su);
-    expect(css).toMatch(/wechat-workbench-settings__account-guidance\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su);
-    expect(css).toMatch(/wechat-workbench-settings__account-guidance-copy\s*\{[^}]*min-width:\s*0/su);
+    expect(css).toMatch(/wechat-workbench-settings__connection-mode\s*\{[^}]*display:\s*inline-grid[^}]*grid-template-columns:\s*repeat\(2,/su);
+    expect(css).toMatch(/wechat-workbench-settings__connection-tip\s*\{[^}]*display:\s*flex/su);
+    expect(css).toMatch(/wechat-workbench-settings__connection-tip--public\s*\{[^}]*rgba\(7,\s*193,\s*96/su);
     expect(css).toMatch(/wechat-workbench-settings__ai-model-field\.has-fetched-models\s+\.wechat-workbench-settings__ai-model-control\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+2\.5rem/su);
     expect(css).toMatch(/wechat-workbench-settings__ai-model-picker\s*\{[^}]*height:\s*auto/su);
     expect(css).toMatch(/wechat-workbench-settings__ai-actions\s*>\s*button\.mod-cta\s*\{[^}]*background:\s*var\(--wechat-workbench-settings-accent\)[^}]*border-color:\s*var\(--wechat-workbench-settings-accent\)/su);

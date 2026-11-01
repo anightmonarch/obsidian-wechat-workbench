@@ -68,6 +68,9 @@ import { ObsidianHttpTransport } from './wechat/obsidian-http-transport';
 import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
 import { WeChatClient } from './wechat/wechat-client';
+import { WeChatApiRelayTransport } from './wechat/api-relay-transport';
+import { BUNDLED_PUBLIC_RELAY } from './wechat/public-relay-constants';
+import { createWeChatRelayConfigPort } from './wechat/create-relay-config-port';
 
 export default class WeChatWorkbenchPlugin extends Plugin {
   private pluginSettings: Readonly<PluginSettings> = DEFAULT_SETTINGS;
@@ -79,6 +82,9 @@ export default class WeChatWorkbenchPlugin extends Plugin {
     });
     this.pluginSettings = await settingsStore.load();
     const secretStore = new SecretStore(this.app.secretStorage);
+    if (secretStore.get('wechatProxySecret') !== null) {
+      secretStore.clear('wechatProxySecret');
+    }
     let settingsMutation: Promise<void> = Promise.resolve();
     const updateSettings = async (
       patch: Partial<PluginSettings>,
@@ -162,7 +168,16 @@ export default class WeChatWorkbenchPlugin extends Plugin {
       ),
       systemClipboard,
     );
-    const wechatHttp = new TimeoutHttpTransport(new ObsidianHttpTransport(), 35_000);
+    const wechatHttp = new TimeoutHttpTransport(
+      new WeChatApiRelayTransport(
+        new ObsidianHttpTransport(),
+        createWeChatRelayConfigPort(
+          () => currentSettings().connectionMode,
+          BUNDLED_PUBLIC_RELAY,
+        ),
+      ),
+      35_000,
+    );
     const textProviderHttp = createAiProviderHttpTransport(undefined, TEXT_PROVIDER_TIMEOUT_MS);
     const imageProviderHttp = createAiProviderHttpTransport(undefined, IMAGE_PROVIDER_TIMEOUT_MS);
     const tokens = new TokenService(secretStore, {

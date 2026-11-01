@@ -2,6 +2,10 @@ import { posix } from 'node:path';
 
 import type { AssetSlot, RenderArtifact } from '../domain/artifact';
 import type { BinaryFilePort } from '../domain/ports';
+import {
+  normalizeImageBytesForClipboard,
+  type NormalizedClipboardImage,
+} from '../media/electron-image-normalize';
 import { detectImageMime, type SupportedImageMime } from '../media/image-format';
 import { hashContent, parseArticleRoot } from '../render/canonicalize';
 import { applyDiagramImagePresentation } from '../render/diagram-image';
@@ -30,6 +34,9 @@ export interface ResolvedArtifact {
   uploadedAssetIds: readonly string[];
 }
 
+/** Same contract as clipboard/preview: bake EXIF Orientation into pixels and strip metadata. */
+export type UploadImageNormalizer = (bytes: Uint8Array) => NormalizedClipboardImage;
+
 function imageFilename(asset: Readonly<AssetSlot>, mimeType: SupportedImageMime): string {
   const existing = posix.basename(asset.source).replace(/[^A-Za-z0-9._-]/gu, '-');
   if (existing.length > 0 && /\.(?:gif|jpe?g|png|webp)$/iu.test(existing)) return existing;
@@ -37,13 +44,25 @@ function imageFilename(asset: Readonly<AssetSlot>, mimeType: SupportedImageMime)
   return `wechat-asset.${extension}`;
 }
 
-function validatedUpload(bytes: Uint8Array, asset: Readonly<AssetSlot>): UploadImage {
-  const mimeType = detectImageMime(bytes);
-  if (mimeType === null) throw new Error(`Unsupported image type: ${asset.source}`);
-  if (asset.contentHash !== null && hashContent(bytes) !== asset.contentHash) {
+/**
+ * Validate raw vault/render bytes, then bake orientation (and clipboard-equivalent
+ * normalize) so WeChat CDN receives upright pixels. mediaCache must hash the
+ * post-normalize bytes — callers use UploadImage.bytes after this helper.
+ */
+function prepareUploadImage(
+  rawBytes: Uint8Array,
+  asset: Readonly<AssetSlot>,
+  normalize: UploadImageNormalizer,
+): UploadImage {
+  if (asset.contentHash !== null && hashContent(rawBytes) !== asset.contentHash) {
     throw new Error(`Image changed after rendering: ${asset.source}`);
   }
-  return { bytes, mimeType, filename: imageFilename(asset, mimeType) };
+  if (detectImageMime(rawBytes) === null) {
+    throw new Error(`Unsupported image type: ${asset.source}`);
+  }
+  const normalized = normalize(rawBytes);
+  const mimeType = detectImageMime(normalized.bytes) ?? normalized.mime;
+  return { bytes: normalized.bytes, mimeType, filename: imageFilename(asset, mimeType) };
 }
 
 function httpsUrl(value: string): string {
@@ -59,6 +78,7 @@ export class AssetUploadService {
     private readonly diagrams: DiagramRenderer,
     private readonly media: MediaUploadPort,
     private readonly cache: AssetCache,
+    private readonly normalizeImage: UploadImageNormalizer = normalizeImageBytesForClipboard,
   ) {}
 
   async resolveBodyAssets(
@@ -73,6 +93,7 @@ export class AssetUploadService {
         continue;
       }
       const image = await this.loadImage(asset);
+      // Hash post-bake bytes so Orientation≠1 JPEGs do not reuse raw-hash CDN entries.
       const contentHash = hashContent(image.bytes);
       const cached = await this.cache.get(account.accountHash, 'body', contentHash);
       let url: string | null = null;
@@ -145,14 +166,16 @@ export class AssetUploadService {
   }
 
   private async loadImage(asset: Readonly<AssetSlot>): Promise<UploadImage> {
-    if (asset.kind === 'local-image') return validatedUpload(await this.files.readBinary(asset.source), asset);
+    if (asset.kind === 'local-image') {
+      return prepareUploadImage(await this.files.readBinary(asset.source), asset, this.normalizeImage);
+    }
     if (asset.kind === 'remote-image') {
       const image = await this.remoteImages.fetch(asset.source);
-      return { bytes: image.bytes, mimeType: image.mimeType, filename: imageFilename(asset, image.mimeType) };
+      return prepareUploadImage(image.bytes, asset, this.normalizeImage);
     }
     if (asset.kind === 'generated-diagram') {
       const image = await this.diagrams.renderMermaid(asset.source);
-      return validatedUpload(image.bytes, asset);
+      return prepareUploadImage(image.bytes, asset, this.normalizeImage);
     }
     throw new Error(`Unsupported upload asset: ${asset.kind}`);
   }

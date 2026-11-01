@@ -4,13 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RenderArtifact } from '../../../src/domain/artifact';
 import type { BinaryFilePort } from '../../../src/domain/ports';
 import { AssetCache, type AssetCacheDataPort } from '../../../src/publish/asset-cache';
+import { detectImageMime } from '../../../src/media/image-format';
 import {
   AssetUploadService,
   type MediaUploadPort,
   type PublishAccount,
+  type UploadImageNormalizer,
 } from '../../../src/publish/asset-upload-service';
 import type { RemoteImageFetcher } from '../../../src/security/remote-image-fetcher';
 import type { DiagramRenderer } from '../../../src/render/diagram-renderer';
+
+/** Keep fixture bytes unchanged so existing cache/hash tests stay deterministic. */
+const identityNormalize: UploadImageNormalizer = (bytes) => {
+  const mime = detectImageMime(bytes);
+  if (mime === null) throw new Error('unsupported');
+  return { bytes, mime };
+};
 
 const png = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
@@ -45,7 +54,7 @@ const accountB: Readonly<PublishAccount> = Object.freeze({
   accountHash: 'ACCOUNT_B', accessToken: 'TEST_ACCESS_TOKEN_B',
 });
 
-function harness() {
+function harness(normalize: UploadImageNormalizer = identityNormalize) {
   const readBinary = vi.fn(async () => png);
   const files: BinaryFilePort = { resolveLink: vi.fn(), readBinary };
   const uploadBodyImage = vi.fn(async () => ({ url: 'https://mmbiz.qpic.cn/TEST_IMAGE_URL' }));
@@ -59,6 +68,7 @@ function harness() {
     {} as DiagramRenderer,
     media,
     cache,
+    normalize,
   );
   return { service, uploadBodyImage, uploadCover, readBinary, data };
 }
@@ -108,6 +118,7 @@ describe('AssetUploadService', () => {
       { renderMermaid } as unknown as DiagramRenderer,
       { uploadBodyImage, uploadCover: vi.fn() },
       new AssetCache(new MemoryCacheData(), () => 1000),
+      identityNormalize,
     );
     const diagramArtifact: Readonly<RenderArtifact> = Object.freeze({
       ...artifact(),
@@ -126,6 +137,30 @@ describe('AssetUploadService', () => {
     expect(image?.style.maxWidth).toBe('100%');
     expect(image?.style.height).toBe('auto');
     expect(renderMermaid).toHaveBeenCalledWith('graph TD; A-->B');
+  });
+
+
+  it('uploads orientation-normalized bytes and caches by post-bake content hash', async () => {
+    const baked = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02,
+    ]);
+    const bakeNormalize: UploadImageNormalizer = (bytes) => {
+      expect(bytes).toEqual(png);
+      return { bytes: baked, mime: 'image/png' };
+    };
+    const { service, uploadBodyImage, data } = harness(bakeNormalize);
+
+    await service.resolveBodyAssets(artifact(), accountA);
+    await service.resolveBodyAssets(artifact(), accountA);
+
+    expect(uploadBodyImage).toHaveBeenCalledOnce();
+    expect(uploadBodyImage).toHaveBeenCalledWith(
+      expect.objectContaining({ bytes: baked, mimeType: 'image/png' }),
+      accountA.accessToken,
+    );
+    expect(data.entries).toHaveLength(1);
+    expect(data.entries[0]?.contentHash).toBe(createHash('sha256').update(baked).digest('hex'));
+    expect(data.entries[0]?.contentHash).not.toBe(imageHash);
   });
 
   it('never caches a failed upload', async () => {

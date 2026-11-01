@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS, type PluginSettings } from '../../../src/settings/model';
-import { DEFAULT_ARTICLE_STYLE } from '../../../src/styles/style-config';
 import { SettingsStore, type PluginDataPort } from '../../../src/settings/settings-store';
+import { DEFAULT_ARTICLE_STYLE } from '../../../src/styles/style-config';
+import { PUBLIC_WECHAT_RELAY_BASE_URL } from '../../../src/wechat/public-relay-constants';
 
 class MemoryPluginData implements PluginDataPort {
   saved: unknown;
@@ -28,7 +29,7 @@ describe('SettingsStore', () => {
       recoveryReceipts: [],
     })).load();
 
-    expect(settings.schemaVersion).toBe(6);
+    expect(settings.schemaVersion).toBe(8);
     expect(settings.appId).toBe('wx-public-id');
     expect(settings.defaultThemeId).toBe('technical');
     expect(settings.defaultStyle).toEqual(DEFAULT_ARTICLE_STYLE);
@@ -44,7 +45,7 @@ describe('SettingsStore', () => {
     })).load();
 
     expect(settings).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 8,
       accountDisplayName: '',
       accountVerification: null,
     });
@@ -106,7 +107,7 @@ describe('SettingsStore', () => {
       aiProviders: storedProviders,
     })).load();
 
-    expect(settings.schemaVersion).toBe(6);
+    expect(settings.schemaVersion).toBe(8);
     expect(settings.textGenerationBackend).toBe('api');
     expect(settings.imageGenerationBackend).toBe('api');
     expect(settings.localCodex).toEqual({ executablePath: '' });
@@ -292,5 +293,57 @@ describe('SettingsStore', () => {
 
     expect((await store.load()).aiProviders.image.providers.agnes.baseUrl)
       .toBe(DEFAULT_SETTINGS.aiProviders.image.providers.agnes.baseUrl);
+  });
+
+  it('defaults connectionMode to local on empty data', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData()).load();
+    expect(settings.schemaVersion).toBe(8);
+    expect(settings.connectionMode).toBe('local');
+    expect(settings).not.toHaveProperty('wechatApiBaseUrl');
+    expect(settings).not.toHaveProperty('wechatProxyAccessKey');
+  });
+
+  it('respects an already-valid connectionMode', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 8,
+      connectionMode: 'public_relay',
+    })).load();
+    expect(settings.connectionMode).toBe('public_relay');
+  });
+
+  it('migrates legacy public relay base URL to public_relay', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 7,
+      wechatApiBaseUrl: `${PUBLIC_WECHAT_RELAY_BASE_URL}/`,
+      wechatProxyAccessKey: 'wxp_legacy_user_key',
+    })).load();
+    expect(settings.schemaVersion).toBe(8);
+    expect(settings.connectionMode).toBe('public_relay');
+    expect(settings).not.toHaveProperty('wechatApiBaseUrl');
+    expect(settings).not.toHaveProperty('wechatProxyAccessKey');
+  });
+
+  it('maps empty or custom legacy proxy URL to local (no silent public takeover)', async () => {
+    const empty = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 7,
+      wechatApiBaseUrl: '',
+    })).load();
+    expect(empty.connectionMode).toBe('local');
+
+    const custom = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 7,
+      wechatApiBaseUrl: 'http://203.0.113.9:18080',
+    })).load();
+    expect(custom.connectionMode).toBe('local');
+  });
+
+  it('rejects invalid connectionMode values and falls back via legacy URL rules', async () => {
+    const settings = await new SettingsStore(new MemoryPluginData({
+      schemaVersion: 8,
+      connectionMode: 'custom',
+      wechatApiBaseUrl: PUBLIC_WECHAT_RELAY_BASE_URL,
+    })).load();
+    // invalid mode ignored; legacy public URL still maps to public_relay
+    expect(settings.connectionMode).toBe('public_relay');
   });
 });
