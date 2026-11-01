@@ -10,6 +10,13 @@ interface HighlightToken {
   classes: readonly string[];
 }
 
+/** WeChat MP rewrites/strips white-space on pre/code/spans and drops
+ *  space-only text nodes between inline tokens. Encode spaces as NBSP so
+ *  indentation and inter-token gaps survive draft sync. */
+function protectCodeWhitespace(text: string): string {
+  return text.replace(/\t/gu, '    ').replace(/ /gu, '\u00a0');
+}
+
 function createHtmlElement(document: Document, tagName: string): HTMLElement {
   return document.createElementNS('http://www.w3.org/1999/xhtml', tagName);
 }
@@ -61,13 +68,14 @@ function collectTokens(node: Node, classes: readonly string[], lines: HighlightT
 
 function appendTokens(target: Element, tokens: HighlightToken[], document: Document): void {
   for (const token of tokens) {
+    const text = protectCodeWhitespace(token.text);
     if (token.classes.length === 0) {
-      target.append(document.createTextNode(token.text));
+      target.append(document.createTextNode(text));
       continue;
     }
     const span = createHtmlElement(document, 'span');
     span.className = token.classes.join(' ');
-    span.textContent = token.text;
+    span.textContent = text;
     target.append(span);
   }
 }
@@ -93,7 +101,7 @@ function projectCodeLines(code: Element, lineNumbers: boolean): void {
       return;
     }
     // WeChat rewrites white-space on pre/code, collapsing newline text nodes;
-    // explicit block spans keep the line structure in any sanitizer.
+    // explicit block spans keep the line structure; NBSP keeps intra-line spaces.
     const line = createHtmlElement(document, 'span');
     line.className = 'code-line-block';
     appendTokens(line, tokens, document);
@@ -109,20 +117,44 @@ function wrapScrollSection(pre: Element): void {
   section.append(pre);
 }
 
-function addMacWindow(pre: Element): void {
-  if (pre.classList.contains('code-window')) return;
+/** Artifact header chrome for WeChat layout fidelity.
+ *  Mac dots (when enabled) + a vertical spacer only.
+ *  Never emit a fake copy control: WeChat strips JS, so click-to-copy cannot
+ *  work inside the article body. Preview attaches a live icon button instead. */
+function addCodeChrome(pre: Element, macWindow: boolean): void {
+  const document = pre.ownerDocument;
+  const host = pre.querySelector(':scope > code') ?? pre;
+  if (host.querySelector(':scope > .code-window-chrome') !== null) return;
+  if (host.querySelector(':scope > .code-window-chrome-spacer') !== null) return;
+
+  // Without Mac dots there is no header chrome to preserve — and never a fake copy.
+  if (!macWindow) return;
+
   pre.classList.add('code-window');
-  const dots = createHtmlElement(pre.ownerDocument, 'span');
+
+  const chrome = createHtmlElement(document, 'span');
+  chrome.className = 'code-window-chrome';
+  chrome.setAttribute('aria-hidden', 'true');
+
+  const dots = createHtmlElement(document, 'span');
   dots.className = 'code-window-dots';
-  dots.setAttribute('aria-hidden', 'true');
   for (const color of ['red', 'yellow', 'green']) {
-    const dot = createHtmlElement(pre.ownerDocument, 'span');
+    const dot = createHtmlElement(document, 'span');
     dot.className = `code-window-dot code-window-dot--${color}`;
+    // Non-empty content keeps the span alive after WeChat draft sanitization.
+    dot.textContent = '\u00a0';
     dots.append(dot);
   }
-  const code = pre.querySelector(':scope > code');
-  if (code !== null) code.prepend(dots);
-  else pre.prepend(dots);
+  chrome.append(dots);
+
+  // WeChat often collapses header margin/height. Reuse the proven
+  // .code-line-block display:block + min-height pattern as a spacer row.
+  const spacer = createHtmlElement(document, 'span');
+  spacer.className = 'code-line-block code-window-chrome-spacer';
+  spacer.setAttribute('aria-hidden', 'true');
+  spacer.textContent = '\u00a0';
+
+  host.prepend(chrome, spacer);
 }
 
 export function highlightCodeBlocks(
@@ -135,7 +167,10 @@ export function highlightCodeBlocks(
     if (language === null) {
       code.classList.add('hljs');
       projectCodeLines(code, options.showLineNumbers);
-      if (pre !== null) wrapScrollSection(pre);
+      if (pre !== null) {
+        addCodeChrome(pre, false);
+        wrapScrollSection(pre);
+      }
       continue;
     }
 
@@ -151,7 +186,9 @@ export function highlightCodeBlocks(
     }
     code.classList.add('hljs');
     projectCodeLines(code, options.showLineNumbers);
-    if (options.macWindow && pre !== null) addMacWindow(pre);
-    if (pre !== null) wrapScrollSection(pre);
+    if (pre !== null) {
+      addCodeChrome(pre, options.macWindow);
+      wrapScrollSection(pre);
+    }
   }
 }

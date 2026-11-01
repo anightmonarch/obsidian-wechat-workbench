@@ -86,7 +86,8 @@ describe('RenderArtifactBuilder', () => {
     // line-number mode keeps explicit flex rows
     const doc = new DOMParser().parseFromString(artifact.canonicalHtml, 'text/html');
     const lines = [...doc.querySelectorAll('.code-line')];
-    expect(lines.map(line => line.querySelector('.code-line-content')?.textContent)).toEqual(['const answer = 42;', 'return answer;', '']);
+    expect(lines.map(line => line.querySelector('.code-line-content')?.textContent?.replace(/\u00a0/gu, ' '))).toEqual(['const answer = 42;', 'return answer;', '']);
+    expect(lines[0]?.querySelector('.code-line-content')?.innerHTML).toContain('&nbsp;');
     const scrollSection = doc.querySelector('section.code-scroll');
     expect(scrollSection?.getAttribute('style')).toContain('overflow-x: auto');
     expect(scrollSection?.querySelector('pre')).not.toBeNull();
@@ -99,10 +100,27 @@ describe('RenderArtifactBuilder', () => {
       patchArticleStyle(DEFAULT_ARTICLE_STYLE, { imageCaption: 'alt', macCodeBlock: true }),
     );
     const plainDoc = new DOMParser().parseFromString(plainArtifact.canonicalHtml, 'text/html');
-    const lineBlocks = [...plainDoc.querySelectorAll('.code-line-block')];
-    expect(lineBlocks.map(line => line.textContent)).toEqual(['const answer = 42;', 'return answer;', '']);
+    const lineBlocks = [...plainDoc.querySelectorAll('.code-line-block:not(.code-window-chrome-spacer)')];
+    expect(lineBlocks.map(line => line.textContent?.replace(/\u00a0/gu, ' '))).toEqual(['const answer = 42;', 'return answer;', '']);
     expect(lineBlocks[0]?.getAttribute('style')).toContain('display: block');
     expect(lineBlocks[0]?.getAttribute('style')).toContain('white-space: pre');
+    // Intra-line spaces must be NBSP: WeChat collapses plain spaces even inside block spans.
+    expect(lineBlocks[0]?.innerHTML).toContain('</span>&nbsp;');
+    expect(plainArtifact.canonicalHtml).toContain('&nbsp;');
+    expect(plainDoc.querySelectorAll('.code-window-dot')).toHaveLength(3);
+    for (const dot of plainDoc.querySelectorAll('.code-window-dot')) {
+      expect(dot.textContent).toBe('\u00a0');
+    }
+    expect(plainDoc.querySelector('.code-window-chrome')?.getAttribute('style')).toContain('display: block');
+    expect(plainDoc.querySelector('.code-window-chrome')?.getAttribute('style')).toContain('padding-bottom: 0.35em');
+    expect(plainDoc.querySelector('.code-window-dots')?.getAttribute('style')).toContain('float: left');
+    expect(plainDoc.querySelector('.code-window-dot')?.getAttribute('style')).toContain('inline-block');
+    expect(plainDoc.querySelector('.code-window-dot')?.getAttribute('style')).toContain('margin-right: 0.35em');
+    expect(plainDoc.querySelector('.code-window-copy')).toBeNull();
+    expect(plainArtifact.canonicalHtml).not.toContain('code-window-copy');
+    expect(plainArtifact.canonicalHtml).not.toContain('复制');
+    expect(plainDoc.querySelector('.code-window-chrome-spacer')?.getAttribute('style')).toContain('display: block');
+    expect(plainDoc.querySelector('.code-window-chrome-spacer')?.getAttribute('style')).toContain('min-height: 1.35em');
     expect(plainDoc.querySelector('section.code-scroll')?.querySelector('pre')).not.toBeNull();
   });
 

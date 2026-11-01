@@ -73,6 +73,22 @@ describe('StyleCompiler', () => {
     expect(result.css).toContain('.wechat-article p { margin: 1.25em 0; letter-spacing: 0.04em; }');
   });
 
+  it('emits mac chrome/spacer styles without a fake copy rule', () => {
+    const withMac = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      macCodeBlock: true,
+    }));
+    const withoutMac = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
+      macCodeBlock: false,
+    }));
+
+    expect(withMac.css).toContain('.wechat-article pre .code-window-chrome { display: block;');
+    expect(withMac.css).toContain('.wechat-article pre .code-window-chrome-spacer');
+    expect(withMac.css).not.toContain('code-window-copy');
+    expect(withoutMac.css).toContain('.wechat-article pre .code-window-chrome { display: block;');
+    expect(withoutMac.css).not.toContain('code-window-copy');
+    expect(withoutMac.css).not.toContain('.code-window-dot--red');
+  });
+
   it('keeps mac code chrome inside the code surface and keeps numbered lines compact', () => {
     const result = compiler.compile(baseTheme, patchArticleStyle(DEFAULT_ARTICLE_STYLE, {
       showCodeLineNumbers: true,
@@ -81,7 +97,12 @@ describe('StyleCompiler', () => {
 
     expect(result.css).toContain('.wechat-article pre.code-window > code');
     expect(result.css).toContain('padding: 1em');
-    expect(result.css).toContain('.wechat-article pre.code-window .code-window-dots { display: flex; gap: 0.35em; margin: 0 0 0.6em; }');
+    expect(result.css).toContain('.wechat-article pre .code-window-chrome { display: block; overflow: hidden; margin: 0; padding: 0 0 0.35em; }');
+    expect(result.css).toContain('.wechat-article pre .code-window-chrome-spacer');
+    expect(result.css).toContain('min-height: 1.35em');
+    expect(result.css).not.toContain('code-window-copy');
+    expect(result.css).toContain('.wechat-article pre.code-window .code-window-dots { float: left; font-size: 0; line-height: 0; }');
+    expect(result.css).toContain('margin-right: 0.35em');
     expect(result.css).not.toContain('position: absolute');
     expect(result.css).toContain('align-items: baseline;');
     expect(result.css).toContain('line-height: 1.5;');

@@ -117,11 +117,16 @@ function structuralCss(config: Readonly<ArticleStyleConfig>): string {
 .wechat-article p.math-display, .wechat-article .math-display { margin: 1.25em 0; text-align: center; text-indent: 0; letter-spacing: 0.04em; }
 .wechat-article .math-display .katex-display { display: inline-block; text-align: center; margin-left: auto; margin-right: auto; }
 .wechat-article mark, .wechat-article mark.obsidian-highlight { background: #fff3a3; color: inherit; padding: 0.1em 0.25em; border-radius: 2px; }`;
+  // Mac header chrome + spacer for draft layout. Never style a fake copy control —
+  // WeChat strips JS; preview owns the live clipboard button.
+  // Mac dots stay WeChat-safe: inline-block + margin (flex/gap/absolute get stripped).
+  const codeChromeCss = `.wechat-article pre .code-window-chrome { display: block; overflow: hidden; margin: 0; padding: 0 0 0.35em; }
+.wechat-article pre .code-window-chrome-spacer { display: block; min-height: 1.35em; height: 1.35em; line-height: 1.35em; font-size: 12px; overflow: hidden; white-space: pre; }`;
   const macCss = config.macCodeBlock
     ? `.wechat-article pre.code-window { padding: 0; }
 .wechat-article pre.code-window > code { display: block; padding: 1em; }
-.wechat-article pre.code-window .code-window-dots { display: flex; gap: 0.35em; margin: 0 0 0.6em; }
-.wechat-article pre.code-window .code-window-dot { display: block; width: 0.55em; height: 0.55em; border-radius: 50%; }
+.wechat-article pre.code-window .code-window-dots { float: left; font-size: 0; line-height: 0; }
+.wechat-article pre.code-window .code-window-dot { display: inline-block; width: 0.55em; height: 0.55em; border-radius: 50%; margin-right: 0.35em; font-size: 12px; line-height: 0.55em; overflow: hidden; vertical-align: top; }
 .wechat-article pre.code-window .code-window-dot--red { background: #ff5f57; }
 .wechat-article pre.code-window .code-window-dot--yellow { background: #febc2e; }
 .wechat-article pre.code-window .code-window-dot--green { background: #28c840; }`
@@ -132,6 +137,7 @@ function structuralCss(config: Readonly<ArticleStyleConfig>): string {
 .wechat-article pre .code-line-content { flex: 1 1 auto; min-width: 0; }`
     : '';
   return `${codeScrollCss}
+${codeChromeCss}
 ${macCss}
 ${lineNumberCss}
 .wechat-article figure.image-figure { margin: ${scaleMarginValue('1.5em 0', spacing)}; }

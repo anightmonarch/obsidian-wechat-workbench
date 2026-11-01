@@ -37,19 +37,27 @@ describe('article style projections', () => {
     expect(root.querySelectorAll('.code-line')).toHaveLength(2);
     expect(root.querySelectorAll('.code-line-number')).toHaveLength(2);
     expect(root.querySelectorAll('.code-line-content')).toHaveLength(2);
+    expect(root.querySelectorAll('.code-window-chrome')).toHaveLength(1);
     expect(root.querySelectorAll('.code-window-dots')).toHaveLength(1);
     expect(root.querySelectorAll('.code-window-dot')).toHaveLength(3);
+    expect(root.querySelector('.code-window-copy')).toBeNull();
+    expect(root.querySelector('.code-window-chrome-spacer')?.textContent).toBe('\u00a0');
+    expect([...root.querySelectorAll('.code-window-dot')].map(dot => dot.textContent)).toEqual(['\u00a0', '\u00a0', '\u00a0']);
     expect([...root.querySelector('code')?.childNodes ?? []]
       .filter(node => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
   });
 
-  it('does not add structural chrome when both options are disabled', () => {
+  it('does not add chrome or a fake copy control when mac window is disabled', () => {
     const root = parseArticleRoot('<section class="wechat-article"><pre><code class="language-ts">const answer = 42;</code></pre></section>');
 
     highlightCodeBlocks(root, { showLineNumbers: false, macWindow: false });
 
     expect(root.querySelector('.code-line')).toBeNull();
     expect(root.querySelector('.code-window-dots')).toBeNull();
+    expect(root.querySelector('.code-window-chrome')).toBeNull();
+    expect(root.querySelector('.code-window-copy')).toBeNull();
+    expect(root.querySelector('.code-window-chrome-spacer')).toBeNull();
+    expect(root.querySelector('.code-window')).toBeNull();
   });
 
   it('prepends a Doocs-compatible reading summary only when enabled', () => {

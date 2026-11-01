@@ -106,7 +106,7 @@ describe('ArticlePreviewRenderer', () => {
       canonicalHtml: [
         '<section class="wechat-article">',
         '<pre class="code-window"><code>',
-        '<span class="code-window-dots" aria-hidden="true"></span>',
+        '<span class="code-window-chrome" aria-hidden="true"><span class="code-window-dots"></span><span class="code-window-copy">复制</span></span>',
         '<span class="code-line"><span class="code-line-number">1</span><span class="code-line-content">const answer = 42;</span></span>',
         '<span class="code-line"><span class="code-line-number">2</span><span class="code-line-content">return answer;</span></span>',
         '</code></pre>',
@@ -119,8 +119,9 @@ describe('ArticlePreviewRenderer', () => {
       canonicalHtml: [
         '<section class="wechat-article">',
         '<section class="code-scroll" style="overflow-x: auto"><pre><code class="hljs language-ts">',
-        '<span class="code-line-block" style="display: block; white-space: pre"><span class="hljs-keyword">const</span> answer = 42;</span>',
-        '<span class="code-line-block" style="display: block; white-space: pre">return answer;</span>',
+        '<span aria-hidden="true" class="code-line-block code-window-chrome-spacer">&nbsp;</span>',
+        '<span class="code-line-block" style="display: block; white-space: pre"><span class="hljs-keyword">const</span>&nbsp;answer&nbsp;=&nbsp;42;</span>',
+        '<span class="code-line-block" style="display: block; white-space: pre">return&nbsp;answer;</span>',
         '</code></pre></section>',
         '</section>',
       ].join(''),
@@ -131,9 +132,12 @@ describe('ArticlePreviewRenderer', () => {
       new ArticlePreviewRenderer(undefined, writeText).render(container, codeArtifact);
       const copy = container.querySelector<HTMLButtonElement>('[data-testid="code-copy"]');
 
+      expect(container.querySelectorAll('[data-testid="code-copy"]')).toHaveLength(1);
+      expect(container.querySelector('.code-window-copy')).toBeNull();
       expect(copy?.getAttribute('aria-label')).toBe('复制代码');
       expect(copy?.dataset.icon).toBe('copy');
       expect(copy?.textContent).toBe('');
+      expect(copy?.textContent).not.toContain('复制');
       copy?.click();
       await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(
         'const answer = 42;\nreturn answer;',
@@ -146,7 +150,8 @@ describe('ArticlePreviewRenderer', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(copy?.dataset.icon).toBe('copy');
       expect(copy?.getAttribute('aria-label')).toBe('复制代码');
-      expect(codeArtifact.canonicalHtml).not.toContain('code-copy');
+      expect(codeArtifact.canonicalHtml).not.toContain('wechat-workbench__code-copy');
+      expect(codeArtifact.canonicalHtml).toContain('code-window-copy');
     } finally {
       container.remove();
     }

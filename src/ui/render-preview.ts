@@ -30,18 +30,22 @@ function createHtmlElement<T extends HTMLElement>(document: Document, tagName: s
   return document.createElementNS('http://www.w3.org/1999/xhtml', tagName) as T;
 }
 
+function restoreCodeWhitespace(value: string): string {
+  return value.replace(/\u00a0/gu, ' ');
+}
+
 function codeText(code: HTMLElement): string {
   const projectedLines = [
-    ...code.querySelectorAll<HTMLElement>('.code-line-content, .code-line-block'),
+    ...code.querySelectorAll<HTMLElement>('.code-line-content, .code-line-block:not(.code-window-chrome-spacer)'),
   ];
   if (projectedLines.length > 0) {
-    return projectedLines.map(line => line.textContent ?? '').join('\n');
+    return projectedLines.map(line => restoreCodeWhitespace(line.textContent ?? '')).join('\n');
   }
   const clone = code.cloneNode(true) as HTMLElement;
-  for (const decoration of clone.querySelectorAll('.code-window-dots, .code-line-number')) {
+  for (const decoration of clone.querySelectorAll('.code-window-chrome, .code-window-chrome-spacer, .code-window-dots, .code-window-copy, .code-line-number')) {
     decoration.remove();
   }
-  return clone.textContent ?? '';
+  return restoreCodeWhitespace(clone.textContent ?? '');
 }
 
 function copyAddressNotice(promise: Promise<void>, success: string, failure: string): void {
@@ -127,6 +131,14 @@ function decorateCodeBlocks(root: HTMLElement, copyText: PreviewCodeCopy): void 
   for (const code of root.querySelectorAll<HTMLElement>('pre > code')) {
     const pre = code.parentElement;
     if (pre === null) continue;
+    // Defensive: drop any leftover fake draft copy control. Preview owns the
+    // live icon button (setIcon + clipboard); artifact must not ship「复制」.
+    for (const staticCopy of code.querySelectorAll('.code-window-copy')) {
+      staticCopy.remove();
+    }
+    for (const chrome of code.querySelectorAll('.code-window-chrome')) {
+      if (chrome.querySelector('.code-window-dots') === null) chrome.remove();
+    }
     const frame = createHtmlElement<HTMLDivElement>(root.ownerDocument, 'div');
     frame.className = 'wechat-workbench__code-preview';
     const copy = createHtmlElement<HTMLButtonElement>(root.ownerDocument, 'button');
