@@ -401,11 +401,12 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
       basename: state.snapshot.basename,
       modifiedAt: state.snapshot.modifiedAt,
     });
+    const coverPicker = this.controller?.coverPickerModel();
     renderPublishSettings(this.settingsEl, state, {
       useFirstImageCover: () => void this.useFirstImageCover(),
       uploadCover: bytes => void this.uploadCover(bytes),
       generateAiCover: () => void this.generateAiCover(),
-      coverAiDisabledReason: this.controller?.coverPickerModel().aiDisabledReason ?? '封面服务不可用',
+      coverAiDisabledReason: coverPicker === undefined ? '封面服务不可用' : coverPicker.aiDisabledReason,
       saveArticle: settings => this.saveArticleSettings(file, settings),
       textGenerationBackend: this.controller?.textGenerationBackend?.() ?? 'api',
       generateTitles: (draft, backend, signal) => this.controller?.generateTitles?.(draft, backend, signal)

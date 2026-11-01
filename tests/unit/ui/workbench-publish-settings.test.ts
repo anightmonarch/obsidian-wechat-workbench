@@ -168,6 +168,21 @@ describe('publish settings', () => {
       .toBe('图片服务未配置完整，请到插件设置检查');
   });
 
+  it('calls generateAiCover when coverAiDisabledReason is null (AI enabled)', () => {
+    const host = document.createElement('section');
+    const generateAiCover = vi.fn();
+    renderPublishSettings(host, renderState, {
+      saveArticle: vi.fn(async () => undefined),
+      generateAiCover,
+      coverAiDisabledReason: null,
+    });
+
+    host.querySelector<HTMLButtonElement>('[data-testid="settings-cover-ai"]')?.click();
+
+    expect(generateAiCover).toHaveBeenCalledOnce();
+    expect(host.querySelector('[data-testid="settings-cover-ai-status"]')?.textContent ?? '').toBe('');
+  });
+
   it('allows adopting and regenerating title and digest candidates in the current session', async () => {
     const host = document.createElement('section');
     const generateTitles = vi.fn()
