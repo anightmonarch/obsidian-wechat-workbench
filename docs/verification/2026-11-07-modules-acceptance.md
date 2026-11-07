@@ -1,6 +1,6 @@
 # 功能模块统一验收报告(2026-11-07)
 
-> **验收状态:已完成。** 12 个验收点:11 项通过(其中第 5 点的设置页截图以进程证据 + 单测等效支撑)、1 项部分验证(第 12 点 M4 设置页 GUI,以等效证据支撑);发现 2 个问题待修(仅记录,未修复)。
+> **验收状态:已完成,12/12 全部通过。** 问题 1/2 已于当日修复(`f50c6b5`)并完成 GUI 复核;"发文章按钮无响应"已破案(窗口位移导致旧坐标打偏,功能正常)。
 
 ## 验收范围
 
@@ -17,7 +17,7 @@
 ## 环境与前置
 
 - 构建产物:`npm run build`(typecheck + esbuild production)通过;`WECHAT_WORKBENCH_TEST_VAULT` 已同步 3 个 runtime assets(main.js 时间戳 2026-11-07 10:25)。
-- 单元测试:封面模块 `vitest run tests/unit/cover/` 8 文件 49 用例全绿(含本次新增 3 个用例);补验阶段另跑 `tests/unit/settings tests/unit/wechat tests/unit/publish tests/visual` 27 文件 142 用例全绿。
+- 单元测试:封面模块 `vitest run tests/unit/cover/` 8 文件 49 用例全绿(含本次新增 3 个用例);补验阶段另跑 `tests/unit/settings tests/unit/wechat tests/unit/publish tests/visual` 27 文件 142 用例全绿;问题修复后全量 `vitest run` **103 文件 628 用例全绿**,lint 清零。
 - 验收 Vault:仅使用隔离测试 Vault `~/workspace/Github/wechat-workbench-test-vault`;未触碰主 Vault `commit_note` 配置(其插件为用户自行安装版本,未做任何改动)。
 - 验收笔记:`验收-模块冒烟-20261107.md`(frontmatter 含 title/digest,正文含缩进代码块、高亮、公式、EXIF 测试图)。
 - Obsidian 1.15.0;插件经 Vault 切换与重启共加载新构建两次,行为一致。
@@ -30,25 +30,25 @@
 | 2 | P0 | 封面 AI 链路:未勾选标题/摘要仅作参考,不画入封面 | ✅ 通过 | 截图 04(未勾选)+ 截图 06(画面无标题/摘要文字) |
 | 3 | P0 | 封面 AI 链路:强制直接出图(不追问) | ✅ 通过 | 截图 05→06,45 秒内产出候选图 |
 | 4 | P0 | 封面 AI 链路:候选图采用、frontmatter 写入、落盘 | ✅ 通过 | 截图 07(toast + cover 字段);磁盘文件见下 |
-| 5 | P0 | Codex GUI 短 PATH 定位 | ✅ 通过 | 进程证据(见下);设置页路径显示截图未取得,以 settings-tab 单测与 data.json 配置作等效证据 |
+| 5 | P0 | Codex GUI 短 PATH 定位 | ✅ 通过 | 进程证据 + 设置页路径显示(截图 15:codex-cli 0.167.0-alpha.3.2 · 图片生成已启用) |
 | 6 | P0 | 封面 AI 禁用原因不误判(`70759c6`) | ✅ 通过 | 截图 02/07:标题/摘要 AI 按钮显示"本地 Codex",无误报禁用 |
 | 7 | P1 | 代码块缩进保真(预览层) | ✅ 通过 | 截图 01/02(缩进保留) |
 | 8 | P1 | 高亮 mark 样式(预览层) | ✅ 通过 | 截图 01(黄色高亮) |
 | 9 | P1 | 公式居中(预览层) | ✅ 通过 | 截图 01/02(块级公式居中) |
 | 10 | P1 | 剪贴板层:NBSP 保真 + 假复制去除 | ✅ 通过 | 剪贴板 HTML 分析(见下) |
 | 11 | P2 | EXIF 烤正与压缩(复制链路) | ✅ 通过 | 解码图片 1080×679 已回正、Orientation 移除、体积 -33% |
-| 12 | P3 | 公共中转连接设置 UI | ⚠️ 部分验证 | 单元/视觉测试 142 通过 + data.json 持久化;GUI 设置页截图因环境怪癖未完成(见下) |
+| 12 | P3 | 公共中转连接设置 UI | ✅ 通过 | 设置页截图 14(连接方式=公共中转、AppSecret 打码)+ 截图 15 + 单元/视觉测试 142 通过 + data.json 持久化 |
 
-补验结论:第 10、11 项通过;第 12 项 GUI 设置页截图受阻(自动化怪癖,详见"环境事件记录"),以测试套件与持久化配置作等效证据,**不判为完整通过**。
+补验结论:第 10、11、12 项全部通过(第 12 项的设置页 GUI 复核已于解锁后完成,见截图 14/15)。
 
 ### 模块级结论
 
 | 模块 | 结论 | 说明 |
 | --- | --- | --- |
-| M1 封面 AI 生成(Codex 本地链路) | ✅ 通过 | 5 个验收点全过(第 5 点设置页截图以等效证据支撑) |
+| M1 封面 AI 生成(Codex 本地链路) | ✅ 通过 | 5 个验收点全过;设置页截图已取得 |
 | M2 渲染保真 | ✅ 通过 | 预览层与剪贴板层均验证通过 |
 | M3 图片处理 | ✅ 通过 | EXIF 烤正与压缩在复制链路验证通过 |
-| M4 微信公共中转连接 | ⚠️ 部分验证 | 功能测试与持久化通过;GUI 设置页截图未取得 |
+| M4 微信公共中转连接 | ✅ 通过 | 设置页 GUI(连接方式/连接状态/白名单提示)与等效证据齐备 |
 | M5 草稿假复制去除 | ✅ 通过 | 剪贴板产物 0 处假复制装饰 |
 
 ## 已验证证据
@@ -102,42 +102,59 @@ PPID 29154 Obsidian Helper (Renderer)(插件宿主)
 3. **EXIF 烤正与压缩(f98b805)**:笔记内 `exif-test-rotated.jpg`(源像素 679×1080 横放 + EXIF Orientation=6)在产物中变为 data URL JPEG:像素 1080×679(已回正)、EXIF Orientation 标签移除(烤正)、体积 84119 → 56234 字节(-33%,压缩生效)。
 4. **同源一致性**:text/plain 与 text/html 来自同一 RenderArtifact(标题「微信工作台模块验收」、摘要、正文顺序一致)。
 
-### 公共中转连接(M4,等效证据)
-
-GUI 设置页导航在本环境受两个叠加的自动化怪癖阻碍(见"环境事件记录"),未取得设置页截图。改用以下等效证据,不判完整通过:
+### 公共中转连接(M4,GUI 复核通过)
 
 - `npx vitest run tests/unit/settings tests/unit/wechat tests/unit/publish tests/visual`:**27 文件 142 用例全绿**,覆盖 `settings-store` 连接方式往返、`api-relay-transport`、`resolve-api-relay-config`、`secret-store`、`asset-upload-service`(同步上传 EXIF 烤正)与 workbench 视觉回归。
 - 测试 Vault `data.json` 中 `connectionMode: "public_relay"` 已持久化(设置写入路径真实生效)。
-- GUI 已到达的层级:第三方插件页确认 WeChat Workbench v0.1.1 已启用(截图 10);插件自身设置标签页未能通过自动化进入(怪癖见"环境事件记录")。
-- 手动复核步骤(约 10 秒):设置 → 第三方插件 → WeChat Workbench → 「连接方式」应显示"公共中转",本地 Codex 检测路径显示 `/Users/wangboshi/.n/bin/codex`。
+- **GUI 复核通过**:插件设置标签页「微信公众号」区块显示连接方式分段控件(本地直连/公共中转,公共中转选中)、连接状态"未配置"、AppSecret 打码、中转 IP 白名单引导(截图 14);「AI 内容生成」区块显示 Codex 可执行文件 `/Users/wangboshi/.n/bin/codex` 与检测状态"已发现本地 Codex · codex-cli 0.167.0-alpha.3.2 · 图片生成已启用"(截图 15)。
 
-![第三方插件页(WeChat Workbench v0.1.1 已启用)](docs/verification/assets/2026-11-07-modules-acceptance/10-plugin-settings-top.png)
+![连接方式设置(公共中转选中,AppSecret 打码)](docs/verification/assets/2026-11-07-modules-acceptance/14-relay-mode-settings.png)
+![Codex 路径与检测状态](docs/verification/assets/2026-11-07-modules-acceptance/15-codex-path-detection.png)
 
-## 发现的问题(仅记录,不在本轮修复)
+### 修复复核(问题 1/2,GUI 验证通过)
 
-### 问题 1(P1):隐私披露文案与实际发送行为不符
+`f50c6b5` 修复后在真实 GUI 复核:
 
-- 现象:封面确认弹窗在标题/摘要均未勾选时,披露区显示"本次发送:仅视觉主题,不发送标题或摘要"(截图 03/04)。
-- 但本次未提交改动中,`CoverWorkflow.prepareAi` 改为将 `artifact.metadata.title/digest` 完整传给本地生成器,`CodexImageGenerator.prompt` 会将其以"文章主题参考(不要把这段文字画进封面)"与"文章摘要参考"行发送给 Codex。
-- 即:**未勾选 ≠ 未发送**。披露文案由 `src/ui/ai-cover-confirmation.ts:334-345` 的 `sentFields` 逻辑生成,只统计勾选项与补充要求,未计入"参考上下文"形式的标题/摘要。
-- 影响面:`codex` 后端发送给本机 Codex CLI;若切到 `api` 后端,同样文案下标题/摘要会被发送给第三方图片服务,失真更严重,与 AGENTS.md"调用图片生成服务前明确展示将发送的内容"要求冲突。
-- 建议(供后续修复参考):在 `sentFields` 区分"绘制字段"与"参考上下文字段",或在文案中明示"标题/摘要将作为主题参考发送"。
+1. **披露文案诚实化**:未勾选标题/摘要时,弹窗显示"本次发送:标题、摘要(仅作生成依据,不绘制到图中)"(截图 12),误导文案已消失。
+2. **披露卡实时刷新**:补充要求输入后,披露卡立即更新为"本次发送:标题、摘要、补充封面要求(…)"(截图 13),无需重开弹窗。
 
-### 问题 2(P3,观察项):披露卡不随输入实时刷新
+![诚实化后的披露文案](docs/verification/assets/2026-11-07-modules-acceptance/12-disclosure-honest-v2.png)
+![披露卡实时刷新](docs/verification/assets/2026-11-07-modules-acceptance/13-disclosure-live-refresh.png)
 
-补充要求文本框输入后,披露卡内容只在下一次 `onOpen()`(如进入生成中状态)时更新(对比截图 03 与 05)。影响轻微,建议与问题 1 一并处理。
+### 发布入口引导(发文章,谜底)
 
-## 补验执行记录(原定"待解锁后补验步骤",已执行完毕)
+点击「发文章」(账号未配置)正确触发引导:两条 Notice——"公众号账号未配置,请先打开插件设置完善本地账号信息。"与"请打开设置 → 第三方插件 → WeChat Workbench 完善公众号账号配置。"(截图 11)。此前"按钮无响应"为验收环境的窗口位移导致旧坐标打偏,非插件缺陷。
+
+![发布入口的账号配置引导](docs/verification/assets/2026-11-07-modules-acceptance/11-publish-account-notice.png)
+
+## 发现的问题与修复
+
+### 问题 1(P1):隐私披露文案与实际发送行为不符 — ✅ 已修复(`f50c6b5`)
+
+- 现象:封面确认弹窗在标题/摘要均未勾选时,披露区显示"本次发送:仅视觉主题,不发送标题或摘要";但 Codex 后端会把未勾选的标题/摘要以"主题参考"形式发送,API 后端则发送空字符串(两后端不一致)。
+- **修复方案(用户确认简化)**:封面生成依据固定为标题+摘要(不使用全文);两后端统一完整发送,勾选框仅控制绘制;标题/摘要为空时阻断生成并引导先填写/生成;披露文案恒示"标题、摘要"并注明绘制语义;API 生成器提示词与 Codex 对齐(未勾选 → "文章主题参考"行)。
+- 涉及:`src/cover/cover-workflow.ts`(守卫 + 传参)、`src/cover/cover-generator.ts`、`src/cover/openai-image-generator.ts`(include 标志)、`src/ui/ai-cover-confirmation.ts`、`src/ui/workbench-view.ts`(入口引导)。
+- GUI 复核:截图 12(诚实文案)、13(实时刷新)。
+
+### 问题 2(P3,观察项):披露卡不随输入实时刷新 — ✅ 已修复(`f50c6b5`)
+
+补充要求输入时只更新披露卡容器(不重绘弹窗、不丢焦点),GUI 复核见截图 13。
+
+### 附带发现:「发文章」按钮无响应(验收期间现象)— ✅ 已破案(非缺陷)
+
+验收期间点击「发文章」无 Notice 无弹窗,经排查为**验收环境问题**:测试 Vault 窗口在测量与点击之间发生位移,旧坐标打偏(点击落到标题栏/文件列表)。以"新鲜测量 → 立即点击"协议重试后,按钮功能完全正常:正确触发"账号未配置"引导(截图 11)。
+
+## 补验执行记录(已执行完毕)
 
 1. 复制层验证(M2/M3/M5)— ✅ 已执行,全部断言通过,见"剪贴板层验证"小节。
-2. 设置页截图(M1/M4)— ⚠️ GUI 导航受阻,降级为等效证据,见"公共中转连接(M4,等效证据)"小节。
-3. 报告结果总表第 10-12 项与模块级结论 — ✅ 已更新。
+2. 设置页截图(M1/M4)— ✅ 已取得:截图 14(公共中转设置)、15(Codex 路径与检测状态)。
+3. 报告结果总表第 10-12 项与模块级结论 — ✅ 已更新为最终状态。
 
 ## 环境事件记录
 
 - 10:44 起系统出现 loginwindow 抢占(用户锁屏离开),AX 焦点全局失效:表现为 agent-desktop 反复报 `global_window_owner_churn`、Obsidian AX 窗口对 System Events 不可见、快捷键投递被拒。期间已通过 CGWindowList/Swift AX 采样排除 Obsidian 自身 AX 损坏(重启后依旧),最终由 NSWorkspace 确认 `frontmost=loginwindow` 定性为锁屏阻塞。
-- 解锁后焦点系统恢复,补验完成第 10-11 项。期间发现两个与验收环境相关的自动化怪癖(不影响插件功能本身,仅供后续自动化参考):
-  1. 主窗口 webarea 中部分按钮不响应语义 AXPress(「复制」),改物理点击后生效;「发文章」对语义与物理点击均无响应且无 Notice(按钮 AX 状态为启用、坐标经像素级校准),原因未定位,记录待查。
-  2. Obsidian 1.15 设置窗口侧栏导航项与已安装插件行「…」按钮无 AX 引用,物理点击行标题不进入插件详情页;多次尝试期间误开了 commit_note 设置窗口与社区插件浏览弹窗,均已即时关闭,未做任何配置改动。
-- 已恢复项:ZCode 窗口可见性已还原;Obsidian 停留在测试 Vault,主 Vault `commit_note` 窗口原样保留;所有误开的弹窗/设置窗口均已关闭。
+- 解锁后焦点系统恢复,补验完成第 10-12 项并完成问题 1/2 的修复与 GUI 复核。期间定位到两个验收环境要点(不影响插件功能):
+  1. **窗口位移导致坐标失效**:测试 Vault 窗口会在测量与点击之间被移动(标题栏点击/激活重排),旧坐标打偏。曾误判「发文章」按钮无响应;改用"新鲜 AX 测量 → 立即物理点击"协议后一切正常,该按钮的账号未配置引导完全正常(截图 11)。
+  2. **设置页导航路径**:Obsidian 1.15 中,设置 → 第三方插件列表 → 点击插件行会打开"第三方插件"详情窗口,内含「选项」按钮进入插件设置标签页;滚动用 Tab 焦点移动(scroll-into-view)比滚轮可靠。
+- 已恢复项:ZCode 窗口可见性已还原;Obsidian 停留在测试 Vault,主 Vault `commit_note` 窗口原样保留;所有误开的弹窗/设置窗口均已关闭;设置窗口尺寸已还原。
 - 期间一次菜单栏 Preferences 误开了主 Vault 设置弹窗,已立即关闭,未做任何改动。
