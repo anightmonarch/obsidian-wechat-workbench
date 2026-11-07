@@ -307,15 +307,21 @@ export class CoverWorkflow {
     const settings = this.settings.get();
     const backend = selection.backend ?? settings.imageGenerationBackend;
     const generationSignal = signal ?? selection.signal;
-    const title = selection.includeTitle ? artifact.metadata.title : '';
-    const digest = selection.includeDigest ? artifact.metadata.digest : '';
+    if (artifact.metadata.title.trim().length === 0 || artifact.metadata.digest.trim().length === 0) {
+      throw new CoverGenerationError(
+        'COVER_TITLE_DIGEST_REQUIRED',
+        'Cover generation requires note title and digest.',
+      );
+    }
+    const title = artifact.metadata.title;
+    const digest = artifact.metadata.digest;
     if (backend === 'codex') {
       if (this.localGenerator === undefined) {
         throw new CodexRuntimeError('CODEX_IMAGEGEN_UNAVAILABLE');
       }
       const generated = await this.localGenerator.generate({
-        title,
-        digest,
+        title: artifact.metadata.title,
+        digest: artifact.metadata.digest,
         supplementalPrompt,
         includeTitle: selection.includeTitle,
         includeDigest: selection.includeDigest,
@@ -343,6 +349,8 @@ export class CoverWorkflow {
       digest,
       supplementalPrompt,
       presetId: selection.presetId,
+      includeTitle: selection.includeTitle,
+      includeDigest: selection.includeDigest,
       ...(generationSignal === undefined ? {} : { signal: generationSignal }),
     });
     return this.processAndPrepare(file, generated.bytes, 'ai-generated', publishPayloadHash(artifact));

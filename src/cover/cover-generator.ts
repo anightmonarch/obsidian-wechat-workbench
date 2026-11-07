@@ -18,6 +18,8 @@ export interface AiCoverGenerationRequest {
   digest: string;
   supplementalPrompt: string;
   presetId?: string;
+  includeTitle?: boolean;
+  includeDigest?: boolean;
   signal?: AbortSignal;
 }
 

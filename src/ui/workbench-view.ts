@@ -616,9 +616,14 @@ export class WeChatWorkbenchView extends ItemView implements WorkbenchViewPort {
     if (this.controller === null) return;
     const controller = this.controller;
     const defaultBackend = controller.imageGenerationBackend?.() ?? 'api';
+    const disclosure = controller.aiCoverDisclosure('', defaultBackend);
+    if (disclosure.payload.title.trim().length === 0 || disclosure.payload.digest.trim().length === 0) {
+      new Notice('标题或摘要为空，请先在「发布设置 → 文章信息」中填写或生成，再使用智能封面。');
+      return;
+    }
     new AiCoverConfirmationModal(
       this.app,
-      controller.aiCoverDisclosure('', defaultBackend),
+      disclosure,
       selection => controller.generateAiCover(selection.supplementalPrompt, selection),
       async prepared => {
         await controller.confirmCover(prepared);

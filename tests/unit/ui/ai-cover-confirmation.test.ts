@@ -102,7 +102,41 @@ describe('AI cover disclosure', () => {
     expect(generateCover.mock.calls[0]?.[0]?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('allows users to exclude the title and digest from the generation context', async () => {
+  it('discloses title and digest as the generation basis even when neither is drawn', () => {
+    const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
+    const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
+      title: 'Title', digest: 'Digest',
+    }, provider), generateCover, vi.fn(async () => undefined));
+
+    modal.open();
+    modal.contentEl.querySelector<HTMLInputElement>('[data-testid="ai-cover-include-title"]')!.checked = false;
+    modal.contentEl.querySelector<HTMLInputElement>('[data-testid="ai-cover-include-digest"]')!.checked = false;
+    const card = modal.contentEl.querySelector('[data-testid="ai-cover-disclosure"]');
+    expect(card?.textContent).toContain('本次发送：标题、摘要');
+    expect(card?.textContent).toContain('仅作生成依据，不绘制到图中');
+    expect(card?.textContent).not.toContain('不发送标题或摘要');
+  });
+
+  it('refreshes the disclosure card live while typing the supplemental prompt', () => {
+    const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
+    const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
+      title: 'Title', digest: 'Digest',
+    }, provider), generateCover, vi.fn(async () => undefined));
+
+    modal.open();
+    const prompt = modal.contentEl.querySelector<HTMLTextAreaElement>('[data-testid="ai-cover-supplemental-prompt"]');
+    expect(prompt).not.toBeNull();
+    prompt!.value = '电影感、蓝色调';
+    prompt!.dispatchEvent(new Event('input'));
+
+    const after = modal.contentEl.querySelector<HTMLTextAreaElement>('[data-testid="ai-cover-supplemental-prompt"]');
+    expect(after).toBe(prompt);
+    const card = modal.contentEl.querySelector('[data-testid="ai-cover-disclosure"]');
+    expect(card?.textContent).toContain('补充封面要求');
+    expect(modal.contentEl.textContent).not.toContain('不发送标题或摘要');
+  });
+
+  it('keeps optional title and digest drawing flags without removing them from the payload', async () => {
     const generateCover = vi.fn(async (_selection: Readonly<AiCoverGenerationSelection>) => candidate);
     const modal = new AiCoverConfirmationModal({} as never, buildAiCoverDisclosure({
       title: 'Title', digest: 'Digest',
@@ -213,6 +247,7 @@ describe('AI cover disclosure', () => {
     ['CODEX_IMAGEGEN_UNAVAILABLE', '当前本地 Codex 不支持图像生成，请更新 Codex 后重试。'],
     ['CODEX_TIMEOUT', '本地 Codex 生成超时，请手动重试。'],
     ['CODEX_IMAGE_NOT_FOUND', '本地 Codex 未生成可用图片，请调整要求后重试。'],
+    ['COVER_TITLE_DIGEST_REQUIRED', '请先生成文章标题与摘要，再使用智能封面。'],
   ])('maps %s to an actionable safe message', (code, message) => {
     expect(aiCoverFailureMessage(new CoverGenerationError(code, 'private provider detail'))).toBe(message);
   });

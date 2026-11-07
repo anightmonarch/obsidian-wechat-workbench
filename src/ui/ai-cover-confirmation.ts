@@ -115,6 +115,9 @@ export function aiCoverFailureMessage(error: unknown): string {
   if (code === 'CODEX_OUTPUT_INVALID' || code === 'CODEX_PROCESS_FAILED') {
     return '本地 Codex 执行失败，请检查登录状态并重试。';
   }
+  if (code === 'COVER_TITLE_DIGEST_REQUIRED') {
+    return '请先生成文章标题与摘要，再使用智能封面。';
+  }
   return '智能封面生成失败，请检查图片服务配置后重试。';
 }
 
@@ -168,6 +171,7 @@ export class AiCoverConfirmationModal extends Modal {
   private error: string | null = null;
   private generationAbort: AbortController | null = null;
   private supplementalPrompt: string;
+  private disclosureEl: HTMLElement | null = null;
   private includeTitle = false;
   private includeDigest = false;
   private presetId = DEFAULT_COVER_PROMPT_PRESET_ID;
@@ -255,7 +259,10 @@ export class AiCoverConfirmationModal extends Modal {
     prompt.maxLength = 500;
     prompt.value = this.supplementalPrompt;
     prompt.disabled = this.busy;
-    prompt.addEventListener('input', () => { this.supplementalPrompt = prompt.value; });
+    prompt.addEventListener('input', () => {
+      this.supplementalPrompt = prompt.value;
+      this.renderDisclosure();
+    });
     promptLabel.append(prompt);
     this.contentEl.append(promptLabel);
     this.contentEl.append(this.disclosureCard());
@@ -326,26 +333,34 @@ export class AiCoverConfirmationModal extends Modal {
     }
   }
 
-  private disclosureCard(): HTMLElement {
+  private renderDisclosure(): void {
+    const card = this.disclosureEl;
+    if (card === null) return;
     const source = this.backendOptions?.disclosureFor(
       this.backend,
       supplemental(this.supplementalPrompt),
     ) ?? this.disclosure;
     const sentFields = [
-      ...(this.includeTitle ? ['标题'] : []),
-      ...(this.includeDigest ? ['摘要'] : []),
+      '标题',
+      '摘要',
       ...(supplemental(this.supplementalPrompt).length > 0 ? ['补充封面要求'] : []),
     ];
-    const card = createDiv('wechat-workbench__cover-disclosure');
-    card.dataset.testid = 'ai-cover-disclosure';
-    card.append(
+    const drawingNote = this.includeTitle || this.includeDigest
+      ? '勾选项将绘制到图中'
+      : '仅作生成依据，不绘制到图中';
+    card.replaceChildren(
       createEl('strong', { text: `${source.provider} · ${source.model}` }),
       createSpan({ text: `服务位置：${source.endpoint}` }),
-      createSpan({
-        text: `本次发送：${sentFields.length > 0 ? sentFields.join('、') : '仅视觉主题，不发送标题或摘要'}`,
-      }),
+      createSpan({ text: `本次发送：${sentFields.join('、')}（${drawingNote}）` }),
       createSpan({ text: source.costNotice }),
     );
+  }
+
+  private disclosureCard(): HTMLElement {
+    const card = createDiv('wechat-workbench__cover-disclosure');
+    card.dataset.testid = 'ai-cover-disclosure';
+    this.disclosureEl = card;
+    this.renderDisclosure();
     return card;
   }
 

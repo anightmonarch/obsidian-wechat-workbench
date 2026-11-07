@@ -12,7 +12,7 @@ const file: VaultFileRef = { path: '01-公众号/article.md', basename: 'article
 const snapshot: Readonly<NoteSnapshot> = Object.freeze({
   vaultPath: file.path, basename: file.basename, modifiedAt: 1, markdown: '# Article',
   frontmatter: Object.freeze({ title: 'Article', custom: 'keep' }),
-  metadata: Object.freeze({ title: 'Article', author: '', digest: '', cover: null, contentSourceUrl: '' }),
+  metadata: Object.freeze({ title: 'Article', author: '', digest: 'Article digest', cover: null, contentSourceUrl: '' }),
   selectedThemeId: 'native', sourceHash: 'SOURCE_HASH',
 });
 const artifact: Readonly<RenderArtifact> = Object.freeze({
@@ -149,7 +149,7 @@ describe('CoverWorkflow', () => {
     const generated = await current.workflow.prepareAi(file, artifact);
     expect(generated.source).toBe('ai-generated');
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Article', digest: '', apiKey: credential,
+      title: 'Article', digest: 'Article digest', apiKey: credential,
       endpoint: 'https://apihub.agnes-ai.com/v1/images/generations',
       supplementalPrompt: '',
     }));
@@ -166,7 +166,7 @@ describe('CoverWorkflow', () => {
     }));
   });
 
-  it('omits unchecked title and digest values from the AI cover request', async () => {
+  it('sends full title and digest as the generation basis even when unchecked for drawing', async () => {
     const current = harness();
 
     await current.workflow.prepareAi(file, artifact, '', {
@@ -175,9 +175,41 @@ describe('CoverWorkflow', () => {
     });
 
     expect(current.generate).toHaveBeenCalledWith(expect.objectContaining({
-      title: '',
-      digest: '',
+      title: 'Article',
+      digest: 'Article digest',
+      includeTitle: false,
+      includeDigest: false,
     }));
+  });
+
+  it('blocks AI cover generation when the note title is blank', async () => {
+    const current = harness();
+    const blankTitleArtifact: Readonly<RenderArtifact> = Object.freeze({
+      ...artifact,
+      metadata: Object.freeze({ ...artifact.metadata, title: '   ' }),
+    });
+
+    await expect(current.workflow.prepareAi(file, blankTitleArtifact, '', {
+      includeTitle: true,
+      includeDigest: true,
+      backend: 'codex',
+    })).rejects.toMatchObject({ code: 'COVER_TITLE_DIGEST_REQUIRED' });
+    expect(current.generateLocal).not.toHaveBeenCalled();
+  });
+
+  it('blocks AI cover generation when the note digest is blank', async () => {
+    const current = harness();
+    const blankDigestArtifact: Readonly<RenderArtifact> = Object.freeze({
+      ...artifact,
+      metadata: Object.freeze({ ...artifact.metadata, digest: '' }),
+    });
+
+    await expect(current.workflow.prepareAi(file, blankDigestArtifact, '', {
+      includeTitle: false,
+      includeDigest: false,
+      backend: 'api',
+    })).rejects.toMatchObject({ code: 'COVER_TITLE_DIGEST_REQUIRED' });
+    expect(current.generate).not.toHaveBeenCalled();
   });
 
   it('disables image generation when no image provider is active', async () => {
@@ -258,11 +290,45 @@ describe('CoverWorkflow', () => {
 
     expect(generated.source).toBe('ai-generated');
     expect(current.generateLocal).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Article', digest: '', supplementalPrompt: '暖白背景',
+      title: 'Article', digest: 'Article digest', supplementalPrompt: '暖白背景',
       includeTitle: true, includeDigest: false,
     }));
     expect(secretGet).not.toHaveBeenCalled();
     expect(current.generate).not.toHaveBeenCalled();
+  });
+
+  
+  it('passes full title and digest to Codex even when unchecked for drawing', async () => {
+    const current = harness();
+    const workflow = new CoverWorkflow(
+      { resolveLink: vi.fn(async (source: string) => source), readBinary: vi.fn(async () => processed) },
+      { process: vi.fn(() => processed) },
+      { save: current.save },
+      { generate: current.generate },
+      { processFrontmatter: current.processFrontmatter },
+      { get: () => ({
+        globalDefaultCoverPath: '',
+        aiProviders: DEFAULT_SETTINGS.aiProviders,
+        imageGenerationBackend: 'codex' as const,
+      }) },
+      { get: vi.fn(() => null), has: vi.fn(() => false) },
+      { fetch: current.remoteFetch },
+      { generate: current.generateLocal },
+    );
+
+    await workflow.prepareAi(file, artifact, '加入官方 logo', {
+      includeTitle: false,
+      includeDigest: false,
+      backend: 'codex',
+    });
+
+    expect(current.generateLocal).toHaveBeenCalledWith(expect.objectContaining({
+      title: artifact.metadata.title,
+      digest: artifact.metadata.digest,
+      includeTitle: false,
+      includeDigest: false,
+      supplementalPrompt: '加入官方 logo',
+    }));
   });
 
   it('does not fall back to API when local cover generation fails', async () => {

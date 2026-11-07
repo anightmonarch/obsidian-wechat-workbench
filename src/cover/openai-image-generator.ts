@@ -58,16 +58,27 @@ function prompt(request: Readonly<AiCoverGenerationRequest>): string {
   const title = cleanText(request.title, 200);
   const digest = cleanText(request.digest, 500);
   const supplementalPrompt = cleanText(request.supplementalPrompt, 500);
-  const hasRequestedCopy = title.length > 0 || digest.length > 0;
+  const drawTitle = request.includeTitle !== false && title.length > 0;
+  const drawDigest = request.includeDigest !== false && digest.length > 0;
+  const hasBasis = title.length > 0 || digest.length > 0;
+  const hasRequestedCopy = drawTitle || drawDigest;
   const sections = [coverPromptPreset(request.presetId ?? '').prompt];
   sections.push(hasRequestedCopy
     ? '【封面文字规则】仅可出现下方明确指定的标题或摘要。请在留白区域为其预留高对比度、完整可读的中文排版空间；不要生成任何额外文字、字母、数字、二维码、商标、水印、账号标识或信息标签。'
-    : '【封面文字规则】严禁出现任何可见文字、字母、汉字、数字、二维码、商标标识、水印、账号标识或信息标签。');
-  if (title.length > 0 || digest.length > 0) {
+    : hasBasis
+      ? '【封面文字规则】严禁在封面中绘制任何可见文字、字母、汉字、数字、二维码、商标标识、水印、账号标识或信息标签；下方内容仅作为画面主题参考。'
+      : '【封面文字规则】严禁出现任何可见文字、字母、汉字、数字、二维码、商标标识、水印、账号标识或信息标签。');
+  if (hasRequestedCopy) {
     sections.push([
       '以下内容必须直接绘制在封面中。必须使用清晰、完整、可读的中文排版准确呈现；不要改写、截断、遗漏或生成乱码。除下方指定内容外，不要生成任何文字或伪文字。',
-      ...(title.length > 0 ? [`封面标题：${title}`] : []),
-      ...(digest.length > 0 ? [`封面摘要：${digest}`] : []),
+      ...(drawTitle ? [`封面标题：${title}`] : []),
+      ...(drawDigest ? [`封面摘要：${digest}`] : []),
+    ].join('\n'));
+  } else if (hasBasis) {
+    sections.push([
+      '以下内容仅作为封面画面主题参考，不要把这段文字绘制到封面中：',
+      ...(title.length > 0 ? [`文章主题参考：${title}`] : []),
+      ...(digest.length > 0 ? [`文章摘要参考：${digest}`] : []),
     ].join('\n'));
   }
   if (supplementalPrompt.length > 0) {

@@ -21,27 +21,46 @@ export interface LocalCoverGenerator {
 
 type ExecutablePathSource = () => string;
 
+function mentionsBrandOrLogo(value: string): boolean {
+  return /logo|徽标|商标|品牌|徽章|标志|标誌/iu.test(value);
+}
+
 function prompt(request: Readonly<LocalCoverGenerationRequest>): string {
   const preset = coverPromptPreset(request.presetId ?? '');
+  const title = request.title.trim();
+  const digest = request.digest.trim();
+  const supplemental = request.supplementalPrompt.trim();
+  const allowBrandMarks = mentionsBrandOrLogo(supplemental);
   const textInstruction = request.includeTitle || request.includeDigest
     ? '只绘制下方明确提供的中文文字，保持清晰可读；不要添加其他文字。'
-    : '画面中不要出现任何文字、字母、数字、品牌标识或水印。';
-  return [
+    : allowBrandMarks
+      ? '不要绘制标题、摘要或水印文字；允许按补充要求加入官方 logo 或品牌标识，除此之外不要出现其他文字、字母或数字。'
+      : '画面中不要出现任何文字、字母、数字或水印。';
+  const lines = [
     '$imagegen',
     preset.prompt,
     '最终画面必须为约 2.35:1 的微信公众号横版封面，主体略偏右，安全留白，禁止水印。',
     textInstruction,
-    ...(request.includeTitle && request.title.trim().length > 0
-      ? [`需要绘制的标题：${request.title.trim()}`]
-      : []),
-    ...(request.includeDigest && request.digest.trim().length > 0
-      ? [`需要绘制的摘要：${request.digest.trim()}`]
-      : []),
-    ...(request.supplementalPrompt.trim().length > 0
-      ? [`补充要求：${request.supplementalPrompt.trim()}`]
-      : []),
-    '生成完成后只回复 done。',
-  ].join('\n');
+  ];
+  if (request.includeTitle && title.length > 0) {
+    lines.push(`需要绘制的标题：${title}`);
+  } else if (title.length > 0) {
+    lines.push(`文章主题参考（不要把这段文字画进封面）：${title}`);
+  }
+  if (request.includeDigest && digest.length > 0) {
+    lines.push(`需要绘制的摘要：${digest}`);
+  } else if (digest.length > 0) {
+    lines.push(`文章摘要参考（不要把这段文字画进封面）：${digest}`);
+  }
+  if (supplemental.length > 0) {
+    lines.push([
+      '【最高优先级：用户补充的视觉要求】',
+      '以下要求优先于封面主题与文字规则；必须遵守。',
+      supplemental,
+    ].join('\n'));
+  }
+  lines.push('必须调用图像生成产出一张封面图；生成完成后只回复 done，不要提问或索要更多信息。');
+  return lines.join('\n');
 }
 
 export class CodexImageGenerator implements LocalCoverGenerator {
