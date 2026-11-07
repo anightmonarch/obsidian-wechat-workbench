@@ -150,14 +150,13 @@ PPID 29154 Obsidian Helper (Renderer)(插件宿主)
 2. 设置页截图(M1/M4)— ✅ 已取得:截图 14(公共中转设置)、15(Codex 路径与检测状态)。
 3. 报告结果总表第 10-12 项与模块级结论 — ✅ 已更新为最终状态。
 
-## 发布准备状态(v0.2.0)
+## 发布准备状态(v0.2.0)— ✅ 已发布
 
 - 依赖安全审计清零(overrides 修复 1 critical dompurify + 2 high + 3 moderate,628 用例回归无破坏)。
-- 版本已 bump 0.1.1 → 0.2.0(manifest/package/versions 三处一致,minAppVersion 1.11.4),verify:release 通过。
-- 代码已推送 GitHub(23 个提交,含验收报告与本轮全部修复)。
-- **GitHub Release v0.2.0 已建为 DRAFT**(附 main.js/manifest.json/styles.css,发布说明含验证声明):草稿不公开、不触发官方库更新。
-- **待用户确认后执行**:在 GitHub 上把草稿 release 正式发布(一键),官方库将自动进入更新审核队列。
-- **发布质量门缺口(AGENTS.md,待补验)**:① 本轮改动的真实公众号测试账号端到端(8-28 的 PARTIAL 覆盖旧阶段);② 最低支持版本 1.11.4 真实测试;③ Windows/Linux 冒烟;④ 复制到真实公众号编辑器的视觉核对。
+- 版本已发布 0.1.1 → **0.2.0**(manifest/package/versions 三处一致,minAppVersion 1.11.4),verify:release 通过。
+- 代码与报告已推送 GitHub;**Release v0.2.0 已于 2026-11-07 17:25 正式发布**:<https://github.com/anightmonarch/obsidian-wechat-workbench/releases/tag/v0.2.0>(Latest,附 main.js/manifest.json/styles.css)。
+- Obsidian release bot 将自动把 0.2.0 送入社区插件更新审核队列(已收录插件的常规更新流程,通常数小时至数天内全量推送)。
+- 质量门结算:① 真实草稿箱格式由用户人工验收通过(2026-11-07);② 1.11.4 兼容性经静态 API 检查(全部所用 API ≤1.11.4,`app.secretStorage` 即 minAppVersion 依据),真机 1.11.4 运行测试未执行;③ Windows/Linux 冒烟未执行,用户确认不阻塞发布(记录为已知限制);④ 真实公众号编辑器视觉核对由用户人工验收通过。
 
 ## 环境事件记录
 
