@@ -49,7 +49,10 @@ describe('CodexExecClient', () => {
     ]);
     expect(request?.stdin).toBe('synthetic prompt');
     expect(request?.args).not.toContain('synthetic prompt');
-    expect(request?.env).toEqual({ HOME: '/home/user', PATH: '/bin' });
+    expect(request?.env).toEqual({
+      HOME: '/home/user',
+      PATH: '/opt/homebrew/bin:/usr/local/bin:/home/user/.n/bin:/home/user/.local/bin:/bin',
+    });
     expect(fixture.temporary.remove).toHaveBeenCalledWith('/tmp/wechat-workbench-codex-test');
   });
 

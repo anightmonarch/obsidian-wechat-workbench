@@ -98,7 +98,7 @@ export function renderMathExpressions(root: Element): MathProjection {
       const fragment = sanitizedKatexFragment(source, displayMode, doc);
       if (displayMode) {
         const first = fragment.querySelector?.('.katex-display')
-          ?? (fragment.firstElementChild as Element | null);
+          ?? fragment.firstElementChild;
         first?.setAttribute('aria-label', source);
       }
       wrapper.append(fragment);

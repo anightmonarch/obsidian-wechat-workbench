@@ -22,7 +22,6 @@ function snapshot(markdown: string): Readonly<NoteSnapshot> {
 
 describe('KaTeX projection', () => {
   it('renders inline and display math as stable generated assets', async () => {
-    const builder = new RenderArtifactBuilder();
     const markdown = 'Inline $E = mc^2$.\n\n$$\n\\sum_{i=1}^{n} i\n$$';
 
     const first = await new RenderArtifactBuilder().build(snapshot(markdown), compiledTheme);

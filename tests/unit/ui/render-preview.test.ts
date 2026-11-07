@@ -54,9 +54,10 @@ describe('ArticlePreviewRenderer', () => {
     document.body.append(container);
     const resolve = vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=');
     const written: unknown[][] = [];
+    const writeText = vi.fn(async () => undefined);
     vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
     Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn(async () => undefined), write: vi.fn(async (items: unknown) => { written.push([items]); }) },
+      value: { writeText, write: vi.fn(async (items: unknown) => { written.push([items]); }) },
       configurable: true,
     });
     vi.stubGlobal('fetch', vi.fn(async () => ({ blob: async () => new Blob(['png-bytes'], { type: 'image/png' }) })));
@@ -87,7 +88,7 @@ describe('ArticlePreviewRenderer', () => {
       expect(frame?.querySelector<HTMLImageElement>('img[alt="Mermaid 图表"]')?.style.display).toBe('');
 
       container.querySelector<HTMLButtonElement>('[data-testid="mermaid-copy-source"]')?.click();
-      await vi.waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('graph TD; A-->B'));
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('graph TD; A-->B'));
 
       container.querySelector<HTMLButtonElement>('[data-testid="mermaid-copy-image"]')?.click();
       await vi.waitFor(() => expect(written.length).toBeGreaterThan(0));
