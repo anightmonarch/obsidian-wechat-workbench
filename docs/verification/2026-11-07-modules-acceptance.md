@@ -150,6 +150,15 @@ PPID 29154 Obsidian Helper (Renderer)(插件宿主)
 2. 设置页截图(M1/M4)— ✅ 已取得:截图 14(公共中转设置)、15(Codex 路径与检测状态)。
 3. 报告结果总表第 10-12 项与模块级结论 — ✅ 已更新为最终状态。
 
+## 发布准备状态(v0.2.0)
+
+- 依赖安全审计清零(overrides 修复 1 critical dompurify + 2 high + 3 moderate,628 用例回归无破坏)。
+- 版本已 bump 0.1.1 → 0.2.0(manifest/package/versions 三处一致,minAppVersion 1.11.4),verify:release 通过。
+- 代码已推送 GitHub(23 个提交,含验收报告与本轮全部修复)。
+- **GitHub Release v0.2.0 已建为 DRAFT**(附 main.js/manifest.json/styles.css,发布说明含验证声明):草稿不公开、不触发官方库更新。
+- **待用户确认后执行**:在 GitHub 上把草稿 release 正式发布(一键),官方库将自动进入更新审核队列。
+- **发布质量门缺口(AGENTS.md,待补验)**:① 本轮改动的真实公众号测试账号端到端(8-28 的 PARTIAL 覆盖旧阶段);② 最低支持版本 1.11.4 真实测试;③ Windows/Linux 冒烟;④ 复制到真实公众号编辑器的视觉核对。
+
 ## 环境事件记录
 
 - 10:44 起系统出现 loginwindow 抢占(用户锁屏离开),AX 焦点全局失效:表现为 agent-desktop 反复报 `global_window_owner_churn`、Obsidian AX 窗口对 System Events 不可见、快捷键投递被拒。期间已通过 CGWindowList/Swift AX 采样排除 Obsidian 自身 AX 损坏(重启后依旧),最终由 NSWorkspace 确认 `frontmost=loginwindow` 定性为锁屏阻塞。
