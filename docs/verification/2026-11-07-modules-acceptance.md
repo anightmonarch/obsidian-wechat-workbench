@@ -158,6 +158,14 @@ PPID 29154 Obsidian Helper (Renderer)(插件宿主)
 - Obsidian release bot 将自动把 0.2.0 送入社区插件更新审核队列(已收录插件的常规更新流程,通常数小时至数天内全量推送)。
 - 质量门结算:① 真实草稿箱格式由用户人工验收通过(2026-11-07);② 1.11.4 兼容性经静态 API 检查(全部所用 API ≤1.11.4,`app.secretStorage` 即 minAppVersion 依据),真机 1.11.4 运行测试未执行;③ Windows/Linux 冒烟未执行,用户确认不阻塞发布(记录为已知限制);④ 真实公众号编辑器视觉核对由用户人工验收通过。
 
+## 后续事件:官方目录移除与恢复(2026-11-08)
+
+- v0.2.0 发布约 2 小时后(2026-11-07 19:20 UTC 镜像提交),官方自动化审核将插件从社区目录整包移除(同批另一自动审核插件 meeting-live 一并移除;`community-plugins-removed.json` 无条目、无邮件通知)。
+- 根因:0.2.0 的内置公共中转存在"AppSecret 经明文 HTTP 发往硬编码 IP + main.js 内嵌共享凭据 + README 仍声明无中转"三项违反 [Developer policies](https://docs.obsidian.md/Developer+policies) 披露要求的特征(详见 docs/superpowers/specs/2026-11-08-relay-user-configured-design.md 的根因分析)。
+- 修复(v0.2.1):移除内置中转与 esbuild 凭据注入,中转改为用户自配(地址/Key/Secret),默认本地直连;README×2/PRIVACY/SECURITY/AGENTS.md 如实披露;629 用例回归通过;main.js 断言无中转地址与凭据。
+- 用户人工验收结论不受影响(草稿箱格式由用户在 0.2.0 期间人工确认)。
+- 重新收录:申诉邮件草稿见 docs/verification/2026-11-08-reinstatement-email-draft.md(用户发送至 plugins@obsidian.md),随后走官方提交表单。Windows/Linux 冒烟经用户确认不阻塞。
+
 ## 环境事件记录
 
 - 10:44 起系统出现 loginwindow 抢占(用户锁屏离开),AX 焦点全局失效:表现为 agent-desktop 反复报 `global_window_owner_churn`、Obsidian AX 窗口对 System Events 不可见、快捷键投递被拒。期间已通过 CGWindowList/Swift AX 采样排除 Obsidian 自身 AX 损坏(重启后依旧),最终由 NSWorkspace 确认 `frontmost=loginwindow` 定性为锁屏阻塞。
