@@ -1,15 +1,23 @@
 import type { WeChatConnectionMode } from '../settings/model';
 import type { WeChatApiRelayConfig } from './api-relay-transport';
 
+/**
+ * Resolves the relay configuration from user-provided settings. The distribution
+ * never bundles a relay address or shared credentials; an empty base URL falls
+ * back to direct WeChat API calls.
+ */
 export function resolveWeChatApiRelayConfig(
   mode: WeChatConnectionMode,
-  bundled: Readonly<WeChatApiRelayConfig>,
+  relayBaseUrl: string,
+  relayAccessKey: string,
+  relaySecret: string,
 ): Readonly<WeChatApiRelayConfig> {
-  if (mode === 'public_relay') {
+  const baseUrl = relayBaseUrl.trim();
+  if (mode === 'relay' && baseUrl.length > 0) {
     return Object.freeze({
-      baseUrl: bundled.baseUrl.trim(),
-      accessKey: bundled.accessKey.trim(),
-      secret: bundled.secret.trim(),
+      baseUrl,
+      accessKey: relayAccessKey.trim(),
+      secret: relaySecret.trim(),
     });
   }
   return Object.freeze({ baseUrl: '', accessKey: '', secret: '' });

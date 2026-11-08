@@ -1,12 +1,15 @@
 import type { WeChatConnectionMode } from '../settings/model';
-import type { WeChatApiRelayConfig, WeChatApiRelayConfigPort } from './api-relay-transport';
+import type { WeChatApiRelayConfigPort } from './api-relay-transport';
 import { resolveWeChatApiRelayConfig } from './resolve-api-relay-config';
 
 export function createWeChatRelayConfigPort(
   getMode: () => WeChatConnectionMode,
-  bundled: Readonly<WeChatApiRelayConfig>,
+  getRelayBaseUrl: () => string,
+  getRelayAccessKey: () => string,
+  getRelaySecret: () => string,
 ): WeChatApiRelayConfigPort {
   return {
-    get: () => resolveWeChatApiRelayConfig(getMode(), bundled),
+    get: () =>
+      resolveWeChatApiRelayConfig(getMode(), getRelayBaseUrl(), getRelayAccessKey(), getRelaySecret()),
   };
 }

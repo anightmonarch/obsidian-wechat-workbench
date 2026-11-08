@@ -3,30 +3,6 @@ import esbuild from 'esbuild';
 import { builtinModules } from 'node:module';
 import process from 'node:process';
 
-function loadProxyEnv() {
-  const fromProcess = {
-    accessKey: process.env.WECHAT_PROXY_ACCESS_KEY ?? '',
-    secret: process.env.WECHAT_PROXY_SECRET ?? '',
-  };
-  const envPath = '/tmp/aliyun-relay-secrets/wechat-proxy.env';
-  if (!fs.existsSync(envPath)) return fromProcess;
-  const parsed = Object.fromEntries(
-    fs.readFileSync(envPath, 'utf8')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#') && line.includes('='))
-      .map(line => {
-        const i = line.indexOf('=');
-        return [line.slice(0, i), line.slice(i + 1)];
-      }),
-  );
-  return {
-    accessKey: fromProcess.accessKey || parsed.WECHAT_PROXY_ACCESS_KEY || '',
-    secret: fromProcess.secret || parsed.WECHAT_PROXY_SECRET || '',
-  };
-}
-
-const proxyEnv = loadProxyEnv();
 const production = process.argv[2] === 'production';
 const browserShimmedBuiltins = new Set(['fs']);
 const externalBuiltins = builtinModules.filter(module => !browserShimmedBuiltins.has(module));
@@ -64,10 +40,6 @@ Source: https://github.com/anightmonarch/obsidian-wechat-workbench
   treeShaking: true,
   outfile: 'main.js',
   minify: production,
-  define: {
-    __WECHAT_PUBLIC_RELAY_ACCESS_KEY__: JSON.stringify(proxyEnv.accessKey),
-    __WECHAT_PUBLIC_RELAY_SECRET__: JSON.stringify(proxyEnv.secret),
-  },
 });
 
 if (production) {

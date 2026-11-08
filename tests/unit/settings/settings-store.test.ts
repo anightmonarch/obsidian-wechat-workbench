@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type PluginSettings } from '../../../src/settings/model';
 import { SettingsStore, type PluginDataPort } from '../../../src/settings/settings-store';
 import { DEFAULT_ARTICLE_STYLE } from '../../../src/styles/style-config';
-import { PUBLIC_WECHAT_RELAY_BASE_URL } from '../../../src/wechat/public-relay-constants';
 
 class MemoryPluginData implements PluginDataPort {
   saved: unknown;
@@ -306,21 +305,22 @@ describe('SettingsStore', () => {
   it('respects an already-valid connectionMode', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
       schemaVersion: 8,
-      connectionMode: 'public_relay',
+      connectionMode: 'relay',
+      wechatRelayBaseUrl: 'http://192.0.2.10:18080',
+      wechatRelayAccessKey: 'wxp_user_key',
     })).load();
-    expect(settings.connectionMode).toBe('public_relay');
+    expect(settings.connectionMode).toBe('relay');
+    expect(settings.wechatRelayBaseUrl).toBe('http://192.0.2.10:18080');
+    expect(settings.wechatRelayAccessKey).toBe('wxp_user_key');
   });
 
-  it('migrates legacy public relay base URL to public_relay', async () => {
+  it('migrates the deprecated built-in public_relay mode to local', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
-      schemaVersion: 7,
-      wechatApiBaseUrl: `${PUBLIC_WECHAT_RELAY_BASE_URL}/`,
-      wechatProxyAccessKey: 'wxp_legacy_user_key',
+      schemaVersion: 8,
+      connectionMode: 'public_relay',
     })).load();
     expect(settings.schemaVersion).toBe(8);
-    expect(settings.connectionMode).toBe('public_relay');
-    expect(settings).not.toHaveProperty('wechatApiBaseUrl');
-    expect(settings).not.toHaveProperty('wechatProxyAccessKey');
+    expect(settings.connectionMode).toBe('local');
   });
 
   it('maps empty or custom legacy proxy URL to local (no silent public takeover)', async () => {
@@ -337,13 +337,13 @@ describe('SettingsStore', () => {
     expect(custom.connectionMode).toBe('local');
   });
 
-  it('rejects invalid connectionMode values and falls back via legacy URL rules', async () => {
+  it('rejects invalid connectionMode values and falls back to local', async () => {
     const settings = await new SettingsStore(new MemoryPluginData({
       schemaVersion: 8,
       connectionMode: 'custom',
-      wechatApiBaseUrl: PUBLIC_WECHAT_RELAY_BASE_URL,
+      wechatApiBaseUrl: 'http://121.196.229.165:18080',
     })).load();
-    // invalid mode ignored; legacy public URL still maps to public_relay
-    expect(settings.connectionMode).toBe('public_relay');
+    // invalid mode ignored;内置公共中转已废弃,不再从旧地址推断
+    expect(settings.connectionMode).toBe('local');
   });
 });

@@ -26,6 +26,7 @@ function createHarness() {
       if (kind === 'appSecret') return 'synthetic-saved-app-secret';
       return kind === 'textDeepseekApiKey' ? 'synthetic-saved-key' : null;
     }),
+    set: vi.fn(() => undefined),
   };
   const connection = {
     snapshot: vi.fn<() => ReturnType<AccountConnectionService['snapshot']>>(() => ({
@@ -158,7 +159,7 @@ describe('buildSettingsPresentation', () => {
       expect(tab.containerEl.textContent).toContain('公众号基础连接正常');
       expect(tab.containerEl.textContent).toContain('上次验证：');
       expect(button(tab.containerEl, 'connection-mode-local').classList.contains('is-active')).toBe(true);
-      expect(button(tab.containerEl, 'connection-mode-public_relay')).not.toBeNull();
+      expect(button(tab.containerEl, 'connection-mode-relay')).not.toBeNull();
       expect(tab.containerEl.querySelector('[data-testid="connection-tip"]')).not.toBeNull();
       expect(tab.containerEl.textContent).not.toContain('文本和图片服务相互独立。');
       expect(tab.containerEl.textContent).not.toContain('插件默认封面');
@@ -175,7 +176,7 @@ describe('buildSettingsPresentation', () => {
       tab.display();
 
       expect(button(tab.containerEl, 'connection-mode-local').classList.contains('is-active')).toBe(true);
-      expect(button(tab.containerEl, 'connection-mode-public_relay')).not.toBeNull();
+      expect(button(tab.containerEl, 'connection-mode-relay')).not.toBeNull();
       expect(tab.containerEl.querySelector('[data-testid="wechat-api-base-url"]')).toBeNull();
       expect(tab.containerEl.querySelector('[data-testid="wechat-proxy-access-key"]')).toBeNull();
       expect(tab.containerEl.querySelector('[data-testid="wechat-proxy-secret"]')).toBeNull();
@@ -211,22 +212,33 @@ describe('buildSettingsPresentation', () => {
       expect(copyIp).toHaveBeenCalledWith('203.0.113.4');
     });
 
-    it('switches to public_relay tip with fixed IP and persists mode on save', async () => {
+    it('switches to relay fields with HTTP risk disclosure and persists user-configured relay on save', async () => {
       const { tab, settings } = createHarness();
       document.body.append(tab.containerEl);
       tab.display();
 
-      button(tab.containerEl, 'connection-mode-public_relay').click();
+      button(tab.containerEl, 'connection-mode-relay').click();
       const tip = tab.containerEl.querySelector('[data-testid="connection-tip"]');
       expect(tip?.classList.contains('wechat-workbench-settings__connection-tip--public')).toBe(true);
-      expect(tip?.textContent).toContain('121.196.229.165');
-      expect(tip?.textContent).not.toContain('X-WeChat-Proxy');
-      expect(tip?.textContent).not.toContain('18080');
+      // 内置中转地址/硬编码 IP 不再出现
+      expect(tab.containerEl.textContent).not.toContain('121.196.229.165');
+      expect(tab.containerEl.textContent).not.toContain('X-WeChat-Proxy');
+      expect(tab.containerEl.textContent).not.toContain('18080');
+      expect(tab.containerEl.textContent).toContain('自定义中转的地址与凭据由你自行配置');
+      expect(tab.containerEl.querySelector('[data-testid="relay-fields"]')).not.toBeNull();
+
+      input(tab.containerEl, 'relay-base-url').value = 'http://192.0.2.10:18080';
+      input(tab.containerEl, 'relay-access-key').value = 'wxp_user_key';
+      input(tab.containerEl, 'relay-secret').value = 'user-relay-secret';
 
       button(tab.containerEl, 'account-save').click();
       await vi.waitFor(() => {
         expect(settings.update).toHaveBeenCalledWith(
-          expect.objectContaining({ connectionMode: 'public_relay' }),
+          expect.objectContaining({
+            connectionMode: 'relay',
+            wechatRelayBaseUrl: 'http://192.0.2.10:18080',
+            wechatRelayAccessKey: 'wxp_user_key',
+          }),
         );
       });
     });

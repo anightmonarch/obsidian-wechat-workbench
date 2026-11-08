@@ -69,7 +69,6 @@ import { TokenService, type TokenSettingsPort } from './wechat/token-service';
 import { TimeoutHttpTransport } from './wechat/timeout-http-transport';
 import { WeChatClient } from './wechat/wechat-client';
 import { WeChatApiRelayTransport } from './wechat/api-relay-transport';
-import { BUNDLED_PUBLIC_RELAY } from './wechat/public-relay-constants';
 import { createWeChatRelayConfigPort } from './wechat/create-relay-config-port';
 
 export default class WeChatWorkbenchPlugin extends Plugin {
@@ -173,7 +172,9 @@ export default class WeChatWorkbenchPlugin extends Plugin {
         new ObsidianHttpTransport(),
         createWeChatRelayConfigPort(
           () => currentSettings().connectionMode,
-          BUNDLED_PUBLIC_RELAY,
+          () => currentSettings().wechatRelayBaseUrl,
+          () => currentSettings().wechatRelayAccessKey,
+          () => secretStore.get('wechatProxySecret') ?? '',
         ),
       ),
       35_000,

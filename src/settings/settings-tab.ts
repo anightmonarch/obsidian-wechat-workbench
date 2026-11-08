@@ -16,7 +16,6 @@ import {
   type PluginSettings,
   type WeChatConnectionMode,
 } from './model';
-import { PUBLIC_WECHAT_RELAY_EGRESS_IP } from '../wechat/public-relay-constants';
 import type { AccountConnectionService } from './account-connection-service';
 import type { AiServiceSettingsService } from './ai-service-settings';
 import type { SecretKind, SecretStatus, SecretStore } from './secret-store';
@@ -213,6 +212,9 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     let appId = current.appId;
     let appSecret = this.secrets.get('appSecret') ?? '';
     let connectionMode: WeChatConnectionMode = current.connectionMode;
+    let relayBaseUrl = current.wechatRelayBaseUrl;
+    let relayAccessKey = current.wechatRelayAccessKey;
+    let relaySecret = this.secrets.get('wechatProxySecret') ?? '';
     let pending = false;
     const status = this.connection.snapshot();
     const accountCard = createDiv('wechat-workbench-settings__account-card');
@@ -221,7 +223,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     const modeSelector = createDiv('wechat-workbench-settings__connection-mode');
     for (const item of [
       { id: 'local' as const, label: '本地直连' },
-      { id: 'public_relay' as const, label: '公共中转' },
+      { id: 'relay' as const, label: '自定义中转' },
     ]) {
       const modeButton = createEl('button', { text: item.label });
       modeButton.type = 'button';
@@ -231,6 +233,7 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
         if (connectionMode === item.id) return;
         connectionMode = item.id;
         renderConnectionTip();
+        renderRelayFields();
         for (const child of Array.from(modeSelector.children)) {
           const el = child as HTMLElement;
           el.classList.toggle(
@@ -287,25 +290,54 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
     });
     appSecretControl.append(appSecretInput, appSecretToggle);
 
+    const relayFields = createDiv('wechat-workbench-settings__relay-fields');
+    relayFields.dataset.testid = 'relay-fields';
+    const renderRelayFields = (): void => {
+      relayFields.replaceChildren();
+      if (connectionMode !== 'relay') return;
+      const warning = createDiv('wechat-workbench-settings__relay-warning');
+      warning.append(createSpan({
+        text: '自定义中转的地址与凭据由你自行配置并保管。中转以明文 HTTP 传输时，AppID/AppSecret 与 API 请求将经过该服务器，请自行评估传输安全（建议为中转配置 HTTPS）。',
+      }));
+      relayFields.append(warning);
+      new Setting(relayFields)
+        .setName('中转地址')
+        .addText(text => {
+          text.inputEl.dataset.testid = 'relay-base-url';
+          text.inputEl.placeholder = '例如 http://your-relay.example.com:18080';
+          text.setValue(relayBaseUrl).onChange(value => { relayBaseUrl = value; });
+        });
+      new Setting(relayFields)
+        .setName('中转访问 key')
+        .addText(text => {
+          text.inputEl.dataset.testid = 'relay-access-key';
+          text.setValue(relayAccessKey).onChange(value => { relayAccessKey = value; });
+        });
+      new Setting(relayFields)
+        .setName('中转 secret')
+        .addText(text => {
+          text.inputEl.type = 'password';
+          text.inputEl.dataset.testid = 'relay-secret';
+          text.inputEl.placeholder = '留空表示中转不校验 secret';
+          text.setValue(relaySecret).onChange(value => { relaySecret = value; });
+        });
+    };
+    renderRelayFields();
+    accountCard.append(relayFields);
+
     const tip = createDiv('wechat-workbench-settings__connection-tip');
     tip.dataset.testid = 'connection-tip';
     const renderConnectionTip = (): void => {
       tip.replaceChildren();
       tip.className = 'wechat-workbench-settings__connection-tip';
       tip.dataset.testid = 'connection-tip';
-      if (connectionMode === 'public_relay') {
+      if (connectionMode === 'relay') {
         tip.classList.add('wechat-workbench-settings__connection-tip--public');
         tip.append(createSpan({
-          text: `将 ${PUBLIC_WECHAT_RELAY_EGRESS_IP} 加入公众号平台 IP 白名单即可使用公共中转。`,
+          text: relayBaseUrl.trim().length === 0
+            ? '尚未填写中转地址，连接将回落为本地直连。'
+            : '请求将经过你配置的自定义中转服务器，请确认其传输安全。',
         }));
-        const copy = createEl('button', { text: '复制 IP' });
-        copy.type = 'button';
-        copy.dataset.testid = 'connection-tip-copy-ip';
-        copy.addEventListener('click', () => {
-          this.copyText(PUBLIC_WECHAT_RELAY_EGRESS_IP);
-          new Notice('IP 已复制');
-        });
-        tip.append(copy);
         return;
       }
       tip.classList.add('wechat-workbench-settings__connection-tip--local');
@@ -344,12 +376,21 @@ export class WeChatWorkbenchSettingTab extends PluginSettingTab {
       displayName = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="account-name"]') ?? { value: displayName }).value;
       appId = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="account-app-id"]') ?? { value: appId }).value;
       appSecret = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="account-secret"]') ?? { value: appSecret }).value;
+      relayBaseUrl = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="relay-base-url"]') ?? { value: relayBaseUrl }).value;
+      relayAccessKey = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="relay-access-key"]') ?? { value: relayAccessKey }).value;
+      relaySecret = (this.containerEl.querySelector<HTMLInputElement>('[data-testid="relay-secret"]') ?? { value: relaySecret }).value;
       void (async () => {
         if (pending) return;
         pending = true;
         try {
           await this.connection.save({ displayName, appId, appSecret });
-          await this.settings.update({ connectionMode });
+          if (relaySecret.length > 0) this.secrets.set('wechatProxySecret', relaySecret);
+          else this.secrets.set('wechatProxySecret', '');
+          await this.settings.update({
+            connectionMode,
+            wechatRelayBaseUrl: relayBaseUrl.trim(),
+            wechatRelayAccessKey: relayAccessKey.trim(),
+          });
           this.refreshSettings();
         } finally {
           pending = false;

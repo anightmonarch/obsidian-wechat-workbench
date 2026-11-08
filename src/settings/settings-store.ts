@@ -16,9 +16,6 @@ import {
   type AiProviderSettings,
   type AiServiceKind,
 } from './model';
-import {
-  PUBLIC_WECHAT_RELAY_BASE_URL,
-} from '../wechat/public-relay-constants';
 import type { ArticleStyleConfig } from '../domain/style';
 import { parseArticleStyle } from '../styles/style-config';
 
@@ -57,19 +54,6 @@ function sanitizedProviderBaseUrl(value: unknown): string {
   try {
     const url = new URL(value.trim());
     if (url.protocol !== 'https:' || url.username.length > 0 || url.password.length > 0
-      || url.search.length > 0 || url.hash.length > 0) return '';
-    return url.toString().replace(/\/$/u, '');
-  } catch {
-    return '';
-  }
-}
-
-function sanitizedWechatApiBaseUrl(value: unknown): string {
-  if (typeof value !== 'string' || value.trim().length === 0) return '';
-  try {
-    const url = new URL(value.trim());
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:')
-      || url.username.length > 0 || url.password.length > 0
       || url.search.length > 0 || url.hash.length > 0) return '';
     return url.toString().replace(/\/$/u, '');
   } catch {
@@ -248,15 +232,10 @@ function recoveryReceipts(value: unknown): readonly Readonly<RecoveryReceiptReco
 }
 
 
-function normalizeRelayBase(value: unknown): string {
-  return sanitizedWechatApiBaseUrl(value);
-}
-
 function connectionModeFromStored(stored: Record<string, unknown>): WeChatConnectionMode {
   const raw = stored.connectionMode;
-  if (raw === 'local' || raw === 'public_relay') return raw;
-  const legacy = normalizeRelayBase(stored.wechatApiBaseUrl);
-  if (legacy.length > 0 && legacy === PUBLIC_WECHAT_RELAY_BASE_URL) return 'public_relay';
+  // 0.2.0 的内置 public_relay 已废弃:迁移为本地直连,中转改由用户自配并显式选择。
+  if (raw === 'local' || raw === 'relay') return raw;
   return 'local';
 }
 
@@ -275,6 +254,11 @@ function sanitizeSettings(value: unknown): PluginSettings {
     schemaVersion: 8,
     appId: stringValue(stored.appId, DEFAULT_SETTINGS.appId),
     connectionMode: connectionModeFromStored(stored),
+    wechatRelayBaseUrl: stringValue(stored.wechatRelayBaseUrl, DEFAULT_SETTINGS.wechatRelayBaseUrl),
+    wechatRelayAccessKey: stringValue(
+      stored.wechatRelayAccessKey,
+      DEFAULT_SETTINGS.wechatRelayAccessKey,
+    ),
     defaultThemeId: stringValue(stored.defaultThemeId, DEFAULT_SETTINGS.defaultThemeId),
     defaultStyle: styleConfig(stored.defaultStyle, DEFAULT_SETTINGS.defaultStyle),
     recentStyles: recentStyles(stored.recentStyles),

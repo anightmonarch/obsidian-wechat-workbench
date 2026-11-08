@@ -19,6 +19,7 @@ The plugin only creates or updates drafts. It does not publish, broadcast, or de
 - Optional AI generation of three title candidates and one digest candidate. Nothing is saved until you adopt a candidate.
 - Automatic upload of local article images to WeChat during draft synchronization, with the final HTML referencing WeChat CDN URLs.
 - Direct local access to the WeChat Official Account API for draft creation, linked-draft updates, unchanged-content skipping, and safe recovery from ambiguous results.
+- Optional self-hosted relay: you can point the plugin at your own relay server for WeChat API calls. The distribution bundles no relay address or credentials; relay traffic (including your AppID/AppSecret and API requests) passes through the server you configure.
 - AppSecret, Access Token, and AI provider API keys stored only in Obsidian `SecretStorage`.
 
 ### No separate image host required
@@ -49,7 +50,7 @@ Image uploads are part of the user-confirmed draft synchronization flow. Passive
 
 - Desktop only. Minimum supported Obsidian version: `1.11.4`.
 - The current interface supports one WeChat Official Account. The UI and user guides are primarily in Simplified Chinese.
-- No author-operated relay service, telemetry, analytics, or advertising.
+- No telemetry, analytics, or advertising. The plugin ships with no built-in relay: direct connection (default) talks only to `api.weixin.qq.com`; if you configure a self-hosted relay, that server sees your WeChat API traffic and credentials — evaluate its transport security yourself.
 - Passive preview is local and does not automatically fetch remote images.
 - AI generation is explicit. You can use a configured provider API or an authenticated local Codex CLI.
 - Draft synchronization requires the relevant WeChat API permissions and a public egress IP added to the account's IP allowlist.
