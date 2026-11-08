@@ -12,6 +12,46 @@ export type PreviewCodeCopy = (value: string) => Promise<void> | void;
 
 const CODE_COPY_SUCCESS_FEEDBACK_MS = 1_000;
 
+/**
+ * WeChat desktop reading view renders body content in a fixed 677px column.
+ * The preview mirrors that canvas (scaled to fit the panel) so horizontal
+ * behavior — e.g. narrower-than-column images centering with side gutters —
+ * is visible before publishing instead of being masked by panel width.
+ */
+export const WECHAT_PREVIEW_BODY_WIDTH = 677;
+
+interface CanvasScaleState {
+  observer: ResizeObserver;
+  canvas: HTMLElement | null;
+}
+
+const canvasScales = new WeakMap<HTMLElement, CanvasScaleState>();
+
+function applyCanvasScale(state: CanvasScaleState, width: number): void {
+  const canvas = state.canvas;
+  if (canvas === null) return;
+  const scale = Math.min(1, width / WECHAT_PREVIEW_BODY_WIDTH);
+  canvas.style.setProperty('zoom', scale < 1 ? scale.toFixed(6) : '');
+}
+
+function attachCanvasScale(canvas: HTMLElement, container: HTMLElement): void {
+  if (typeof ResizeObserver === 'undefined') return;
+  let state = canvasScales.get(container);
+  if (state === undefined) {
+    state = {
+      observer: new ResizeObserver(entries => {
+        const width = entries[0]?.contentRect.width ?? container.clientWidth;
+        applyCanvasScale(state as CanvasScaleState, width);
+      }),
+      canvas: null,
+    };
+    canvasScales.set(container, state);
+    state.observer.observe(container);
+  }
+  state.canvas = canvas;
+  applyCanvasScale(state, container.clientWidth);
+}
+
 function placeholder(className: string, text: string): HTMLButtonElement {
   const button = createEl('button');
   button.type = 'button';
@@ -245,7 +285,13 @@ export class ArticlePreviewRenderer {
 
     decorateCodeBlocks(root, this.copyText);
 
-    container.replaceChildren(root);
+    const canvas = createHtmlElement<HTMLDivElement>(document, 'div');
+    canvas.className = 'wechat-workbench__preview-canvas';
+    canvas.dataset.testid = 'preview-canvas';
+    canvas.style.width = `${WECHAT_PREVIEW_BODY_WIDTH}px`;
+    canvas.append(root);
+    attachCanvasScale(canvas, container);
+    container.replaceChildren(canvas);
   }
 
   clear(): void {

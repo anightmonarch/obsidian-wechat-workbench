@@ -171,4 +171,69 @@ describe('ArticlePreviewRenderer', () => {
       vi.useRealTimers();
     }
   });
+
+  it('wraps the article in a fixed 677px WeChat body canvas', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
+    const plainArtifact = Object.freeze({
+      ...artifact,
+      canonicalHtml: '<section class="wechat-article"><p>正文</p></section>',
+      assets: Object.freeze([]),
+    });
+
+    try {
+      new ArticlePreviewRenderer().render(container, plainArtifact);
+      const canvas = container.querySelector<HTMLElement>('[data-testid="preview-canvas"]');
+      expect(canvas).not.toBeNull();
+      expect(canvas?.style.width).toBe('677px');
+      // The article root must live inside the canvas, not directly in the panel.
+      expect(canvas?.querySelector('.wechat-article')).not.toBeNull();
+      expect(container.querySelector('.wechat-article')?.parentElement).toBe(canvas);
+    } finally {
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('scales the canvas down when the panel is narrower than the body width', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    vi.stubGlobal('createEl', (tag: string) => document.createElement(tag));
+    const observers: Array<FakeResizeObserver> = [];
+    class FakeResizeObserver {
+      callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) { this.callback = callback; observers.push(this); }
+      observe(): void { /* test triggers manually */ }
+      disconnect(): void { /* noop */ }
+      unobserve(): void { /* noop */ }
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const plainArtifact = Object.freeze({
+      ...artifact,
+      canonicalHtml: '<section class="wechat-article"><p>正文</p></section>',
+      assets: Object.freeze([]),
+    });
+
+    try {
+      new ArticlePreviewRenderer().render(container, plainArtifact);
+      expect(observers).toHaveLength(1);
+      // Panel content width 575px → zoom 575/677.
+      observers[0]?.callback(
+        [{ contentRect: { width: 575, height: 0 } } as ResizeObserverEntry],
+        observers[0],
+      );
+      const canvas = container.querySelector<HTMLElement>('[data-testid="preview-canvas"]');
+      expect(canvas?.style.getPropertyValue('zoom')).toBeCloseTo(575 / 677, 6);
+      // Panel wide enough → no zoom override.
+      observers[0]?.callback(
+        [{ contentRect: { width: 800, height: 0 } } as ResizeObserverEntry],
+        observers[0],
+      );
+      expect(canvas?.style.getPropertyValue('zoom')).toBe('');
+    } finally {
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
 });

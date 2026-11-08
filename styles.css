@@ -165,7 +165,11 @@
   box-shadow: var(--shadow-s);
 }
 
-.wechat-workbench__preview-sheet > .wechat-article {
+.wechat-workbench__preview-sheet > .wechat-workbench__preview-canvas {
+  margin: 0 auto;
+}
+
+.wechat-workbench__preview-sheet .wechat-article {
   width: 100%;
   color: var(--wechat-article-text, #242424);
 }
