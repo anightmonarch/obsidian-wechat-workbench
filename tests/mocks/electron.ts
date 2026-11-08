@@ -11,9 +11,19 @@ function image(width = 2350, height = 1000) {
   return self;
 }
 
+/** Reads the real IHDR size from a PNG buffer so size-dependent paths are testable. */
+function pngIhdrSize(buffer: Buffer): { width: number; height: number } | null {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (buffer.length < 24 || !signature.every((byte, index) => buffer[index] === byte)) return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
 export const nativeImage = {
   createFromDataURL: () => image(),
-  createFromBuffer: () => image(),
+  createFromBuffer: (buffer: Buffer) => {
+    const size = pngIhdrSize(buffer);
+    return size === null ? image() : image(size.width, size.height);
+  },
   createFromBitmap: (_buf: Buffer, size: { width: number; height: number }) => image(size.width, size.height),
 };
 

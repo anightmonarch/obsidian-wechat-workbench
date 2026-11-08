@@ -8,9 +8,30 @@ import { orientationNeedsTransform, readJpegExifOrientation } from './jpeg-orien
 export const CLIPBOARD_TARGET_MAX_BYTES = 3 * 1024 * 1024;
 export const CLIPBOARD_MAX_EDGE = 2560;
 
+/**
+ * WeChat renders body images at their natural width capped to the 677px
+ * desktop reading column; narrower images center with visible side gutters.
+ * Static images in this band stretch to the body width (≤1.41×, visually
+ * lossless) so they fill the column like every wider image already does.
+ */
+export const WECHAT_BODY_WIDTH = 677;
+export const WECHAT_BODY_UPSCALE_MIN_WIDTH = 480;
+
 export interface NormalizedClipboardImage {
   bytes: Uint8Array;
   mime: SupportedImageMime;
+}
+
+/**
+ * Target width for upscaling, or null to keep the image as-is. Animated GIF
+ * is excluded (re-encoding drops frames); sub-floor images are intentionally
+ * small and must not be stretched.
+ */
+export function upscaleTargetWidth(width: number, mime: SupportedImageMime): number | null {
+  if (mime === 'image/gif') return null;
+  if (width >= WECHAT_BODY_WIDTH) return null;
+  if (width < WECHAT_BODY_UPSCALE_MIN_WIDTH) return null;
+  return WECHAT_BODY_WIDTH;
 }
 
 function resizeToMaxEdge(
@@ -24,6 +45,16 @@ function resizeToMaxEdge(
   return image.resize({
     width: Math.max(1, Math.round(width * scale)),
     height: Math.max(1, Math.round(height * scale)),
+    quality: 'best',
+  });
+}
+
+function upscaleToWidth(image: NativeImage, targetWidth: number): NativeImage {
+  const { width, height } = image.getSize();
+  if (width === targetWidth) return image;
+  return image.resize({
+    width: targetWidth,
+    height: Math.max(1, Math.round(height * (targetWidth / width))),
     quality: 'best',
   });
 }
@@ -166,9 +197,17 @@ export function normalizeImageBytesForClipboard(bytes: Uint8Array): NormalizedCl
     detected !== 'image/jpeg'
     && bytes.byteLength <= CLIPBOARD_TARGET_MAX_BYTES
     && Math.max(image.getSize().width, image.getSize().height) <= CLIPBOARD_MAX_EDGE
+    && upscaleTargetWidth(image.getSize().width, detected) === null
   ) {
-    // PNG/GIF/WebP under limits and upright: keep original bytes.
+    // PNG/GIF/WebP under limits, upright, and not a narrow image needing
+    // upscale: keep original bytes.
     return { bytes, mime: detected };
+  }
+
+  // Upscale after the orientation bake so the post-rotation width decides.
+  const uprightTargetWidth = upscaleTargetWidth(image.getSize().width, detected);
+  if (uprightTargetWidth !== null && image.getSize().width < uprightTargetWidth) {
+    image = upscaleToWidth(image, uprightTargetWidth);
   }
 
   // Always re-encode JPEG after orientation bake (strips EXIF). Prefer JPEG for photos.
