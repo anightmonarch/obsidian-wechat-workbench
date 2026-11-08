@@ -184,7 +184,7 @@ describe('ArticlePreviewRenderer', () => {
 
     try {
       new ArticlePreviewRenderer().render(container, plainArtifact);
-      const canvas = container.querySelector<HTMLElement>('[data-testid="preview-canvas"]');
+      const canvas = container.querySelector<HTMLElement>('[data-testid="body-canvas"]');
       expect(canvas).not.toBeNull();
       expect(canvas?.style.width).toBe('677px');
       // The article root must live inside the canvas, not directly in the panel.
@@ -223,7 +223,7 @@ describe('ArticlePreviewRenderer', () => {
         [{ contentRect: { width: 575, height: 0 } } as ResizeObserverEntry],
         observers[0],
       );
-      const canvas = container.querySelector<HTMLElement>('[data-testid="preview-canvas"]');
+      const canvas = container.querySelector<HTMLElement>('[data-testid="body-canvas"]');
       expect(canvas?.style.getPropertyValue('zoom')).toBeCloseTo(575 / 677, 6);
       // Panel wide enough → no zoom override.
       observers[0]?.callback(

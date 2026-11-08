@@ -165,7 +165,7 @@
   box-shadow: var(--shadow-s);
 }
 
-.wechat-workbench__preview-sheet > .wechat-workbench__preview-canvas {
+.wechat-workbench__preview-sheet > .wechat-workbench__body-canvas {
   margin: 0 auto;
 }
 

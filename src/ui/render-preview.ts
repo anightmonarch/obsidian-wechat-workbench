@@ -286,8 +286,8 @@ export class ArticlePreviewRenderer {
     decorateCodeBlocks(root, this.copyText);
 
     const canvas = createHtmlElement<HTMLDivElement>(document, 'div');
-    canvas.className = 'wechat-workbench__preview-canvas';
-    canvas.dataset.testid = 'preview-canvas';
+    canvas.className = 'wechat-workbench__body-canvas';
+    canvas.dataset.testid = 'body-canvas';
     canvas.style.width = `${WECHAT_PREVIEW_BODY_WIDTH}px`;
     canvas.append(root);
     attachCanvasScale(canvas, container);
