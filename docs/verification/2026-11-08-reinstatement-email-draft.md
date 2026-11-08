@@ -1,4 +1,4 @@
-# 重新收录申诉邮件草稿(用户从自己邮箱发送)
+# 重新收录申诉邮件(已发送,2026-11-08 11:47,经 Gmail 从 anightmonarch.cool@gmail.com 发至 plugins@obsidian.md)
 
 - 收件人:`plugins@obsidian.md`
 - 抄送:无
